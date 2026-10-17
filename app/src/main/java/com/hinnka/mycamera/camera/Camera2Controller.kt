@@ -7527,12 +7527,14 @@ class Camera2Controller(private val context: Context) {
         val frames = state.activeMultiFrameCount
         val decision = decideNight(state, baseResult)
         if (decision == null) {
+            NightDiagnostics.recordPlan("plan[skip bright-or-manual]")
             publishNightInfo(state, "Night ×$frames · bright scene or manual exposure, unchanged")
             return
         }
         val plan = decision.plan
         if (plan == null) {
             PLog.w(TAG, "Night exposure: manual sensor unavailable, post-processing only")
+            NightDiagnostics.recordPlan("plan[no-manual lift=${"%.2f".format(decision.liftEv)}]")
             publishNightInfo(
                 state,
                 "Night ×$frames · no manual exposure on this camera · " +
@@ -7544,6 +7546,12 @@ class Camera2Controller(private val context: Context) {
         builder.set(CaptureRequest.CONTROL_AE_LOCK, false)
         builder.set(CaptureRequest.SENSOR_SENSITIVITY, plan.sensitivityIso)
         builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, plan.exposureTimeNs)
+        NightDiagnostics.recordPlan(
+            "plan[iso=${plan.sensitivityIso} t=${plan.exposureTimeNs} " +
+                "lift=${"%.2f".format(decision.liftEv)} real=${"%.2f".format(plan.realizedEv)} " +
+                "gyro=${nightMotionMonitor.angularSpeedRadS} n=$frames " +
+                "base=${decision.baseIso}/${decision.baseShutterNs}]"
+        )
         PLog.i(
             TAG,
             "Night exposure: base=ISO${decision.baseIso}/${decision.baseShutterNs}ns -> " +
@@ -8342,6 +8350,19 @@ class Camera2Controller(private val context: Context) {
             val isRawCapture = isRawCaptureReader(reader)
             val currentState = stillFlashCaptureState ?: _state.value
             val useMultiFrameTorch = isMultiFrameTorchCaptureActive
+            if (currentState.nightMode) {
+                NightDiagnostics.recordCapture(
+                    "cap[stack=${currentState.requiresMultiFrameCaptureSequence} " +
+                        "jpgmax=${currentState.isJpgMaxEnabled} " +
+                        "scale=${currentState.multiFrameOutputScale} " +
+                        "n=${currentState.activeMultiFrameCount} raw=$isRawCapture " +
+                        "torch=$useMultiFrameTorch ae=${currentState.isAutoExposure} " +
+                        "manual=$isManualSensorSupported " +
+                        "aeOff=${availableAeModes.contains(CaptureRequest.CONTROL_AE_MODE_OFF)} " +
+                        "base=${baseExposureResult?.get(CaptureResult.SENSOR_SENSITIVITY)}/" +
+                        "${baseExposureResult?.get(CaptureResult.SENSOR_EXPOSURE_TIME)}]"
+                )
+            }
             if (shouldUseJpgMaxHdrCapture(currentState, isRawCapture)) {
                 val session = captureSession ?: run {
                     PLog.e(TAG, "Failed to capture JPGmax bracket: capture session unavailable")

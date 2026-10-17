@@ -227,8 +227,8 @@ internal data class CaptureDenoiseStrengths(
 )
 
 // Mode Nuit : photo empilée mais encore bruitée dans les ombres éclaircies, on débruite à l'export.
-internal const val NIGHT_LUMA_DENOISE = 0.6f
-internal const val NIGHT_CHROMA_DENOISE = 0.8f
+internal const val NIGHT_LUMA_DENOISE = 0.5f
+internal const val NIGHT_CHROMA_DENOISE = 1.0f
 
 internal fun resolveCaptureDenoiseStrengths(
     isRawCapture: Boolean,
@@ -260,16 +260,14 @@ internal fun ColorRecipeParams.withNightBoost(residualExposureEv: Float): ColorR
     exposure = (exposure + NIGHT_BASE_EXPOSURE_EV + residualExposureEv).coerceIn(-2f, 2f),
     shadows = (shadows + NIGHT_SHADOWS_BOOST).coerceIn(-1f, 1f),
     highlights = (highlights - NIGHT_HIGHLIGHTS_CUT).coerceIn(-1f, 1f),
-    // Le look du style (LUT) écrase les noirs et teinte la scène : en Nuit on l'atténue.
-    lutIntensity = minOf(lutIntensity, NIGHT_MAX_LUT_INTENSITY),
 )
 
-// Calé sur un comparatif Samsung / LieluPhoto de la même scène : ombres profondes ~+3 EV,
-// tons moyens ~+1 EV, hautes lumières inchangées, saturation divisée par deux.
-internal const val NIGHT_BASE_EXPOSURE_EV = 0.3f
-internal const val NIGHT_SHADOWS_BOOST = 0.8f
-internal const val NIGHT_HIGHLIGHTS_CUT = 0.2f
-internal const val NIGHT_MAX_LUT_INTENSITY = 0.6f
+// Rendu prudent : un relevé fort des ombres (0,8) sur une image encore bruitée a amplifié le
+// bruit et viré au violet (noirs bruités du capteur). Le gros du gain doit venir de la prise
+// (empilement, pose longue) ; le style (LUT) choisi est conservé.
+internal const val NIGHT_BASE_EXPOSURE_EV = 0.2f
+internal const val NIGHT_SHADOWS_BOOST = 0.35f
+internal const val NIGHT_HIGHLIGHTS_CUT = 0.15f
 
 private data class PresetMatchSnapshot(
     val lutId: String?,
@@ -3543,14 +3541,25 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun snapshotCaptureSettings(): CaptureSettingsSnapshot {
-        val nightPostExposureEv = if (_nightMode.value &&
-            state.value.captureMode == CaptureMode.PHOTO
-        ) {
+        val nightActive = _nightMode.value && state.value.captureMode == CaptureMode.PHOTO
+        if (nightActive) {
             // Resynchronise le contrôleur au moment de la prise (le mode peut y avoir été perdu).
             cameraController.setNightMode(true)
+        }
+        // Sans empilement réel, éclaircir ne ferait qu'amplifier le bruit : pas de rendu Nuit.
+        val stacking = cameraController.state.value.requiresMultiFrameCaptureSequence
+        val nightPostExposureEv = if (nightActive && stacking) {
             cameraController.nightPostExposureEv()
         } else {
             null
+        }
+        if (nightActive) {
+            NightDiagnostics.recordRender(
+                "Night render[stack=$stacking post=$nightPostExposureEv " +
+                    "ctrlNight=${cameraController.state.value.nightMode}]"
+            )
+        } else {
+            NightDiagnostics.clear()
         }
         val recipe = getMergedRecipeParams().let { merged ->
             nightPostExposureEv?.let(merged::withNightBoost) ?: merged

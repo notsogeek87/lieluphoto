@@ -138,7 +138,11 @@ object ExifWriter {
             if (DeviceUtil.isOppo) {
                 exif.setAttribute(ExifInterface.TAG_USER_COMMENT, OPPO_EXIF_USER_COMMENT)
             }
-            exif.setAttribute(ExifInterface.TAG_SOFTWARE, captureInfo.software)
+            val nightDiagnostic = com.hinnka.mycamera.camera.NightDiagnostics.recent()
+            exif.setAttribute(
+                ExifInterface.TAG_SOFTWARE,
+                nightDiagnostic?.let { "${captureInfo.software} $it" } ?: captureInfo.software
+            )
 
             // ========== 日期时间 ==========
             val dateTime = exifDateFormat.format(Date(captureInfo.captureTime))
