@@ -256,14 +256,20 @@ private fun ColorRecipeParams.withoutIndependentEffects(): ColorRecipeParams {
 }
 
 /** Rendu Nuit : éclaircit (EV rattrapés), ouvre les ombres et protège un peu les hautes lumières. */
-internal fun ColorRecipeParams.withNightBoost(exposureEv: Float): ColorRecipeParams = copy(
-    exposure = (exposure + exposureEv).coerceIn(-2f, 2f),
+internal fun ColorRecipeParams.withNightBoost(residualExposureEv: Float): ColorRecipeParams = copy(
+    exposure = (exposure + NIGHT_BASE_EXPOSURE_EV + residualExposureEv).coerceIn(-2f, 2f),
     shadows = (shadows + NIGHT_SHADOWS_BOOST).coerceIn(-1f, 1f),
     highlights = (highlights - NIGHT_HIGHLIGHTS_CUT).coerceIn(-1f, 1f),
+    // Le look du style (LUT) écrase les noirs et teinte la scène : en Nuit on l'atténue.
+    lutIntensity = minOf(lutIntensity, NIGHT_MAX_LUT_INTENSITY),
 )
 
-internal const val NIGHT_SHADOWS_BOOST = 0.5f
-internal const val NIGHT_HIGHLIGHTS_CUT = 0.25f
+// Calé sur un comparatif Samsung / LieluPhoto de la même scène : ombres profondes ~+3 EV,
+// tons moyens ~+1 EV, hautes lumières inchangées, saturation divisée par deux.
+internal const val NIGHT_BASE_EXPOSURE_EV = 0.3f
+internal const val NIGHT_SHADOWS_BOOST = 0.8f
+internal const val NIGHT_HIGHLIGHTS_CUT = 0.2f
+internal const val NIGHT_MAX_LUT_INTENSITY = 0.6f
 
 private data class PresetMatchSnapshot(
     val lutId: String?,
@@ -3540,6 +3546,8 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         val nightPostExposureEv = if (_nightMode.value &&
             state.value.captureMode == CaptureMode.PHOTO
         ) {
+            // Resynchronise le contrôleur au moment de la prise (le mode peut y avoir été perdu).
+            cameraController.setNightMode(true)
             cameraController.nightPostExposureEv()
         } else {
             null

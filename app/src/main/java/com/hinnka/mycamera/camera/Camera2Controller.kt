@@ -7457,7 +7457,9 @@ class Camera2Controller(private val context: Context) {
     private val nightMotionMonitor = NightMotionMonitor(context)
 
     fun setNightMode(enabled: Boolean) {
+        val wasEnabled = _state.value.nightMode
         _state.value = _state.value.copy(nightMode = enabled)
+        if (enabled == wasEnabled) return
         if (enabled) nightMotionMonitor.start() else nightMotionMonitor.stop()
     }
 
@@ -7508,8 +7510,13 @@ class Camera2Controller(private val context: Context) {
      */
     fun nightPostExposureEv(): Float? {
         val current = _state.value
-        if (!current.nightMode) return null
-        return decideNight(current, lastCaptureResult)?.residualEv?.toFloat()
+        if (!current.isAutoExposure) return null
+        decideNight(current, lastCaptureResult)?.let { return it.residualEv.toFloat() }
+        val result = lastCaptureResult
+        val measured = result?.get(CaptureResult.SENSOR_SENSITIVITY) != null &&
+            result.get(CaptureResult.SENSOR_EXPOSURE_TIME) != null
+        // Scène mesurée et claire : rien à faire. Pas de mesure : on applique le rendu Nuit standard.
+        return if (measured) null else 0f
     }
 
     private fun applyNightExposure(

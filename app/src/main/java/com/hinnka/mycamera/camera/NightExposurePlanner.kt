@@ -17,7 +17,7 @@ internal data class NightExposurePlan(
 /**
  * Exposition de chaque image du mode Nuit.
  *
- * - Éclaircissement : plus la scène est sombre, plus on éclaircit (de 0 à [MAX_LIFT_EV]). La
+ * - Éclaircissement : plus la scène est sombre, plus on éclaircit (de 0 à [MAX_LIFT_EV], le reste est rattrapé au rendu). La
  *   luminosité est estimée par ISO × temps de pose (ISO·s) : ~0,1 en plein soleil, ~5 dans une
  *   pièce éclairée, 100+ dans une pièce sombre.
  * - Pose : la plus longue que permet le gyroscope. Le flou de bougé en pixels vaut à peu près
@@ -28,7 +28,9 @@ internal data class NightExposurePlan(
  *   empilées (voir MultiFrameConfig.NIGHT_FRAME_COUNT) compensent le bruit restant.
  */
 internal object NightExposurePlanner {
-    const val MAX_LIFT_EV = 3.0
+    // Samsung ne brille pas à la prise (même ISO × pose que nous) mais au rendu : à la prise on
+    // gagne surtout en propreté (pose longue, ISO bas) avec un éclaircissement modéré.
+    const val MAX_LIFT_EV = 1.0
     const val MAX_SHUTTER_NS = 1_000_000_000L / 3
     const val DEFAULT_SHUTTER_NS = 1_000_000_000L / 8
     const val MIN_SHUTTER_NS = 1_000_000_000L / 30
@@ -39,7 +41,7 @@ internal object NightExposurePlanner {
     private const val MIN_LIFT_EV = 0.25
 
     /** Éclaircissement maximal rattrapé en post-traitement (recette), en EV. */
-    const val MAX_POST_EXPOSURE_EV = 2.0
+    const val MAX_POST_EXPOSURE_EV = 0.5
 
     // Pose max (s) = MOTION_BUDGET / vitesse angulaire (rad/s) : ~3 px de flou résiduel avec
     // une focale de ~3000 px et une stabilisation optique qui en retire ~5/6.
