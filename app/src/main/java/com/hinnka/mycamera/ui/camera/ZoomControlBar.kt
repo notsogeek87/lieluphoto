@@ -75,6 +75,7 @@ fun ZoomControlBar(
     onLensSwitch: (String) -> Unit,
     onFilterClick: () -> Unit,
     onFilterButtonBoundsChanged: (Rect) -> Unit = {},
+    onContinuousZoomingChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val displayMode by viewModel.zoomDisplayMode.collectAsState()
@@ -107,6 +108,10 @@ fun ZoomControlBar(
     }
 
     var isContinuousZooming by remember { mutableStateOf(false) }
+    // La règle continue déborde au-dessus de la barre : le parent s'en sert pour libérer la place.
+    val currentOnContinuousZoomingChanged by rememberUpdatedState(onContinuousZoomingChanged)
+    LaunchedEffect(isContinuousZooming) { currentOnContinuousZoomingChanged(isContinuousZooming) }
+    DisposableEffect(Unit) { onDispose { currentOnContinuousZoomingChanged(false) } }
     var lastInteractionTime by remember { mutableLongStateOf(0L) }
     // 使用内部状态暂存变焦值，避免 StateFlow 异步导致的“拉回”现象
     var internalZoomRatio by remember { mutableFloatStateOf(zoomRatio) }

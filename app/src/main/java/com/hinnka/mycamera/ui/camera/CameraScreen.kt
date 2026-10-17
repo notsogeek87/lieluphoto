@@ -266,6 +266,7 @@ fun CameraScreen(
     var showDepthModelDownloadDialog by remember { mutableStateOf(false) }
     var pendingBokehEnable by remember { mutableStateOf(false) }
     var showApertureDialog by remember { mutableStateOf(false) }
+    var zoomRulerActive by remember { mutableStateOf(false) }
     val depthModelImportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -1038,6 +1039,7 @@ fun CameraScreen(
                     onFilterButtonBoundsChanged = { bounds ->
                         filterButtonBounds = bounds
                     },
+                    onContinuousZoomingChanged = { zoomRulerActive = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .onGloballyPositioned { coordinates ->
@@ -1052,7 +1054,7 @@ fun CameraScreen(
         }
 
         val modelBar = @Composable {
-            if (activePanel == ActivePanel.NONE && !isXpan && !isVideoMode) {
+            if (activePanel == ActivePanel.NONE && !isXpan && !isVideoMode && !zoomRulerActive) {
                 ModelQuickBar(
                     favorites = viewModel.favoriteLutList,
                     currentLut = viewModel.availableLutList.firstOrNull { it.id == currentLutId },
