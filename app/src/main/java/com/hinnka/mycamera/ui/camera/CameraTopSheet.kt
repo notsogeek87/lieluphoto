@@ -109,6 +109,8 @@ fun CameraTopSheet(
     resolutionDiagnostic: com.hinnka.mycamera.camera.CameraUtils.ResolutionDiagnostic? = null,
     availableMegapixels: List<Int> = emptyList(),
     onCaptureMegapixelsChange: (Int) -> Unit = {},
+    fusionScale: Float = 1f,
+    onFusionScaleChange: (Float) -> Unit = {},
     onFilterManageClick: () -> Unit,
     onFrameManageClick: () -> Unit,
     onPresetManageClick: () -> Unit,
@@ -220,13 +222,18 @@ fun CameraTopSheet(
                         }
                         if (!isProfessionalMode) {
                             MegapixelsQuickSetting(
-                                megapixels = availableMegapixels
-                                    .lastOrNull { it <= captureMegapixels }
-                                    ?: availableMegapixels.firstOrNull(),
-                                choices = availableMegapixels,
+                                availableMegapixels = availableMegapixels,
+                                captureMegapixels = captureMegapixels,
                                 captureSize = captureSize,
                                 diagnostic = resolutionDiagnostic,
-                                onChange = onCaptureMegapixelsChange,
+                                fusionActive = useJpgMax,
+                                fusionScale = fusionScale,
+                                onNativeChange = onCaptureMegapixelsChange,
+                                onFusionChange = { scale ->
+                                    // La fusion multi-image n'agit que si la réduction du bruit multi-image est active.
+                                    if (!useJpgMax) onJpgMaxToggle(true)
+                                    onFusionScaleChange(scale)
+                                },
                                 onInfoClick = { quickInfo = QuickInfo(R.string.quick_megapixels_title, R.string.quick_info_megapixels) },
                                 modifier = itemModifier
                             )
@@ -793,18 +800,51 @@ private fun MeteringModeQuickSetting(
     )
 }
 
+/** Une définition proposée : native (taille du capteur) ou obtenue par fusion multi-image + agrandissement. */
+private data class MegapixelOption(val megapixels: Int, val isNative: Boolean, val fusionScale: Float)
+
+private fun buildMegapixelOptions(native: List<Int>, nativeMegapixels: Double): List<MegapixelOption> {
+    val options = native.map { MegapixelOption(it, true, 1f) }.toMutableList()
+    val maxNative = native.maxOrNull() ?: 0
+    if (nativeMegapixels > 0) {
+        com.hinnka.mycamera.camera.CameraUtils.MegapixelChoices
+            .filter { it > maxNative && it > nativeMegapixels * 1.3 }
+            .forEach { target ->
+                val scale = kotlin.math.sqrt(target / nativeMegapixels).toFloat()
+                    .coerceIn(1f, com.hinnka.mycamera.camera.MultiFrameConfig.MAX_OUTPUT_SCALE)
+                options += MegapixelOption(target, false, scale)
+            }
+    }
+    return options
+}
+
 @Composable
 private fun MegapixelsQuickSetting(
-    megapixels: Int?,
-    choices: List<Int>,
+    availableMegapixels: List<Int>,
+    captureMegapixels: Int,
     captureSize: android.util.Size?,
     diagnostic: com.hinnka.mycamera.camera.CameraUtils.ResolutionDiagnostic?,
-    onChange: (Int) -> Unit,
+    fusionActive: Boolean,
+    fusionScale: Float,
+    onNativeChange: (Int) -> Unit,
+    onFusionChange: (Float) -> Unit,
     onInfoClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val selectable = choices.size > 1 && megapixels != null
     val context = androidx.compose.ui.platform.LocalContext.current
+    val nativeMegapixels = captureSize?.let { it.width.toLong() * it.height / 1_000_000.0 } ?: 0.0
+    val options = remember(availableMegapixels, nativeMegapixels) {
+        buildMegapixelOptions(availableMegapixels, nativeMegapixels)
+    }
+    val nativeSelected = availableMegapixels.lastOrNull { it <= captureMegapixels }
+        ?: availableMegapixels.firstOrNull()
+    val fusionSelected: MegapixelOption? = if (fusionActive && fusionScale > 1.05f) {
+        options.filter { !it.isNative }.minByOrNull { kotlin.math.abs(it.fusionScale - fusionScale) }
+    } else {
+        null
+    }
+    val nativeOption = options.firstOrNull { it.isNative && it.megapixels == nativeSelected }
+    val selected: MegapixelOption? = fusionSelected ?: nativeOption ?: options.firstOrNull()
     var showDiagnostic by remember { mutableStateOf(false) }
     if (showDiagnostic) {
         AlertDialog(
@@ -825,20 +865,32 @@ private fun MegapixelsQuickSetting(
     }
     QuickSettingValue(
         title = stringResource(R.string.quick_megapixels_title),
-        value = megapixels?.let {
-            val label = stringResource(R.string.capture_megapixels_label, it)
-            // Taille réellement utilisée : permet de vérifier que le changement est pris en compte.
-            captureSize?.let { size -> "$label · ${size.width}×${size.height}" } ?: label
+        value = selected?.let {
+            val label = stringResource(R.string.capture_megapixels_label, it.megapixels)
+            when {
+                // Obtenu par fusion de plusieurs photos puis agrandissement (pas la taille native du capteur).
+                !it.isNative -> "$label · ${stringResource(R.string.quick_megapixels_fusion)}"
+                // Taille réellement utilisée : permet de vérifier que le changement est pris en compte.
+                else -> captureSize?.let { size -> "$label · ${size.width}×${size.height}" } ?: label
+            }
         } ?: stringResource(R.string.quick_megapixels_unavailable),
         onClick = {
-            if (selectable) {
-                val next = choices[(choices.indexOf(megapixels) + 1) % choices.size]
+            if (selected != null && options.size > 1) {
+                val next = options[(options.indexOf(selected) + 1) % options.size]
+                if (next.isNative) {
+                    onFusionChange(1f)
+                    onNativeChange(next.megapixels)
+                } else {
+                    onFusionChange(next.fusionScale)
+                }
                 android.widget.Toast.makeText(
                     context,
-                    context.getString(R.string.quick_megapixels_switching, next),
+                    context.getString(
+                        if (next.isNative) R.string.quick_megapixels_switching else R.string.quick_megapixels_switching_fusion,
+                        next.megapixels
+                    ),
                     android.widget.Toast.LENGTH_SHORT
                 ).show()
-                onChange(next)
             } else {
                 // Explique pourquoi rien ne change au lieu de rester silencieux.
                 showDiagnostic = true

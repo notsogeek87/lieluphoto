@@ -297,6 +297,7 @@ fun CameraScreen(
     val categoryOrder by viewModel.categoryOrder.collectAsState(emptyList())
     val useRaw by viewModel.useRaw.collectAsState()
     val useJpgMax by viewModel.useJpgMax.collectAsState()
+    val jpgFusionScale by viewModel.jpgMultiFrameDenoiseOutputScale.collectAsState()
     val useMultipleExposure by viewModel.useMultipleExposure.collectAsState()
     val useRawMax by viewModel.useRawMax.collectAsState()
     val ultraHdrEnabled by viewModel.ultraHdrGainMapEnabled.collectAsState()
@@ -1917,6 +1918,8 @@ fun CameraScreen(
             resolutionDiagnostic = state.resolutionDiagnostic,
             availableMegapixels = state.availableMegapixels,
             onCaptureMegapixelsChange = { runPreviewTransition { viewModel.setCaptureMegapixels(it) } },
+            fusionScale = jpgFusionScale,
+            onFusionScaleChange = { viewModel.setJpgMultiFrameDenoiseOutputScale(it) },
             onFilterManageClick = {
                 activePanel = ActivePanel.NONE
                 onFilterManagementClick(null)

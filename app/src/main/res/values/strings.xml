@@ -1409,7 +1409,7 @@
     <string name="quick_info_management">Manage your looks (LUTs), frames and presets: import, delete, reorder.</string>
     <string name="quick_megapixels_title">Resolution</string>
     <string name="quick_megapixels_unavailable">Max only</string>
-    <string name="quick_info_megapixels">Photo size in megapixels (MP). Tap to cycle 12 / 24 / 50 MP: higher means more detail but bigger files; lower is faster and lighter. Only sizes your camera supports are offered. Not used in Pro (RAW) mode.</string>
+    <string name="quick_info_megapixels">Photo size in megapixels (MP). Tap to cycle through the sizes. The native size is what your phone gives apps (usually 12 MP). 24 and 50 MP are not available natively to apps on many phones: they are produced by merging several photos and enlarging the result (multi-frame), which turns on multi-frame denoise. More detail than 12 MP but bigger files and slower. Not used in Pro (RAW) mode.</string>
     <string name="settings_export_all">Export all settings</string>
     <string name="settings_export_all_description">One file with everything: preferences, favorite models, presets, aperture, frames, custom LUTs and more. Use "Import settings" to restore it.</string>
     <string name="quick_megapixels_switching">Switching to %1$d MP…</string>
@@ -1423,4 +1423,6 @@
     <string name="quick_megapixels_diag_cause_jpeg_only">Cause: the phone only offers the large size (%1$s) as JPEG, through its own camera app, not as a stream apps can use. Only this size is available here.</string>
     <string name="quick_megapixels_diag_cause_binning">Cause: the phone exposes no other size to apps. High-megapixel sensors usually combine 4 pixels into 1 (binning) to get cleaner 12 MP photos; the full resolution is reserved for the manufacturer\'s camera app.</string>
     <string name="quick_megapixels_diag_cause_vendor">Cause: your phone lists a larger size (%1$s) through private manufacturer keys, which this app does not use yet. The manufacturer\'s own camera app uses them; using them here requires a dedicated capture mode.</string>
+    <string name="quick_megapixels_fusion">multi-frame</string>
+    <string name="quick_megapixels_switching_fusion">Switching to ~%1$d MP (several photos merged and enlarged)…</string>
 </resources>
