@@ -26,7 +26,7 @@ android {
         applicationId = "eu.lielu.photo"
         minSdk = 30
         targetSdk = 36
-        versionCode = 162
+        versionCode = (project.findProperty("versionCodeOverride") as? String)?.toIntOrNull() ?: 162
         versionName = "1.28.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
