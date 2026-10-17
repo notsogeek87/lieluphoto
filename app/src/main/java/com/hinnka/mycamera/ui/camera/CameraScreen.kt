@@ -1314,7 +1314,6 @@ fun CameraScreen(
                             aspectRatio = previewAspectRatio,
                             previewSize = previewSize,
                             captureSize = state.currentCaptureSize,
-            resolutionDiagnostic = state.resolutionDiagnostic,
                             captureMode = state.captureMode,
                             sensorOrientation = state.getCurrentCameraInfo()?.sensorOrientation
                                 ?: 0,
@@ -1915,6 +1914,7 @@ fun CameraScreen(
             onMeteringModeChange = { viewModel.setMeteringMode(it) },
             captureMegapixels = state.captureMegapixels,
             captureSize = state.currentCaptureSize,
+            resolutionDiagnostic = state.resolutionDiagnostic,
             availableMegapixels = state.availableMegapixels,
             onCaptureMegapixelsChange = { runPreviewTransition { viewModel.setCaptureMegapixels(it) } },
             onFilterManageClick = {
