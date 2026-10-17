@@ -287,6 +287,10 @@ fun CameraScreen(
     val keepScreenOn by viewModel.keepScreenOn.collectAsState(initial = false)
     val currentLutId by viewModel.currentLutId.collectAsState()
     val lutNameOverlayState = rememberLutNameOverlayState()
+    // Mode Nuit : affiche le réglage réellement appliqué à la prise (ISO, pose, EV ajoutés).
+    LaunchedEffect(state.nightExposureInfoSeq) {
+        state.nightExposureInfo?.let { lutNameOverlayState.show(it) }
+    }
     val currentRecipeParams by viewModel.currentRecipeParams.collectAsState()
     val lutSelectorMode by viewModel.lutSelectorMode.collectAsState()
     val activePresetId by viewModel.activePresetId.collectAsState()

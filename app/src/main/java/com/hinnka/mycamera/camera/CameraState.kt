@@ -388,6 +388,9 @@ data class CameraState(
     val useRaw: Boolean = false,
     // Mode Nuit : pose allongée + éclaircissement quand la scène est sombre (non persistant).
     val nightMode: Boolean = false,
+    // Dernier réglage appliqué par le mode Nuit (texte d'info affiché après la prise) et compteur.
+    val nightExposureInfo: String? = null,
+    val nightExposureInfoSeq: Int = 0,
     val useMultipleExposure: Boolean = false,
     val rawMinShutterSpeedNs: Long = 0L,
     val useLivePhoto: Boolean = false,

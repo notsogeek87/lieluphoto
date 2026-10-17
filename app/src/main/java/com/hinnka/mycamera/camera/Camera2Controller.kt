@@ -7484,6 +7484,7 @@ class Camera2Controller(private val context: Context) {
         )
         if (plan == null) {
             PLog.i(TAG, "Night exposure unchanged: scene not dark (ISO$baseIso/${baseShutter}ns)")
+            publishNightInfo(state, "Night ×${state.activeMultiFrameCount} · bright scene, exposure unchanged")
             return
         }
         builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
@@ -7494,6 +7495,19 @@ class Camera2Controller(private val context: Context) {
             TAG,
             "Night exposure: base=ISO$baseIso/${baseShutter}ns -> " +
                 "ISO${plan.sensitivityIso}/${plan.exposureTimeNs}ns",
+        )
+        val shutterText = "1/${(1_000_000_000.0 / plan.exposureTimeNs).roundToInt()} s"
+        publishNightInfo(
+            state,
+            "Night ×${state.activeMultiFrameCount} · ISO ${plan.sensitivityIso} · $shutterText · " +
+                "+${"%.1f".format(plan.liftEv)} EV",
+        )
+    }
+
+    private fun publishNightInfo(state: CameraState, info: String) {
+        _state.value = _state.value.copy(
+            nightExposureInfo = info,
+            nightExposureInfoSeq = state.nightExposureInfoSeq + 1,
         )
     }
 
