@@ -116,8 +116,7 @@ object CameraUtils {
         characteristics: CameraCharacteristics,
         aspectRatio: AspectRatio,
         format: Int = ImageFormat.YUV_420_888,
-        targetMegapixels: Int = 50,
-        excludedSizes: Set<Size> = emptySet()
+        targetMegapixels: Int = 50
     ): Size {
         return try {
             val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
@@ -126,10 +125,7 @@ object CameraUtils {
                 ?: map?.getOutputSizes(ImageFormat.YUV_420_888)
                 ?: arrayOf(Size(1920, 1080))).toMutableList().apply {
                 map?.getHighResolutionOutputSizes(format)?.let { addAll(it) }
-                // Clés constructeur (Samsung…) : tailles 24 / 50 Mpx absentes de la liste publique.
-                // Si le téléphone refuse la configuration, le contrôleur les écarte (excludedSizes).
-                addAll(vendorCaptureSizes(characteristics))
-            }.distinct().filterNot { it in excludedSizes }
+            }.distinct()
             val sensorRatio = aspectRatio.getValue(true)
 
             // 寻找比例最匹配传感器原生比例
@@ -161,13 +157,12 @@ object CameraUtils {
     fun availableMegapixels(
         characteristics: CameraCharacteristics,
         aspectRatio: AspectRatio,
-        format: Int = ImageFormat.YUV_420_888,
-        excludedSizes: Set<Size> = emptySet()
+        format: Int = ImageFormat.YUV_420_888
     ): List<Int> {
         val result = mutableListOf<Int>()
         var lastSize: Size? = null
         for (target in MegapixelChoices) {
-            val size = getBestCaptureSize(characteristics, aspectRatio, format, target, excludedSizes)
+            val size = getBestCaptureSize(characteristics, aspectRatio, format, target)
             val megapixels = size.width.toLong() * size.height / 1_000_000.0
             if (size != lastSize && megapixels >= target * 0.7) {
                 result.add(target)
@@ -186,27 +181,9 @@ object CameraUtils {
         val ultraHighResCapability: Boolean,
         val maxResolutionModeMax: Size?,
         val vendorMax: Size?,
-        val rejectedSize: Size? = null,
     )
 
-    /** Tailles ≥ 12 Mpx déclarées par les clés privées du constructeur (tous formats confondus). */
-    fun vendorCaptureSizes(characteristics: CameraCharacteristics): List<Size> = runCatching {
-        HighResolutionHelper.getHighResolutionConfigs(characteristics, HighResolutionHelper.MP_12)
-            .map { it.size }
-            .distinct()
-    }.getOrDefault(emptyList())
-
-    /** Vrai si la taille figure dans la liste publique (standard ou haute résolution) du format. */
-    fun isStandardSize(characteristics: CameraCharacteristics, format: Int, size: Size): Boolean {
-        val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) ?: return true
-        return map.getOutputSizes(format)?.contains(size) == true ||
-            map.getHighResolutionOutputSizes(format)?.contains(size) == true
-    }
-
-    fun describeResolutionSupport(
-        characteristics: CameraCharacteristics,
-        rejectedSizes: Set<Size> = emptySet()
-    ): ResolutionDiagnostic {
+    fun describeResolutionSupport(characteristics: CameraCharacteristics): ResolutionDiagnostic {
         fun List<Size>?.largest() = this?.maxByOrNull { it.width.toLong() * it.height }
         val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
         val yuv = ImageFormat.YUV_420_888
@@ -233,8 +210,10 @@ object CameraUtils {
             ultraHighResCapability = ultraHigh,
             maxResolutionModeMax = maxResMax,
             // Clés privées du constructeur (Samsung, Xiaomi, OPPO…) : là où se cachent souvent 24 / 50 Mpx.
-            vendorMax = vendorCaptureSizes(characteristics).largest(),
-            rejectedSize = rejectedSizes.toList().largest(),
+            vendorMax = runCatching {
+                HighResolutionHelper.getHighResolutionConfigs(characteristics, HighResolutionHelper.MP_12)
+                    .map { it.size }.largest()
+            }.getOrNull(),
         )
     }
 
