@@ -1024,18 +1024,6 @@ fun CameraScreen(
 
         val zoomBar = @Composable {
             if (activePanel == ActivePanel.NONE && !isXpan) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (!isVideoMode) {
-                    ModelQuickBar(
-                        favorites = viewModel.favoriteLutList,
-                        currentLut = viewModel.availableLutList.firstOrNull { it.id == currentLutId },
-                        onSelect = { viewModel.setLut(it.id) },
-                        onClear = { viewModel.setLut(null) },
-                        onToggleFavorite = { viewModel.toggleLutFavorite(it.id) },
-                        onOpenPanel = { activePanel = ActivePanel.FILTERS },
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-                }
                 ZoomControlBar(
                     viewModel = viewModel,
                     zoomRatio = viewModel.zoomRatioByMain,
@@ -1056,11 +1044,23 @@ fun CameraScreen(
                             zoomBarBounds = coordinates.boundsInRoot()
                         }
                 )
-                }
             } else {
                 SideEffect {
                     zoomBarBounds = null
                 }
+            }
+        }
+
+        val modelBar = @Composable {
+            if (activePanel == ActivePanel.NONE && !isXpan && !isVideoMode) {
+                ModelQuickBar(
+                    favorites = viewModel.favoriteLutList,
+                    currentLut = viewModel.availableLutList.firstOrNull { it.id == currentLutId },
+                    onSelect = { viewModel.setLut(it.id) },
+                    onClear = { viewModel.setLut(null) },
+                    onToggleFavorite = { viewModel.toggleLutFavorite(it.id) },
+                    onOpenPanel = { activePanel = ActivePanel.FILTERS }
+                )
             }
         }
 
@@ -1739,6 +1739,7 @@ fun CameraScreen(
             CameraBottomControlsLayout(
                 viewfinderBottom = viewfinderTop + cardHeight,
                 modifier = Modifier.fillMaxSize(),
+                modelBar = modelBar,
                 zoomBar = {
                     // Panel visibility changes the zoom content, not the space used to
                     // position the parameter row beneath it. XPAN has no horizontal bar.

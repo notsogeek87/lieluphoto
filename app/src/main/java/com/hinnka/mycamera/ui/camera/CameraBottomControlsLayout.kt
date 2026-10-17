@@ -36,6 +36,7 @@ internal object CameraControlsLayoutDefaults {
 @Composable
 internal fun CameraBottomControlsLayout(
     viewfinderBottom: Dp,
+    modelBar: @Composable () -> Unit,
     zoomBar: @Composable () -> Unit,
     parameterRuler: @Composable () -> Unit,
     parameterBar: @Composable () -> Unit,
@@ -49,10 +50,11 @@ internal fun CameraBottomControlsLayout(
             Box(contentAlignment = Alignment.Center) { parameterRuler() }
             Box(contentAlignment = Alignment.Center) { parameterBar() }
             Box(contentAlignment = Alignment.Center) { captureControls() }
+            Box(contentAlignment = Alignment.Center) { modelBar() }
         }
     ) { measurables, constraints ->
         val looseConstraints = constraints.copy(minWidth = 0, minHeight = 0)
-        val (zoom, ruler, parameters, capture) = measurables.map { it.measure(looseConstraints) }
+        val (zoom, ruler, parameters, capture, model) = measurables.map { it.measure(looseConstraints) }
         val width = constraints.maxWidth
         val height = constraints.maxHeight
         val clearance = CameraControlsLayoutDefaults.CaptureClearance.roundToPx()
@@ -88,6 +90,8 @@ internal fun CameraBottomControlsLayout(
             parameters.placeRelative((width - parameters.width) / 2, parameterTop)
             ruler.placeRelative((width - ruler.width) / 2, rulerTop)
             zoom.placeRelative((width - zoom.width) / 2, zoomTop)
+            // La rangée de modèles flotte juste au-dessus de la barre de zoom, sans lui prendre de place.
+            model.placeRelative((width - model.width) / 2, zoomTop - barGap - model.height)
         }
     }
 }
