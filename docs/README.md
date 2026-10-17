@@ -6,6 +6,7 @@
 ## Guides
 - [Récupérer les nouveautés de bjzhou (rebase)](guides/sync-upstream.md)
 - [Pastille bokeh du viseur](guides/bokeh-toggle.md)
+- [Mise à jour de l'app (releases GitHub)](guides/mise-a-jour-app.md)
 
 ## API / legacy
 Dossiers `api/` et `legacy/` réservés (vides pour l'instant).

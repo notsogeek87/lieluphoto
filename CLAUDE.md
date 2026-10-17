@@ -6,7 +6,7 @@ AGENTS.md
 Détails : [docs/guides/sync-upstream.md](docs/guides/sync-upstream.md) et [docs/README.md](docs/README.md).
 
 Remotes : `origin` = notsogeek87/lieluphoto, `upstream` = bjzhou/photoncamera. Ne jamais pousser sur `upstream`.
-`main` (et `staging`, `lielu`) portent nos modifications au-dessus de `upstream/main` : bouton bokeh, renommage LieluPhoto (`applicationId = eu.lielu.photo`), Bugly retiré, mises à jour désactivées.
+`main` (et `staging`, `lielu`) portent nos modifications au-dessus de `upstream/main` : bouton bokeh, renommage LieluPhoto (`applicationId = eu.lielu.photo`), Bugly retiré, mises à jour via les releases GitHub (voir [docs/guides/mise-a-jour-app.md](docs/guides/mise-a-jour-app.md)).
 
 ```
 git fetch upstream
