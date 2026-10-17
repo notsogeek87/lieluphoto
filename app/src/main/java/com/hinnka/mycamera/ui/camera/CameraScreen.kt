@@ -12,6 +12,7 @@ import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -380,6 +381,11 @@ fun CameraScreen(
 
     // UI State
     var activePanel by remember { mutableStateOf(ActivePanel.NONE) }
+
+    // Retour : ferme d'abord le panneau ouvert (réglages, filtres, retouche) au lieu de quitter l'app.
+    BackHandler(enabled = activePanel != ActivePanel.NONE) {
+        activePanel = if (activePanel == ActivePanel.EDIT) ActivePanel.FILTERS else ActivePanel.NONE
+    }
     var selectedParameter by remember { mutableStateOf(CameraParameter.EXPOSURE_COMPENSATION) }
     var showParameterRuler by remember(state.captureMode, state.useRaw) { mutableStateOf(false) }
     val isXpan = state.aspectRatio == AspectRatio.XPAN
