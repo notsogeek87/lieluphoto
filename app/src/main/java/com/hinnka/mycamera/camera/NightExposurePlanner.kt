@@ -11,6 +11,7 @@ internal data class NightExposurePlan(
     val sensitivityIso: Int,
     val exposureTimeNs: Long,
     val liftEv: Double,
+    val realizedEv: Double,
 )
 
 /**
@@ -37,11 +38,27 @@ internal object NightExposurePlanner {
     private const val LIFT_SLOPE = 0.6
     private const val MIN_LIFT_EV = 0.25
 
+    /** Éclaircissement maximal rattrapé en post-traitement (recette), en EV. */
+    const val MAX_POST_EXPOSURE_EV = 2.0
+
     // Pose max (s) = MOTION_BUDGET / vitesse angulaire (rad/s) : ~3 px de flou résiduel avec
     // une focale de ~3000 px et une stabilisation optique qui en retire ~5/6.
     private const val MOTION_BUDGET = 0.005
     private const val MIN_ANGULAR_SPEED = 1e-4
 
+    /** Éclaircissement visé (EV) pour une scène, ou null si elle est assez claire pour ne rien changer. */
+    fun sceneLiftEv(baseIso: Int, baseExposureTimeNs: Long): Double? {
+        if (baseIso <= 0 || baseExposureTimeNs <= 0L) return null
+        val sceneIsoSeconds = baseIso.toDouble() * baseExposureTimeNs.toDouble() / 1e9
+        val liftEv = (LIFT_SLOPE * log2(sceneIsoSeconds)).coerceIn(0.0, MAX_LIFT_EV)
+        return liftEv.takeIf { it >= MIN_LIFT_EV }
+    }
+
+    /**
+     * Exposition manuelle qui réalise au mieux [liftEv]. Les limites (pose max du gyroscope, ISO
+     * max du capteur) peuvent empêcher de l'atteindre : l'écart ([NightExposurePlan.liftEv] moins
+     * [NightExposurePlan.realizedEv]) est rattrapé en post-traitement.
+     */
     fun plan(
         baseIso: Int,
         baseExposureTimeNs: Long,
@@ -49,14 +66,12 @@ internal object NightExposurePlanner {
         isoUpper: Int,
         exposureTimeLowerNs: Long,
         exposureTimeUpperNs: Long,
+        liftEv: Double,
         angularSpeedRadS: Float?,
     ): NightExposurePlan? {
         if (baseIso <= 0 || baseExposureTimeNs <= 0L) return null
         if (isoLower <= 0 || isoUpper < isoLower) return null
         if (exposureTimeLowerNs <= 0L || exposureTimeUpperNs < exposureTimeLowerNs) return null
-        val sceneIsoSeconds = baseIso.toDouble() * baseExposureTimeNs.toDouble() / 1e9
-        val liftEv = (LIFT_SLOPE * log2(sceneIsoSeconds)).coerceIn(0.0, MAX_LIFT_EV)
-        if (liftEv < MIN_LIFT_EV) return null
 
         val motionLimitNs = if (angularSpeedRadS != null && angularSpeedRadS.isFinite()) {
             (MOTION_BUDGET / max(angularSpeedRadS.toDouble(), MIN_ANGULAR_SPEED) * 1e9)
@@ -75,6 +90,15 @@ internal object NightExposurePlanner {
         val iso = (targetProduct / shutterNs.toDouble())
             .roundToInt()
             .coerceIn(isoLower, isoUpper)
-        return NightExposurePlan(sensitivityIso = iso, exposureTimeNs = shutterNs, liftEv = liftEv)
+        val realizedEv = log2(
+            iso.toDouble() * shutterNs.toDouble() /
+                (baseIso.toDouble() * baseExposureTimeNs.toDouble())
+        ).coerceAtLeast(0.0)
+        return NightExposurePlan(
+            sensitivityIso = iso,
+            exposureTimeNs = shutterNs,
+            liftEv = liftEv,
+            realizedEv = realizedEv,
+        )
     }
 }

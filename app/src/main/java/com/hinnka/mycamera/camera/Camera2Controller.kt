@@ -7461,35 +7461,76 @@ class Camera2Controller(private val context: Context) {
         if (enabled) nightMotionMonitor.start() else nightMotionMonitor.stop()
     }
 
+    private class NightDecision(
+        val baseIso: Int,
+        val baseShutterNs: Long,
+        val liftEv: Double,
+        val plan: NightExposurePlan?,
+    ) {
+        /** Éclaircissement non réalisé à la prise, à rattraper en post-traitement. */
+        val residualEv: Double
+            get() = (liftEv - (plan?.realizedEv ?: 0.0))
+                .coerceIn(0.0, NightExposurePlanner.MAX_POST_EXPOSURE_EV)
+    }
+
+    /** Null : exposition non automatique, pas de mesure, ou scène assez claire. */
+    private fun decideNight(state: CameraState, baseResult: CaptureResult?): NightDecision? {
+        if (!state.isAutoExposure) return null
+        val result = baseResult ?: return null
+        val baseIso = result.get(CaptureResult.SENSOR_SENSITIVITY) ?: return null
+        val baseShutter = result.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: return null
+        val liftEv = NightExposurePlanner.sceneLiftEv(baseIso, baseShutter) ?: return null
+        val manualCapable = isManualSensorSupported &&
+            availableAeModes.contains(CaptureRequest.CONTROL_AE_MODE_OFF)
+        val plan = if (manualCapable) {
+            val isoRange = state.getIsoRange()
+            val shutterRange = state.getShutterSpeedRange()
+            NightExposurePlanner.plan(
+                baseIso = baseIso,
+                baseExposureTimeNs = baseShutter,
+                isoLower = isoRange.lower,
+                isoUpper = isoRange.upper,
+                exposureTimeLowerNs = shutterRange.lower,
+                exposureTimeUpperNs = shutterRange.upper,
+                liftEv = liftEv,
+                angularSpeedRadS = nightMotionMonitor.angularSpeedRadS,
+            )
+        } else {
+            null
+        }
+        return NightDecision(baseIso, baseShutter, liftEv, plan)
+    }
+
+    /**
+     * Éclaircissement (EV) que le post-traitement du mode Nuit doit rattraper pour la prise en
+     * cours, ou null si la scène est assez claire pour ne rien modifier. Même décision que celle
+     * appliquée à la capture (voir [applyNightExposure]).
+     */
+    fun nightPostExposureEv(): Float? {
+        val current = _state.value
+        if (!current.nightMode) return null
+        return decideNight(current, lastCaptureResult)?.residualEv?.toFloat()
+    }
+
     private fun applyNightExposure(
         builder: CaptureRequest.Builder,
         state: CameraState,
         baseResult: CaptureResult?,
     ) {
-        if (!state.isAutoExposure) return
-        val baseIso = baseResult?.get(CaptureResult.SENSOR_SENSITIVITY)
-        val baseShutter = baseResult?.get(CaptureResult.SENSOR_EXPOSURE_TIME)
-        if (!isManualSensorSupported ||
-            !availableAeModes.contains(CaptureRequest.CONTROL_AE_MODE_OFF) ||
-            baseIso == null || baseShutter == null
-        ) {
-            PLog.w(TAG, "Night exposure skipped: manual sensor exposure or base result unavailable")
+        val frames = state.activeMultiFrameCount
+        val decision = decideNight(state, baseResult)
+        if (decision == null) {
+            publishNightInfo(state, "Night ×$frames · bright scene or manual exposure, unchanged")
             return
         }
-        val isoRange = state.getIsoRange()
-        val shutterRange = state.getShutterSpeedRange()
-        val plan = NightExposurePlanner.plan(
-            baseIso = baseIso,
-            baseExposureTimeNs = baseShutter,
-            isoLower = isoRange.lower,
-            isoUpper = isoRange.upper,
-            exposureTimeLowerNs = shutterRange.lower,
-            exposureTimeUpperNs = shutterRange.upper,
-            angularSpeedRadS = nightMotionMonitor.angularSpeedRadS,
-        )
+        val plan = decision.plan
         if (plan == null) {
-            PLog.i(TAG, "Night exposure unchanged: scene not dark (ISO$baseIso/${baseShutter}ns)")
-            publishNightInfo(state, "Night ×${state.activeMultiFrameCount} · bright scene, exposure unchanged")
+            PLog.w(TAG, "Night exposure: manual sensor unavailable, post-processing only")
+            publishNightInfo(
+                state,
+                "Night ×$frames · no manual exposure on this camera · " +
+                    "+${"%.1f".format(decision.residualEv)} EV post",
+            )
             return
         }
         builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
@@ -7498,7 +7539,7 @@ class Camera2Controller(private val context: Context) {
         builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, plan.exposureTimeNs)
         PLog.i(
             TAG,
-            "Night exposure: base=ISO$baseIso/${baseShutter}ns -> " +
+            "Night exposure: base=ISO${decision.baseIso}/${decision.baseShutterNs}ns -> " +
                 "ISO${plan.sensitivityIso}/${plan.exposureTimeNs}ns",
         )
         val shutterText = if (plan.exposureTimeNs >= 500_000_000L) {
@@ -7510,8 +7551,9 @@ class Camera2Controller(private val context: Context) {
             ?.let { "%.3f rad/s".format(it) } ?: "no gyro"
         publishNightInfo(
             state,
-            "Night ×${state.activeMultiFrameCount} · ISO ${plan.sensitivityIso} · $shutterText · " +
-                "+${"%.1f".format(plan.liftEv)} EV · $motionText",
+            "Night ×$frames · ISO ${plan.sensitivityIso} · $shutterText · " +
+                "+${"%.1f".format(plan.realizedEv)} EV capture · " +
+                "+${"%.1f".format(decision.residualEv)} EV post · $motionText",
         )
     }
 

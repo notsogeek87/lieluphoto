@@ -148,6 +148,8 @@ private data class CaptureSettingsSnapshot(
     val blackBorderCrop: RawBlackBorderCrop,
     val portraitMask: PortraitMaskSnapshot?,
     val multipleExposure: Boolean,
+    // Mode Nuit sur scène sombre : EV d'éclaircissement rattrapés en post-traitement (null sinon).
+    val nightPostExposureEv: Float? = null,
     val photoId: String = UUID.randomUUID().toString(),
     val galleryRegistration: CompletableDeferred<Unit> = CompletableDeferred(),
     // Exposure matching needs the unfiltered source; UI placeholders need the displayed look.
@@ -224,10 +226,17 @@ internal data class CaptureDenoiseStrengths(
     val bakedChroma: Float?,
 )
 
+// Mode Nuit : photo empilée mais encore bruitée dans les ombres éclaircies, on débruite à l'export.
+internal const val NIGHT_LUMA_DENOISE = 0.6f
+internal const val NIGHT_CHROMA_DENOISE = 0.8f
+
 internal fun resolveCaptureDenoiseStrengths(
     isRawCapture: Boolean,
     userPrefs: UserPreferences?,
+    nightMode: Boolean = false,
 ): CaptureDenoiseStrengths = when {
+    !isRawCapture && nightMode ->
+        CaptureDenoiseStrengths(NIGHT_LUMA_DENOISE, NIGHT_CHROMA_DENOISE, null, null)
     !isRawCapture -> CaptureDenoiseStrengths(0f, 0f, null, null)
     else -> CaptureDenoiseStrengths(
         editableLuma = 0f,
@@ -245,6 +254,16 @@ internal fun resolveCaptureDenoiseStrengths(
 private fun ColorRecipeParams.withoutIndependentEffects(): ColorRecipeParams {
     return EffectParams.DEFAULT.applyTo(this)
 }
+
+/** Rendu Nuit : éclaircit (EV rattrapés), ouvre les ombres et protège un peu les hautes lumières. */
+internal fun ColorRecipeParams.withNightBoost(exposureEv: Float): ColorRecipeParams = copy(
+    exposure = (exposure + exposureEv).coerceIn(-2f, 2f),
+    shadows = (shadows + NIGHT_SHADOWS_BOOST).coerceIn(-1f, 1f),
+    highlights = (highlights - NIGHT_HIGHLIGHTS_CUT).coerceIn(-1f, 1f),
+)
+
+internal const val NIGHT_SHADOWS_BOOST = 0.5f
+internal const val NIGHT_HIGHLIGHTS_CUT = 0.25f
 
 private data class PresetMatchSnapshot(
     val lutId: String?,
@@ -3517,12 +3536,30 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun snapshotCaptureSettings() = CaptureSettingsSnapshot(
+    private fun snapshotCaptureSettings(): CaptureSettingsSnapshot {
+        val nightPostExposureEv = if (_nightMode.value &&
+            state.value.captureMode == CaptureMode.PHOTO
+        ) {
+            cameraController.nightPostExposureEv()
+        } else {
+            null
+        }
+        val recipe = getMergedRecipeParams().let { merged ->
+            nightPostExposureEv?.let(merged::withNightBoost) ?: merged
+        }
+        return buildCaptureSettingsSnapshot(recipe, nightPostExposureEv)
+    }
+
+    private fun buildCaptureSettingsSnapshot(
+        recipe: ColorRecipeParams,
+        nightPostExposureEv: Float?,
+    ) = CaptureSettingsSnapshot(
         state = state.value,
         preferences = userPreferences.value,
         lutId = currentLutId.value,
         frameId = currentFrameId,
-        recipe = getMergedRecipeParams(),
+        recipe = recipe,
+        nightPostExposureEv = nightPostExposureEv,
         cameraId = cameraController.getCurrentCameraId(),
         sensorOrientation = cameraController.getSensorOrientation(),
         lensFacing = cameraController.getLensFacing(),
@@ -5996,6 +6033,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             val denoiseStrengths = resolveCaptureDenoiseStrengths(
                 isRawCapture = isRawCapture,
                 userPrefs = userPrefs,
+                nightMode = settings.nightPostExposureEv != null,
             )
             val noiseReductionValue = denoiseStrengths.editableLuma
             val chromaNoiseReductionValue = denoiseStrengths.editableChroma
@@ -6400,6 +6438,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             val denoiseStrengths = resolveCaptureDenoiseStrengths(
                 isRawCapture = isRawStack,
                 userPrefs = userPrefs,
+                nightMode = settings.nightPostExposureEv != null,
             )
             val noiseReductionValue = denoiseStrengths.editableLuma
             val chromaNoiseReductionValue = denoiseStrengths.editableChroma
@@ -6760,6 +6799,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         val denoiseStrengths = resolveCaptureDenoiseStrengths(
             isRawCapture = isRawCapture,
             userPrefs = userPrefs,
+            nightMode = settings.nightPostExposureEv != null,
         )
         val noiseReductionValue = denoiseStrengths.editableLuma
         val chromaNoiseReductionValue = denoiseStrengths.editableChroma

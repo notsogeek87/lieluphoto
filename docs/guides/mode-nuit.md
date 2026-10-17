@@ -11,7 +11,8 @@ Pour l'utilisateur de LieluPhoto : obtenir des photos nettes et peu bruitées en
 - **Éclaircissement selon la scène** : la luminosité est estimée par ISO × temps de pose en exposition automatique. Plus la scène est sombre, plus chaque image est éclaircie, de 0 à +3 EV (`NightExposurePlanner`). En plein jour ou en exposition manuelle, rien n'est modifié. L'aperçu n'est pas éclairci : seule la photo l'est.
 - **Pose adaptée au gyroscope** (`NightMotionMonitor`) : pose max = 0,005 / vitesse angulaire (rad/s), bornée entre 1/30 s et 1/3 s. Téléphone posé ou calé : jusqu'à 1/3 s par image (donc ISO bas, image plus propre) ; tenu à la main : environ 1/10 s ; en marchant : 1/30 s. Sans gyroscope : 1/8 s. L'ISO est le plus bas possible pour atteindre la luminosité visée.
 - **15 images** empilées au minimum (`MultiFrameConfig.NIGHT_FRAME_COUNT`) : jusqu'à 5 s de prise quand le téléphone est posé, donc ne pas bouger.
-- Après chaque prise, un message affiche le réglage appliqué (`Night ×15 · ISO 400 · 1/3 s · +3.0 EV · 0.004 rad/s`) ou « bright scene, exposure unchanged ».
+- **Rattrapage en post-traitement** : ce que la pose et l'ISO ne peuvent pas apporter (limite du gyroscope, ISO max du capteur, ou caméra sans exposition manuelle comme souvent la caméra frontale) est rattrapé dans la recette de la photo : exposition en plus (jusqu'à +2 EV), ombres +0,5, hautes lumières −0,25. Un débruitage luma 0,6 / chroma 0,8 est aussi appliqué à l'export. Tout reste modifiable dans l'éditeur.
+- Après chaque prise, un message affiche le réglage appliqué (`Night ×15 · ISO 1900 · 1/3 s · +3.0 EV capture · +0.0 EV post · 0.004 rad/s`) ou « bright scene, exposure unchanged ».
 - Si le réglage « débruitage multi-images » est déjà supérieur à 12 images, la valeur de l'utilisateur est conservée.
 - Le mode Nuit n'est pas persistant : à la réouverture de l'app, on revient en Photo. Il coupe le bokeh et le Live Photo (incompatibles).
 
