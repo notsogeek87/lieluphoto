@@ -1114,6 +1114,8 @@
     <string name="phantom">Phantom</string>
     <string name="virtual_aperture">Virtual Aperture</string>
     <string name="virtual_aperture_viewfinder_hint">f/%1$s</string>
+    <string name="virtual_aperture_viewfinder_off">Bokeh off</string>
+    <string name="virtual_aperture_toggle_needs_model">Install the depth model first: Settings → Default Virtual Aperture.</string>
     <string name="settings_default_virtual_aperture">Default Virtual Aperture</string>
     <string name="settings_default_virtual_aperture_description">Automatically enable virtual aperture with the selected f-stop value for new photos.</string>
     <string name="virtual_aperture_depth_model_description">Uses the installed compatible depth model. Download the default model or import another compatible TFLite model on first use.</string>

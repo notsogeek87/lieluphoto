@@ -10,6 +10,7 @@ import android.os.Environment
 import android.os.SystemClock
 import android.provider.Settings
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -71,6 +72,7 @@ import com.hinnka.mycamera.camera.FocusPointSource
 import com.hinnka.mycamera.camera.PhotoCaptureProgress
 import com.hinnka.mycamera.data.CaptureButtonStyle
 import com.hinnka.mycamera.data.DevelopAnimationStyle
+import com.hinnka.mycamera.ml.DepthModelManager
 import com.hinnka.mycamera.model.CameraPreset
 import com.hinnka.mycamera.model.ColorRecipeParams
 import com.hinnka.mycamera.model.LutSelectorMode
@@ -1325,8 +1327,7 @@ fun CameraScreen(
                     val showLivePhotoIndicator =
                         state.captureMode == CaptureMode.PHOTO && useLivePhoto
                     val showVirtualApertureIndicator =
-                        state.captureMode != CaptureMode.VIDEO &&
-                            state.isVirtualApertureEnabled
+                        state.captureMode != CaptureMode.VIDEO
                     if (showLivePhotoIndicator || showVirtualApertureIndicator) {
                         Column(
                             modifier = Modifier
@@ -1355,14 +1356,35 @@ fun CameraScreen(
                             }
                             if (showVirtualApertureIndicator) {
                                 Surface(
-                                    color = Color.Black.copy(alpha = 0.2f),
-                                    shape = RoundedCornerShape(8.dp)
+                                    color = Color.Black.copy(
+                                        alpha = if (state.isVirtualApertureEnabled) 0.2f else 0.1f
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            if (state.isVirtualApertureEnabled) {
+                                                viewModel.setVirtualApertureAuto(false)
+                                            } else if (DepthModelManager.isInstalled(context)) {
+                                                viewModel.setVirtualApertureAuto(true)
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    R.string.virtual_aperture_toggle_needs_model,
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            }
+                                        }
                                 ) {
                                     Text(
-                                        text = stringResource(
-                                            R.string.virtual_aperture_viewfinder_hint,
-                                            formatVirtualApertureFStop(state.virtualAperture)
-                                        ),
+                                        text = if (state.isVirtualApertureEnabled) {
+                                            stringResource(
+                                                R.string.virtual_aperture_viewfinder_hint,
+                                                formatVirtualApertureFStop(state.virtualAperture)
+                                            )
+                                        } else {
+                                            stringResource(R.string.virtual_aperture_viewfinder_off)
+                                        },
                                         color = Color.White,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Medium,
