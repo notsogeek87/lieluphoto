@@ -115,7 +115,8 @@ object CameraUtils {
     fun getBestCaptureSize(
         characteristics: CameraCharacteristics,
         aspectRatio: AspectRatio,
-        format: Int = ImageFormat.YUV_420_888
+        format: Int = ImageFormat.YUV_420_888,
+        targetMegapixels: Int = 50
     ): Size {
         return try {
             val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
@@ -130,7 +131,12 @@ object CameraUtils {
                 abs(ratio - sensorRatio) < 0.01
             }
 
-            val bestMatching = matchingSizes.filter { it.height >= 2160 }.maxByOrNull { it.width * it.height }
+            // La plus grande taille qui ne dépasse pas la définition demandée (marge de 15 %).
+            val limit = targetMegapixels * 1_000_000L * 115 / 100
+            fun Size.area() = width.toLong() * height
+            val bestMatching = matchingSizes.filter { it.height >= 2160 && it.area() <= limit }
+                .maxByOrNull { it.area() }
+                ?: matchingSizes.filter { it.area() <= limit }.maxByOrNull { it.area() }
 
             if (bestMatching != null) return bestMatching
 
@@ -142,6 +148,27 @@ object CameraUtils {
         }
     }
     
+    val MegapixelChoices = listOf(12, 24, 50)
+
+    /** Définitions (Mpx) réellement distinctes que ce capteur peut fournir pour ce format. */
+    fun availableMegapixels(
+        characteristics: CameraCharacteristics,
+        aspectRatio: AspectRatio,
+        format: Int = ImageFormat.YUV_420_888
+    ): List<Int> {
+        val result = mutableListOf<Int>()
+        var lastSize: Size? = null
+        for (target in MegapixelChoices) {
+            val size = getBestCaptureSize(characteristics, aspectRatio, format, target)
+            val megapixels = size.width.toLong() * size.height / 1_000_000.0
+            if (size != lastSize && megapixels >= target * 0.7) {
+                result.add(target)
+                lastSize = size
+            }
+        }
+        return result
+    }
+
     /**
      * 获取 RAW 拍照尺寸
      * 

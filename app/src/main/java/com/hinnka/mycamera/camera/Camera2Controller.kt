@@ -2821,7 +2821,17 @@ class Camera2Controller(private val context: Context) {
                 val captureSize = if (rawOutput != null) {
                     rawOutput.size
                 } else {
-                    CameraUtils.getBestCaptureSize(outputCharacteristicsForStreams, aspectRatio, captureFormat)
+                    CameraUtils.getBestCaptureSize(
+                        outputCharacteristicsForStreams,
+                        aspectRatio,
+                        captureFormat,
+                        _state.value.captureMegapixels
+                    )
+                }
+                val availableMegapixels = if (rawOutput != null) {
+                    emptyList()
+                } else {
+                    CameraUtils.availableMegapixels(outputCharacteristicsForStreams, aspectRatio, captureFormat)
                 }
 
                 val isP3Supported = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -2832,7 +2842,8 @@ class Camera2Controller(private val context: Context) {
 
                 _state.value = _state.value.copy(
                     isP3Supported = isP3Supported,
-                    currentCaptureSize = captureSize
+                    currentCaptureSize = captureSize,
+                    availableMegapixels = availableMegapixels
                 )
 
                 val readerMaxImages = resolveImageReaderMaxImages()
@@ -6871,6 +6882,10 @@ class Camera2Controller(private val context: Context) {
                 livePhotoRecorder.startRecording()
             }
         }
+    }
+
+    fun setCaptureMegapixels(megapixels: Int) {
+        _state.value = _state.value.copy(captureMegapixels = megapixels)
     }
 
     fun setVideoResolution(resolution: VideoResolutionPreset) {

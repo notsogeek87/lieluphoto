@@ -721,6 +721,36 @@ fun CameraScreen(
         }
     }
 
+    // Balayage horizontal du viseur : Pro · Photo · Portrait · Vidéo, comme sur l'appareil Samsung.
+    fun swipeShootingMode(forward: Boolean) {
+        if (state.videoRecordingState.isRecording || state.videoRecordingState.isProcessing) return
+        if (previewTransitionActive || lensSwitchTransition.isActive) return
+        val modes = buildList {
+            if (state.isRawSupported) add(CameraShootingMode.PROFESSIONAL)
+            add(CameraShootingMode.PHOTO)
+            add(CameraShootingMode.PORTRAIT)
+            add(CameraShootingMode.VIDEO)
+        }
+        val current = when {
+            state.captureMode == CaptureMode.VIDEO -> CameraShootingMode.VIDEO
+            state.useRaw && state.isRawSupported -> CameraShootingMode.PROFESSIONAL
+            state.isVirtualApertureEnabled -> CameraShootingMode.PORTRAIT
+            else -> CameraShootingMode.PHOTO
+        }
+        val target = modes.getOrNull(modes.indexOf(current) + if (forward) 1 else -1) ?: return
+        setShootingModeWithPreviewTransition(target)
+        lutNameOverlayState.show(
+            context.getString(
+                when (target) {
+                    CameraShootingMode.PROFESSIONAL -> R.string.capture_mode_professional
+                    CameraShootingMode.PHOTO -> R.string.capture_mode_photo
+                    CameraShootingMode.PORTRAIT -> R.string.capture_mode_portrait
+                    CameraShootingMode.VIDEO -> R.string.capture_mode_video
+                }
+            )
+        )
+    }
+
     fun presetTargetAspectRatio(preset: CameraPreset?): AspectRatio {
         return try {
             AspectRatio.valueOf(preset?.aspectRatio ?: AspectRatio.RATIO_4_3.name)
@@ -1231,7 +1261,7 @@ fun CameraScreen(
                                         }
                                         event.changes.forEach { it.consume() }
                                     } else if (event.changes.size == 1) {
-                                        // Single finger -> horizontal drag for LUT switch
+                                        // Single finger -> horizontal drag for shooting mode switch
                                         val change = event.changes[0]
                                         if (change.isConsumed && change.position != change.previousPosition) {
                                             childConsumedDrag = true
@@ -1244,14 +1274,7 @@ fun CameraScreen(
                                         } else if (!change.pressed) {
                                             // onDragEnd logic
                                             if (!childConsumedDrag && abs(totalDrag) > 100) {
-                                                val selectedLut = if (totalDrag > 0) {
-                                                    viewModel.switchToPreviousLut()
-                                                } else {
-                                                    viewModel.switchToNextLut()
-                                                }
-                                                selectedLut?.let {
-                                                    lutNameOverlayState.show(it.getName())
-                                                }
+                                                swipeShootingMode(forward = totalDrag < 0)
                                             }
                                             totalDrag = 0f
                                             viewModel.isZooming = false
@@ -1438,6 +1461,33 @@ fun CameraScreen(
                                         modifier = Modifier
                                             .padding(4.dp)
                                             .size(18.dp)
+                                    )
+                                }
+                            }
+                            if (state.captureMode == CaptureMode.PHOTO && !state.useRaw &&
+                                state.availableMegapixels.size > 1
+                            ) {
+                                val megapixels = state.availableMegapixels
+                                    .lastOrNull { it <= state.captureMegapixels }
+                                    ?: state.availableMegapixels.first()
+                                Surface(
+                                    color = Color.Black.copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable(enabled = !state.isCapturing && !previewTransitionActive) {
+                                            val choices = state.availableMegapixels
+                                            val next = choices[(choices.indexOf(megapixels) + 1) % choices.size]
+                                            runPreviewTransition { viewModel.setCaptureMegapixels(next) }
+                                        }
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.capture_megapixels_label, megapixels),
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        style = TextStyle(shadow = ViewfinderTextShadow),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                                     )
                                 }
                             }

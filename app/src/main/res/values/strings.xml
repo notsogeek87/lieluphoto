@@ -1392,4 +1392,10 @@
     <string name="model_remove_favorite">Remove current model from favorites</string>
     <string name="model_open_panel">Models</string>
     <string name="capture_mode_portrait">Portrait</string>
+    <string name="capture_megapixels_label">%1$d MP</string>
+    <string name="settings_group_daily">Camera</string>
+    <string name="settings_group_models_ai">Looks &amp; AI</string>
+    <string name="settings_group_app">App</string>
+    <string name="settings_group_advanced">Advanced</string>
+    <string name="settings_group_advanced_desc">Lens &amp; focus, Pro / RAW, backup, Phantom</string>
 </resources>

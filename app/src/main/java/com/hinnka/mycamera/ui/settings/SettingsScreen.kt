@@ -3173,28 +3173,17 @@ private fun SettingsCategoryOverview(
         Spacer(modifier = Modifier.height(24.dp))
     }
 
-    SettingsSection(title = stringResource(R.string.settings_tab_camera)) {
+    // Au quotidien en haut ; ce qui sert rarement est replié dans « Avancé ».
+    SettingsSection(title = stringResource(R.string.settings_group_daily)) {
         NavigationSettingItem(
-            title = stringResource(R.string.settings_section_assist),
+            title = stringResource(R.string.settings_section_photo_mode),
             description = listOf(
-                stringResource(R.string.settings_grid_lines),
-                stringResource(R.string.settings_level_indicator),
-                stringResource(R.string.settings_focus_peaking)
+                stringResource(R.string.settings_multi_frame_denoise_frame_count),
+                stringResource(R.string.settings_jpg_multi_frame_denoise_output_scale),
+                stringResource(R.string.settings_nr_level),
+                stringResource(R.string.settings_edge_level)
             ).joinToString(" · "),
-            onClick = { onPageSelected(SettingsPage.ASSIST) }
-        )
-
-        SettingsCategoryDivider()
-
-        NavigationSettingItem(
-            title = stringResource(R.string.settings_section_focus_lens),
-            description = listOf(
-                stringResource(R.string.settings_eye_focus),
-                stringResource(R.string.settings_default_focal_length),
-                stringResource(R.string.settings_camera_orientation),
-                stringResource(R.string.settings_add_isz_lens)
-            ).joinToString(" · "),
-            onClick = { onPageSelected(SettingsPage.FOCUS_LENS) }
+            onClick = { onPageSelected(SettingsPage.PHOTO_MODE) }
         )
 
         SettingsCategoryDivider()
@@ -3229,20 +3218,102 @@ private fun SettingsCategoryOverview(
             onClick = { onPageSelected(SettingsPage.VIDEO) }
         )
 
+        SettingsCategoryDivider()
+
+        NavigationSettingItem(
+            title = stringResource(R.string.settings_section_assist),
+            description = listOf(
+                stringResource(R.string.settings_grid_lines),
+                stringResource(R.string.settings_level_indicator),
+                stringResource(R.string.settings_focus_peaking)
+            ).joinToString(" · "),
+            onClick = { onPageSelected(SettingsPage.ASSIST) }
+        )
     }
 
     Spacer(modifier = Modifier.height(24.dp))
 
-    SettingsSection(title = stringResource(R.string.imaging)) {
+    SettingsSection(title = stringResource(R.string.settings_group_models_ai)) {
         NavigationSettingItem(
-            title = stringResource(R.string.settings_section_photo_mode),
+            title = stringResource(R.string.settings_section_management),
             description = listOf(
-                stringResource(R.string.settings_multi_frame_denoise_frame_count),
-                stringResource(R.string.settings_jpg_multi_frame_denoise_output_scale),
-                stringResource(R.string.settings_nr_level),
-                stringResource(R.string.settings_edge_level)
+                stringResource(R.string.settings_filter_management),
+                stringResource(R.string.settings_frame_management),
+                stringResource(R.string.settings_preset_management)
             ).joinToString(" · "),
-            onClick = { onPageSelected(SettingsPage.PHOTO_MODE) }
+            onClick = { onPageSelected(SettingsPage.CONTENT_MANAGEMENT) }
+        )
+
+        SettingsCategoryDivider()
+
+        NavigationSettingItem(
+            title = stringResource(R.string.ai_service),
+            description = listOf(
+                stringResource(R.string.settings_openai_api_key),
+                stringResource(R.string.settings_openai_base_url),
+                stringResource(R.string.settings_ai_model)
+            ).joinToString(" · "),
+            onClick = { onPageSelected(SettingsPage.AI_SERVICE) }
+        )
+    }
+
+    Spacer(modifier = Modifier.height(24.dp))
+
+    SettingsSection(title = stringResource(R.string.settings_group_app)) {
+        NavigationSettingItem(
+            title = stringResource(R.string.settings_section_interface),
+            description = listOf(
+                stringResource(R.string.settings_background),
+                stringResource(R.string.settings_widget_theme),
+                stringResource(R.string.settings_develop_animation)
+            ).joinToString(" · "),
+            onClick = { onPageSelected(SettingsPage.INTERFACE) }
+        )
+
+        SettingsCategoryDivider()
+
+        NavigationSettingItem(
+            title = stringResource(R.string.settings_section_system_control),
+            description = listOf(
+                stringResource(R.string.settings_shutter_sound),
+                stringResource(R.string.settings_keep_screen_on),
+                stringResource(R.string.settings_screen_hdr),
+                stringResource(R.string.settings_volume_key_action)
+            ).joinToString(" · "),
+            onClick = { onPageSelected(SettingsPage.SYSTEM_CONTROL) }
+        )
+
+        SettingsCategoryDivider()
+
+        NavigationSettingItem(
+            title = stringResource(R.string.settings_section_help_about),
+            description = listOf(
+                stringResource(R.string.settings_log_viewer),
+                stringResource(R.string.settings_community_group)
+            ).joinToString(" · "),
+            onClick = { onPageSelected(SettingsPage.HELP_ABOUT) }
+        )
+    }
+
+    Spacer(modifier = Modifier.height(24.dp))
+
+    var showAdvanced by rememberSaveable { mutableStateOf(false) }
+    SettingsSection(
+        title = stringResource(R.string.settings_group_advanced),
+        description = stringResource(R.string.settings_group_advanced_desc),
+        isExpandable = true,
+        isExpanded = showAdvanced,
+        onToggleExpand = { showAdvanced = !showAdvanced }
+    ) {
+        NavigationSettingItem(
+            title = stringResource(R.string.settings_section_focus_lens),
+            description = listOf(
+                stringResource(R.string.settings_eye_focus),
+                stringResource(R.string.settings_default_focal_length),
+                stringResource(R.string.settings_camera_orientation),
+                stringResource(R.string.settings_add_isz_lens)
+            ).joinToString(" · "),
+            onClick = { onPageSelected(SettingsPage.FOCUS_LENS) }
         )
 
         SettingsCategoryDivider()
@@ -3272,57 +3343,6 @@ private fun SettingsCategoryOverview(
                 onClick = { onPageSelected(SettingsPage.PHANTOM) }
             )
         }
-    }
-
-    Spacer(modifier = Modifier.height(24.dp))
-
-    SettingsSection(title = stringResource(R.string.settings_tab_system)) {
-        NavigationSettingItem(
-            title = stringResource(R.string.settings_section_interface),
-            description = listOf(
-                stringResource(R.string.settings_background),
-                stringResource(R.string.settings_widget_theme),
-                stringResource(R.string.settings_develop_animation)
-            ).joinToString(" · "),
-            onClick = { onPageSelected(SettingsPage.INTERFACE) }
-        )
-
-        SettingsCategoryDivider()
-
-        NavigationSettingItem(
-            title = stringResource(R.string.settings_section_management),
-            description = listOf(
-                stringResource(R.string.settings_filter_management),
-                stringResource(R.string.settings_frame_management),
-                stringResource(R.string.settings_preset_management)
-            ).joinToString(" · "),
-            onClick = { onPageSelected(SettingsPage.CONTENT_MANAGEMENT) }
-        )
-
-        SettingsCategoryDivider()
-
-        NavigationSettingItem(
-            title = stringResource(R.string.ai_service),
-            description = listOf(
-                stringResource(R.string.settings_openai_api_key),
-                stringResource(R.string.settings_openai_base_url),
-                stringResource(R.string.settings_ai_model)
-            ).joinToString(" · "),
-            onClick = { onPageSelected(SettingsPage.AI_SERVICE) }
-        )
-
-        SettingsCategoryDivider()
-
-        NavigationSettingItem(
-            title = stringResource(R.string.settings_section_system_control),
-            description = listOf(
-                stringResource(R.string.settings_shutter_sound),
-                stringResource(R.string.settings_keep_screen_on),
-                stringResource(R.string.settings_screen_hdr),
-                stringResource(R.string.settings_volume_key_action)
-            ).joinToString(" · "),
-            onClick = { onPageSelected(SettingsPage.SYSTEM_CONTROL) }
-        )
 
         SettingsCategoryDivider()
 
@@ -3333,17 +3353,6 @@ private fun SettingsCategoryOverview(
                 stringResource(R.string.settings_restore_settings)
             ).joinToString(" · "),
             onClick = { onPageSelected(SettingsPage.DATA_MAINTENANCE) }
-        )
-
-        SettingsCategoryDivider()
-
-        NavigationSettingItem(
-            title = stringResource(R.string.settings_section_help_about),
-            description = listOf(
-                stringResource(R.string.settings_log_viewer),
-                stringResource(R.string.settings_community_group)
-            ).joinToString(" · "),
-            onClick = { onPageSelected(SettingsPage.HELP_ABOUT) }
         )
     }
 }

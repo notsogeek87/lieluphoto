@@ -164,6 +164,7 @@ data class UserPreferences(
     val frameId: String? = null,
     val phantomFrameId: String? = null,
     val showHistogram: Boolean = true,
+    val captureMegapixels: Int = 50,  // 12 / 24 / 50 Mpx, comme l'appareil Samsung
     val showGrid: Boolean = false,  // 网格线显示
     val gridStyle: GridStyle = GridStyle.THIRDS,
     val showLevelIndicator: Boolean = false,  // 水平仪显示
@@ -427,6 +428,7 @@ class UserPreferencesRepository(private val context: Context) {
         private val FRAME_ID_KEY = stringPreferencesKey("frame_id")
         private val PHANTOM_FRAME_ID_KEY = stringPreferencesKey("phantom_frame_id")
         private val SHOW_HISTOGRAM = booleanPreferencesKey("show_histogram")
+        private val CAPTURE_MEGAPIXELS = intPreferencesKey("capture_megapixels")
         private val SHOW_GRID = booleanPreferencesKey("show_grid")
         private val GRID_STYLE = stringPreferencesKey("grid_style")
         private val SHOW_LEVEL_INDICATOR = booleanPreferencesKey("show_level_indicator")
@@ -743,6 +745,7 @@ class UserPreferencesRepository(private val context: Context) {
                 frameId = preferences[FRAME_ID_KEY],
                 phantomFrameId = preferences[PHANTOM_FRAME_ID_KEY],
                 showHistogram = preferences[SHOW_HISTOGRAM] ?: true,
+                captureMegapixels = preferences[CAPTURE_MEGAPIXELS] ?: 50,
                 showGrid = preferences[SHOW_GRID] ?: false,
                 gridStyle = GridStyle.fromPersistedName(preferences[GRID_STYLE]),
                 showLevelIndicator = preferences[SHOW_LEVEL_INDICATOR] ?: false,
@@ -1548,6 +1551,12 @@ class UserPreferencesRepository(private val context: Context) {
             } else {
                 preferences.remove(PHANTOM_FRAME_ID_KEY)
             }
+        }
+    }
+
+    suspend fun saveCaptureMegapixels(megapixels: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[CAPTURE_MEGAPIXELS] = megapixels
         }
     }
 

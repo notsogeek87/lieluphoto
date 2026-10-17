@@ -2513,6 +2513,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 }
 
                 showHistogram = prefs.showHistogram
+                cameraController.setCaptureMegapixels(prefs.captureMegapixels)
 
                 // 应用保存的网格线设置
                 cameraController.setShowGrid(prefs.showGrid)
@@ -4952,6 +4953,16 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * 设置是否显示直方图
      */
+    /** Change la définition de la photo (12 / 24 / 50 Mpx) : la caméra est rouverte avec la nouvelle taille. */
+    fun setCaptureMegapixels(megapixels: Int) {
+        if (state.value.captureMegapixels == megapixels) return
+        cameraController.setCaptureMegapixels(megapixels)
+        reopenCamera()
+        viewModelScope.launch {
+            userPreferencesRepository.saveCaptureMegapixels(megapixels)
+        }
+    }
+
     fun saveShowHistogram(show: Boolean) {
         showHistogram = show
         // 保存到用户偏好设置
