@@ -134,6 +134,35 @@ private fun formatVirtualApertureFStop(aperture: Float): String {
     return if (aperture == rounded.toFloat()) rounded.toString() else aperture.toString()
 }
 
+private val VirtualApertureStops = listOf(1.0f, 1.4f, 1.8f, 2.0f, 2.8f, 4.0f, 5.6f, 8.0f, 11.0f, 16.0f)
+
+@Composable
+private fun VirtualApertureDialog(
+    aperture: Float,
+    onApertureChange: (Float) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val closest = VirtualApertureStops.indices.minByOrNull { kotlin.math.abs(VirtualApertureStops[it] - aperture) } ?: 0
+    var index by remember { mutableStateOf(closest.toFloat()) }
+    val value = VirtualApertureStops[index.roundToInt()]
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.virtual_aperture_viewfinder_hint, formatVirtualApertureFStop(value))) },
+        text = {
+            Slider(
+                value = index,
+                onValueChange = {
+                    index = it
+                    onApertureChange(VirtualApertureStops[it.roundToInt()])
+                },
+                valueRange = 0f..(VirtualApertureStops.size - 1).toFloat(),
+                steps = VirtualApertureStops.size - 2
+            )
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.ok)) } }
+    )
+}
+
 @Composable
 private fun cameraTopSafePadding(): Dp {
     val density = LocalDensity.current
@@ -235,6 +264,7 @@ fun CameraScreen(
     }.collectAsState()
     var showDepthModelDownloadDialog by remember { mutableStateOf(false) }
     var pendingBokehEnable by remember { mutableStateOf(false) }
+    var showApertureDialog by remember { mutableStateOf(false) }
     val depthModelImportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -1380,7 +1410,11 @@ fun CameraScreen(
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .clickable {
+                                        .combinedClickable(
+                                            onLongClick = {
+                                                if (state.isVirtualApertureEnabled) showApertureDialog = true
+                                            }
+                                        ) {
                                             if (state.isVirtualApertureEnabled) {
                                                 viewModel.setVirtualApertureAuto(false)
                                             } else if (DepthModelManager.isInstalled(context)) {
@@ -1408,6 +1442,13 @@ fun CameraScreen(
                                             horizontal = 6.dp,
                                             vertical = 3.dp
                                         )
+                                    )
+                                }
+                                if (showApertureDialog) {
+                                    VirtualApertureDialog(
+                                        aperture = state.virtualAperture,
+                                        onApertureChange = { viewModel.setDefaultVirtualAperture(it) },
+                                        onDismiss = { showApertureDialog = false }
                                     )
                                 }
                                 if (showDepthModelDownloadDialog) {
