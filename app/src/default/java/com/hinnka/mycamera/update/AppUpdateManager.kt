@@ -38,6 +38,7 @@ data class AppUpdateRelease(
 
 object AppUpdateManager {
     private const val TAG = "AppUpdateManager"
+    private const val UPDATES_ENABLED = false
     private const val VERSION_CHECK_URL = "https://camera-api.hinnka.me/api/version/check"
     private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
     private const val APK_MAGIC_0 = 'P'.code.toByte()
@@ -61,6 +62,7 @@ object AppUpdateManager {
         flavor: String = BuildConfig.FLAVOR
     ): AppUpdateRelease? =
         withContext(Dispatchers.IO) {
+            if (!UPDATES_ENABLED) return@withContext null
             val encodedVersion = URLEncoder.encode(currentVersion, "UTF-8")
             val encodedFlavor = URLEncoder.encode(flavor, "UTF-8")
             val request = Request.Builder()
@@ -110,6 +112,7 @@ object AppUpdateManager {
         getOrStartDownload(context.applicationContext, release).await()
 
     fun startSilentUpdate(context: Context) {
+        if (!UPDATES_ENABLED) return
         val appContext = context.applicationContext
         synchronized(downloadLock) {
             if (activeSilentCheck?.isActive == true) return
