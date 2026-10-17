@@ -1414,4 +1414,13 @@
     <string name="settings_export_all_description">One file with everything: preferences, favorite models, presets, aperture, frames, custom LUTs and more. Use "Import settings" to restore it.</string>
     <string name="quick_megapixels_switching">Switching to %1$d MP…</string>
     <string name="quick_megapixels_single">Only one photo size is available here (%1$s): the phone does not offer another size for this aspect ratio and mode. Try another aspect ratio, or leave Pro (RAW) mode.</string>
+    <string name="quick_megapixels_diag_title">Why not 24 / 50 MP?</string>
+    <string name="quick_megapixels_diag_none">none</string>
+    <string name="quick_megapixels_diag_yes">yes</string>
+    <string name="quick_megapixels_diag_no">no</string>
+    <string name="quick_megapixels_diag_body">Sensor (physical pixels): %1$s\nSize used now: %2$s\nExtra high-resolution YUV sizes: %3$s\nLargest JPEG size: %4$s\nMaximum-resolution sensor mode: %5$s (up to %6$s)\nSizes exposed through manufacturer keys: %7$s\n\n%8$s</string>
+    <string name="quick_megapixels_diag_cause_max_mode">Cause: your sensor can reach %1$s, but only through its special "maximum resolution" mode, which this app does not use yet for normal photos. That is why only this size is offered.</string>
+    <string name="quick_megapixels_diag_cause_jpeg_only">Cause: the phone only offers the large size (%1$s) as JPEG, through its own camera app, not as a stream apps can use. Only this size is available here.</string>
+    <string name="quick_megapixels_diag_cause_binning">Cause: the phone exposes no other size to apps. High-megapixel sensors usually combine 4 pixels into 1 (binning) to get cleaner 12 MP photos; the full resolution is reserved for the manufacturer\'s camera app.</string>
+    <string name="quick_megapixels_diag_cause_vendor">Cause: your phone lists a larger size (%1$s) through private manufacturer keys, which this app does not use yet. The manufacturer\'s own camera app uses them; using them here requires a dedicated capture mode.</string>
 </resources>

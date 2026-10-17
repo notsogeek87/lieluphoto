@@ -1314,6 +1314,7 @@ fun CameraScreen(
                             aspectRatio = previewAspectRatio,
                             previewSize = previewSize,
                             captureSize = state.currentCaptureSize,
+            resolutionDiagnostic = state.resolutionDiagnostic,
                             captureMode = state.captureMode,
                             sensorOrientation = state.getCurrentCameraInfo()?.sensorOrientation
                                 ?: 0,

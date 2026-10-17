@@ -2843,7 +2843,10 @@ class Camera2Controller(private val context: Context) {
                 _state.value = _state.value.copy(
                     isP3Supported = isP3Supported,
                     currentCaptureSize = captureSize,
-                    availableMegapixels = availableMegapixels
+                    availableMegapixels = availableMegapixels,
+                    resolutionDiagnostic = runCatching {
+                        CameraUtils.describeResolutionSupport(outputCharacteristicsForStreams)
+                    }.getOrNull()
                 )
 
                 val readerMaxImages = resolveImageReaderMaxImages()

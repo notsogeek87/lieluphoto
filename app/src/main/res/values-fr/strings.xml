@@ -1372,4 +1372,13 @@
     <string name="settings_export_all_description">Un seul fichier avec tout : préférences, modèles favoris, préréglages, ouverture, cadres, LUT personnalisés, etc. Utilisez « Importer des réglages » pour le restaurer.</string>
     <string name="quick_megapixels_switching">Passage à %1$d Mpx…</string>
     <string name="quick_megapixels_single">Une seule taille de photo est disponible ici (%1$s) : le téléphone n\'en propose pas d\'autre pour ce format d\'image et ce mode. Essayez un autre format d\'image, ou quittez le mode Pro (RAW).</string>
+    <string name="quick_megapixels_diag_title">Pourquoi pas 24 / 50 Mpx ?</string>
+    <string name="quick_megapixels_diag_none">aucune</string>
+    <string name="quick_megapixels_diag_yes">oui</string>
+    <string name="quick_megapixels_diag_no">non</string>
+    <string name="quick_megapixels_diag_body">Capteur (pixels physiques) : %1$s\nTaille utilisée actuellement : %2$s\nTailles YUV haute résolution supplémentaires : %3$s\nPlus grande taille JPEG : %4$s\nMode résolution maximale du capteur : %5$s (jusqu\'à %6$s)\nTailles exposées par les clés constructeur : %7$s\n\n%8$s</string>
+    <string name="quick_megapixels_diag_cause_max_mode">Cause : votre capteur peut atteindre %1$s, mais seulement via son mode spécial « résolution maximale », que l\'application n\'utilise pas encore pour les photos normales. C\'est pour cela que seule cette taille est proposée.</string>
+    <string name="quick_megapixels_diag_cause_jpeg_only">Cause : le téléphone ne propose la grande taille (%1$s) qu\'en JPEG, via sa propre application photo, et pas comme flux utilisable par les applications. Seule cette taille est disponible ici.</string>
+    <string name="quick_megapixels_diag_cause_binning">Cause : le téléphone n\'expose aucune autre taille aux applications. Les capteurs à beaucoup de mégapixels regroupent en général 4 pixels en 1 (binning) pour des photos de 12 Mpx plus propres ; la pleine résolution est réservée à l\'application photo du constructeur.</string>
+    <string name="quick_megapixels_diag_cause_vendor">Cause : votre téléphone liste une taille plus grande (%1$s) via des clés privées du constructeur, que l\'application n\'utilise pas encore. L\'application photo du constructeur les utilise ; les exploiter ici demande un mode de capture dédié.</string>
 </resources>

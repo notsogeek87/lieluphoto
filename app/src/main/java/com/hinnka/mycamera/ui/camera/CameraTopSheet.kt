@@ -106,6 +106,7 @@ fun CameraTopSheet(
     onMeteringModeChange: (MeteringMode) -> Unit,
     captureMegapixels: Int = 12,
     captureSize: android.util.Size? = null,
+    resolutionDiagnostic: com.hinnka.mycamera.camera.CameraUtils.ResolutionDiagnostic? = null,
     availableMegapixels: List<Int> = emptyList(),
     onCaptureMegapixelsChange: (Int) -> Unit = {},
     onFilterManageClick: () -> Unit,
@@ -224,6 +225,7 @@ fun CameraTopSheet(
                                     ?: availableMegapixels.firstOrNull(),
                                 choices = availableMegapixels,
                                 captureSize = captureSize,
+                                diagnostic = resolutionDiagnostic,
                                 onChange = onCaptureMegapixelsChange,
                                 onInfoClick = { quickInfo = QuickInfo(R.string.quick_megapixels_title, R.string.quick_info_megapixels) },
                                 modifier = itemModifier
@@ -796,12 +798,31 @@ private fun MegapixelsQuickSetting(
     megapixels: Int?,
     choices: List<Int>,
     captureSize: android.util.Size?,
+    diagnostic: com.hinnka.mycamera.camera.CameraUtils.ResolutionDiagnostic?,
     onChange: (Int) -> Unit,
     onInfoClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val selectable = choices.size > 1 && megapixels != null
     val context = androidx.compose.ui.platform.LocalContext.current
+    var showDiagnostic by remember { mutableStateOf(false) }
+    if (showDiagnostic) {
+        AlertDialog(
+            onDismissRequest = { showDiagnostic = false },
+            title = { Text(text = stringResource(R.string.quick_megapixels_diag_title)) },
+            text = {
+                Text(
+                    text = resolutionDiagnosticText(captureSize, diagnostic),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showDiagnostic = false }) {
+                    Text(text = stringResource(R.string.close))
+                }
+            }
+        )
+    }
     QuickSettingValue(
         title = stringResource(R.string.quick_megapixels_title),
         value = megapixels?.let {
@@ -820,12 +841,7 @@ private fun MegapixelsQuickSetting(
                 onChange(next)
             } else {
                 // Explique pourquoi rien ne change au lieu de rester silencieux.
-                val sizeText = captureSize?.let { "${it.width}×${it.height}" } ?: "?"
-                android.widget.Toast.makeText(
-                    context,
-                    context.getString(R.string.quick_megapixels_single, sizeText),
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
+                showDiagnostic = true
             }
         },
         onInfoClick = onInfoClick,
@@ -1194,4 +1210,40 @@ private fun AdvancedSectionHeader(
             modifier = Modifier.size(20.dp)
         )
     }
+}
+
+@Composable
+private fun resolutionDiagnosticText(
+    captureSize: android.util.Size?,
+    d: com.hinnka.mycamera.camera.CameraUtils.ResolutionDiagnostic?
+): String {
+    fun android.util.Size?.label(): String = this?.let {
+        val mp = it.width.toLong() * it.height / 1_000_000.0
+        "${it.width}×${it.height} (${"%.1f".format(mp)} Mpx)"
+    } ?: stringResource(R.string.quick_megapixels_diag_none)
+    fun android.util.Size?.pixels() = this?.let { it.width.toLong() * it.height } ?: 0L
+    if (d == null) return stringResource(R.string.quick_megapixels_single, captureSize.label())
+    val current = captureSize.pixels()
+    val conclusion = when {
+        d.ultraHighResCapability && d.maxResolutionModeMax.pixels() > current * 1.5 ->
+            stringResource(R.string.quick_megapixels_diag_cause_max_mode, d.maxResolutionModeMax.label())
+        d.vendorMax.pixels() > current * 1.5 ->
+            stringResource(R.string.quick_megapixels_diag_cause_vendor, d.vendorMax.label())
+        d.jpegMax.pixels() > current * 1.5 ->
+            stringResource(R.string.quick_megapixels_diag_cause_jpeg_only, d.jpegMax.label())
+        else -> stringResource(R.string.quick_megapixels_diag_cause_binning)
+    }
+    return stringResource(
+        R.string.quick_megapixels_diag_body,
+        d.pixelArray.label(),
+        captureSize.label(),
+        d.yuvHighResMax.label(),
+        d.jpegMax.label(),
+        stringResource(
+            if (d.ultraHighResCapability) R.string.quick_megapixels_diag_yes else R.string.quick_megapixels_diag_no
+        ),
+        d.maxResolutionModeMax.label(),
+        d.vendorMax.label(),
+        conclusion
+    )
 }

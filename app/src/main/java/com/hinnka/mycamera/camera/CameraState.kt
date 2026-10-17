@@ -288,6 +288,7 @@ data class CameraState(
     // Définition de la photo (Mpx) : choix demandé et choix réellement offerts par le capteur
     val captureMegapixels: Int = 12,
     val availableMegapixels: List<Int> = emptyList(),
+    val resolutionDiagnostic: CameraUtils.ResolutionDiagnostic? = null,
 
     // 曝光控制
     val exposureCompensation: Int = 0,

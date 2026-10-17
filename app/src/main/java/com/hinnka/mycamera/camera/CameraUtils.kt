@@ -172,6 +172,51 @@ object CameraUtils {
         return result
     }
 
+    /** Ce que le capteur expose réellement comme tailles de photo (pour expliquer l'absence de 24 / 50 Mpx). */
+    data class ResolutionDiagnostic(
+        val pixelArray: Size?,
+        val yuvStandardMax: Size?,
+        val yuvHighResMax: Size?,
+        val jpegMax: Size?,
+        val ultraHighResCapability: Boolean,
+        val maxResolutionModeMax: Size?,
+        val vendorMax: Size?,
+    )
+
+    fun describeResolutionSupport(characteristics: CameraCharacteristics): ResolutionDiagnostic {
+        fun List<Size>?.largest() = this?.maxByOrNull { it.width.toLong() * it.height }
+        val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+        val yuv = ImageFormat.YUV_420_888
+        var ultraHigh = false
+        var maxResMax: Size? = null
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            ultraHigh = characteristics.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+                ?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_ULTRA_HIGH_RESOLUTION_SENSOR) == true
+            val maxMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP_MAXIMUM_RESOLUTION)
+            maxResMax = listOfNotNull(
+                maxMap?.getOutputSizes(ImageFormat.JPEG)?.toList().largest(),
+                maxMap?.getOutputSizes(yuv)?.toList().largest(),
+                maxMap?.getHighResolutionOutputSizes(yuv)?.toList().largest(),
+            ).maxByOrNull { it.width.toLong() * it.height }
+        }
+        return ResolutionDiagnostic(
+            pixelArray = characteristics.get(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE),
+            yuvStandardMax = map?.getOutputSizes(yuv)?.toList().largest(),
+            yuvHighResMax = map?.getHighResolutionOutputSizes(yuv)?.toList().largest(),
+            jpegMax = listOfNotNull(
+                map?.getOutputSizes(ImageFormat.JPEG)?.toList().largest(),
+                map?.getHighResolutionOutputSizes(ImageFormat.JPEG)?.toList().largest(),
+            ).maxByOrNull { it.width.toLong() * it.height },
+            ultraHighResCapability = ultraHigh,
+            maxResolutionModeMax = maxResMax,
+            // Clés privées du constructeur (Samsung, Xiaomi, OPPO…) : là où se cachent souvent 24 / 50 Mpx.
+            vendorMax = runCatching {
+                HighResolutionHelper.getHighResolutionConfigs(characteristics, HighResolutionHelper.MP_12)
+                    .map { it.size }.largest()
+            }.getOrNull(),
+        )
+    }
+
     /**
      * 获取 RAW 拍照尺寸
      * 
