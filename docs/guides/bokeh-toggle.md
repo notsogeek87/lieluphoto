@@ -26,3 +26,7 @@ else { pendingBokehEnable = true; showDepthModelDownloadDialog = true }
 Textes : `virtual_aperture_viewfinder_hint`, `virtual_aperture_viewfinder_off` (en, fr).
 
 Réglage : `VirtualApertureDialog` (même fichier), liste `VirtualApertureStops`.
+
+## Mode Portrait
+
+Le sélecteur du bas propose `Pro · Photo · Portrait · Vidéo`. **Portrait** = photo avec le bokeh activé (si le modèle de profondeur manque, le dialogue de téléchargement s'ouvre). Passer à Photo ou Pro coupe le bokeh. Le mode affiché est déduit de l'état : photo non RAW + bokeh actif = Portrait, donc la pastille f/ et le sélecteur restent toujours cohérents.

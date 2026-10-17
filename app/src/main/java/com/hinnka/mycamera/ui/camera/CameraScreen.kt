@@ -111,6 +111,7 @@ enum class ActivePanel {
 private enum class CameraShootingMode {
     PROFESSIONAL,
     PHOTO,
+    PORTRAIT,
     VIDEO
 }
 
@@ -668,23 +669,45 @@ fun CameraScreen(
         runPreviewTransition { viewModel.switchCamera() }
     }
 
+    // Portrait = photo avec bokeh IA activé ; Photo et Pro le coupent.
+    fun applyBokehForMode(mode: CameraShootingMode) {
+        when (mode) {
+            CameraShootingMode.PORTRAIT -> if (!state.isVirtualApertureEnabled) {
+                if (DepthModelManager.isInstalled(context)) {
+                    viewModel.setVirtualApertureAuto(true)
+                } else {
+                    pendingBokehEnable = true
+                    showDepthModelDownloadDialog = true
+                }
+            }
+            CameraShootingMode.PHOTO,
+            CameraShootingMode.PROFESSIONAL -> if (state.isVirtualApertureEnabled) {
+                viewModel.setVirtualApertureAuto(false)
+            }
+            CameraShootingMode.VIDEO -> Unit
+        }
+    }
+
     fun setShootingModeWithPreviewTransition(mode: CameraShootingMode) {
         if (mode == CameraShootingMode.PROFESSIONAL && !state.isRawSupported) return
 
         val targetCaptureMode = when (mode) {
             CameraShootingMode.PROFESSIONAL,
-            CameraShootingMode.PHOTO -> CaptureMode.PHOTO
+            CameraShootingMode.PHOTO,
+            CameraShootingMode.PORTRAIT -> CaptureMode.PHOTO
             CameraShootingMode.VIDEO -> CaptureMode.VIDEO
         }
         val targetUseRaw = when (mode) {
             CameraShootingMode.PROFESSIONAL -> true
-            CameraShootingMode.PHOTO -> false
+            CameraShootingMode.PHOTO,
+            CameraShootingMode.PORTRAIT -> false
             CameraShootingMode.VIDEO -> null
         }
         if (
             targetCaptureMode == state.captureMode &&
             (targetUseRaw == null || targetUseRaw == state.useRaw)
         ) {
+            applyBokehForMode(mode)
             return
         }
 
@@ -693,6 +716,7 @@ fun CameraScreen(
                 viewModel.setAspectRatio(AspectRatio.RATIO_4_3)
             }
             viewModel.setShootingMode(targetCaptureMode, targetUseRaw)
+            applyBokehForMode(mode)
         }
     }
 
@@ -2247,6 +2271,7 @@ private fun Controls(
                 shootingMode = when {
                     state.captureMode == CaptureMode.VIDEO -> CameraShootingMode.VIDEO
                     state.useRaw && state.isRawSupported -> CameraShootingMode.PROFESSIONAL
+                    state.isVirtualApertureEnabled -> CameraShootingMode.PORTRAIT
                     else -> CameraShootingMode.PHOTO
                 },
                 professionalModeEnabled = state.isRawSupported,
@@ -2582,7 +2607,7 @@ private fun CaptureModeSwitcher(
 ) {
     BoxWithConstraints(
         modifier = Modifier
-            .width(228.dp)
+            .width(300.dp)
             .height(CameraControlsLayoutDefaults.ModeSwitcherHeight)
             .clip(RoundedCornerShape(18.dp))
             .background(Color.Black.copy(alpha = 0.28f))
@@ -2593,11 +2618,12 @@ private fun CaptureModeSwitcher(
             )
             .padding(3.dp)
     ) {
-        val knobWidth = maxWidth / 3
+        val knobWidth = maxWidth / 4
         val selectedIndex = when (shootingMode) {
             CameraShootingMode.PROFESSIONAL -> 0
             CameraShootingMode.PHOTO -> 1
-            CameraShootingMode.VIDEO -> 2
+            CameraShootingMode.PORTRAIT -> 2
+            CameraShootingMode.VIDEO -> 3
         }
         val knobOffset by animateDpAsState(
             targetValue = knobWidth * selectedIndex,
@@ -2638,6 +2664,13 @@ private fun CaptureModeSwitcher(
                 selected = shootingMode == CameraShootingMode.PHOTO,
                 enabled = enabled,
                 onClick = { onModeSelected(CameraShootingMode.PHOTO) },
+                modifier = Modifier.weight(1f)
+            )
+            ModeSwitcherItem(
+                label = stringResource(R.string.capture_mode_portrait),
+                selected = shootingMode == CameraShootingMode.PORTRAIT,
+                enabled = enabled,
+                onClick = { onModeSelected(CameraShootingMode.PORTRAIT) },
                 modifier = Modifier.weight(1f)
             )
             ModeSwitcherItem(

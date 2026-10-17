@@ -1391,4 +1391,5 @@
     <string name="model_add_favorite">Add current model to favorites</string>
     <string name="model_remove_favorite">Remove current model from favorites</string>
     <string name="model_open_panel">Models</string>
+    <string name="capture_mode_portrait">Portrait</string>
 </resources>
