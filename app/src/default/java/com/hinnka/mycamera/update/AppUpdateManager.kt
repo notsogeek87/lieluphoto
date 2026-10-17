@@ -27,7 +27,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 data class AppUpdateRelease(
@@ -38,8 +37,8 @@ data class AppUpdateRelease(
 
 object AppUpdateManager {
     private const val TAG = "AppUpdateManager"
-    private const val UPDATES_ENABLED = false
-    private const val VERSION_CHECK_URL = "https://camera-api.hinnka.me/api/version/check"
+    private const val LATEST_RELEASE_URL = "https://api.github.com/repos/notsogeek87/lieluphoto/releases/latest"
+    private const val VERSION_CODE_BASE = 1000
     private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
     private const val APK_MAGIC_0 = 'P'.code.toByte()
     private const val APK_MAGIC_1 = 'K'.code.toByte()
@@ -57,16 +56,15 @@ object AppUpdateManager {
     private val _readyApk = MutableStateFlow<File?>(null)
     val readyApk: StateFlow<File?> = _readyApk.asStateFlow()
 
-    suspend fun checkForUpdate(
-        currentVersion: String = BuildConfig.VERSION_NAME,
-        flavor: String = BuildConfig.FLAVOR
-    ): AppUpdateRelease? =
+    /**
+     * Même mécanique que LieluFind : dernière release GitHub (tag `v<versionName>.<run>`),
+     * le versionCode installé vaut 1000 + run (voir android-build.yml).
+     */
+    suspend fun checkForUpdate(): AppUpdateRelease? =
         withContext(Dispatchers.IO) {
-            if (!UPDATES_ENABLED) return@withContext null
-            val encodedVersion = URLEncoder.encode(currentVersion, "UTF-8")
-            val encodedFlavor = URLEncoder.encode(flavor, "UTF-8")
             val request = Request.Builder()
-                .url("$VERSION_CHECK_URL?current_version=$encodedVersion&flavor=$encodedFlavor")
+                .url(LATEST_RELEASE_URL)
+                .header("Accept", "application/vnd.github+json")
                 .get()
                 .build()
 
@@ -77,31 +75,34 @@ object AppUpdateManager {
                         return@withContext null
                     }
 
-                    val body = response.body?.string().orEmpty()
-                    PLog.d(TAG, "version: $body")
-                    val root = JSONObject(body)
-                    if (!root.optBoolean("has_update", false)) {
-                        PLog.d(TAG, "No update available: current=$currentVersion, flavor=$flavor")
+                    val root = JSONObject(response.body?.string().orEmpty())
+                    val tag = root.optString("tag_name")
+                    val parts = tag.removePrefix("v").split('.')
+                    val run = parts.lastOrNull()?.toIntOrNull()
+                    if (parts.size < 2 || run == null) {
+                        PLog.w(TAG, "Unreadable release tag: $tag")
+                        return@withContext null
+                    }
+                    if (VERSION_CODE_BASE + run <= BuildConfig.VERSION_CODE) {
+                        PLog.d(TAG, "No update available: tag=$tag, installed=${BuildConfig.VERSION_CODE}")
                         return@withContext null
                     }
 
-                    val asset = root.optJSONObject("asset")
-                    val assetName = asset?.optString("name").orEmpty()
-                    val downloadUrl = asset?.optString("download_url").orEmpty()
-                    val isApkAsset = assetName.endsWith(".apk", ignoreCase = true) ||
-                        downloadUrl.substringBefore("?").endsWith(".apk", ignoreCase = true)
-                    if (downloadUrl.isBlank() || !isApkAsset) {
-                        PLog.w(TAG, "Update found but APK asset is missing: flavor=$flavor")
-                        return@withContext null
+                    val assets = root.optJSONArray("assets")
+                    for (i in 0 until (assets?.length() ?: 0)) {
+                        val asset = assets!!.getJSONObject(i)
+                        val name = asset.optString("name")
+                        val url = asset.optString("browser_download_url")
+                        if (name.endsWith(".apk", ignoreCase = true) && url.isNotBlank()) {
+                            return@withContext AppUpdateRelease(
+                                versionName = parts.dropLast(1).joinToString("."),
+                                downloadUrl = url,
+                                fileName = name
+                            )
+                        }
                     }
-                    val versionName = root.optString("latest_version")
-
-                    AppUpdateRelease(
-                        versionName = versionName,
-                        downloadUrl = downloadUrl,
-                        fileName = assetName.takeIf { it.endsWith(".apk", ignoreCase = true) }
-                            ?: "PhotonCamera-${versionName ?: currentVersion}-update.apk"
-                    )
+                    PLog.w(TAG, "Update found but APK asset is missing: tag=$tag")
+                    null
                 }
             }.onFailure { error ->
                 PLog.e(TAG, "Version check error", error)
@@ -112,7 +113,6 @@ object AppUpdateManager {
         getOrStartDownload(context.applicationContext, release).await()
 
     fun startSilentUpdate(context: Context) {
-        if (!UPDATES_ENABLED) return
         val appContext = context.applicationContext
         synchronized(downloadLock) {
             if (activeSilentCheck?.isActive == true) return
