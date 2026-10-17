@@ -2,6 +2,7 @@ package com.hinnka.mycamera.ui.camera
 
 import android.media.AudioDeviceInfo
 import android.os.Build
+import androidx.annotation.StringRes
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,6 +14,7 @@ import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -102,6 +104,9 @@ fun CameraTopSheet(
     onRawSpectralFilmPrintChange: (String?) -> Unit,
     meteringMode: MeteringMode,
     onMeteringModeChange: (MeteringMode) -> Unit,
+    captureMegapixels: Int = 50,
+    availableMegapixels: List<Int> = emptyList(),
+    onCaptureMegapixelsChange: (Int) -> Unit = {},
     onFilterManageClick: () -> Unit,
     onFrameManageClick: () -> Unit,
     onPresetManageClick: () -> Unit,
@@ -117,6 +122,8 @@ fun CameraTopSheet(
     var expandedVideoPanel by rememberSaveable { mutableStateOf<VideoSettingPanel?>(null) }
     var showRenderingEngineSheet by rememberSaveable { mutableStateOf(false) }
     var showContentManagementOptions by rememberSaveable { mutableStateOf(false) }
+    var showAdvancedSettings by rememberSaveable { mutableStateOf(false) }
+    var quickInfo by remember { mutableStateOf<QuickInfo?>(null) }
     fun handleContentManagementAction(action: () -> Unit) {
         showContentManagementOptions = false
         action()
@@ -190,12 +197,14 @@ fun CameraTopSheet(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // Réglages courants en haut ; le reste est replié dans « Avancé ».
                     QuickSettingGrid { itemModifier ->
                         if (isProfessionalMode) {
                             QuickSettingButton2(
                                 title = stringResource(R.string.settings_raw_color_engine),
                                 checked = true,
                                 onClick = { showRenderingEngineSheet = true },
+                                onInfoClick = { quickInfo = QuickInfo(R.string.settings_raw_color_engine, R.string.quick_info_render_engine) },
                                 modifier = itemModifier
                             )
                         } else {
@@ -203,44 +212,32 @@ fun CameraTopSheet(
                                 title = stringResource(R.string.settings_use_jpg_max),
                                 checked = useJpgMax,
                                 onCheckedChange = onJpgMaxToggle,
-                                modifier = itemModifier
-                            )
-                            QuickSettingToggle(
-                                title = stringResource(R.string.settings_use_multiple_exposure),
-                                checked = useMultipleExposure,
-                                onCheckedChange = onMultipleExposureToggle,
+                                onInfoClick = { quickInfo = QuickInfo(R.string.settings_use_jpg_max, R.string.quick_info_denoise) },
                                 modifier = itemModifier
                             )
                         }
-                        QuickSettingToggle(
-                            title = stringResource(R.string.settings_ultra_hdr_gain_map),
-                            checked = ultraHdrEnabled,
-                            onCheckedChange = onUltraHdrToggle,
-                            modifier = itemModifier
-                        )
-                        QuickSettingToggle(
-                            title = stringResource(R.string.camera_preview_stabilization),
-                            checked = photoPreviewStabilizationEnabled,
-                            onCheckedChange = onPhotoPreviewStabilizationChange,
-                            enabled = photoPreviewStabilizationAvailable,
-                            modifier = itemModifier
-                        )
-                        MeteringModeQuickSetting(
-                            meteringMode = meteringMode,
-                            onMeteringModeChange = onMeteringModeChange,
-                            modifier = itemModifier
-                        )
-
+                        if (!isProfessionalMode) {
+                            MegapixelsQuickSetting(
+                                megapixels = availableMegapixels
+                                    .lastOrNull { it <= captureMegapixels }
+                                    ?: availableMegapixels.firstOrNull(),
+                                choices = availableMegapixels,
+                                onChange = onCaptureMegapixelsChange,
+                                onInfoClick = { quickInfo = QuickInfo(R.string.quick_megapixels_title, R.string.quick_info_megapixels) },
+                                modifier = itemModifier
+                            )
+                        }
                         ToolboxQuickSetting(
                             onToolboxClick = onToolboxClick,
+                            onInfoClick = { quickInfo = QuickInfo(R.string.toolbox_title, R.string.quick_info_toolbox) },
                             modifier = itemModifier
                         )
 
                         ContentManagementQuickSetting(
                             onClick = { showContentManagementOptions = !showContentManagementOptions },
+                            onInfoClick = { quickInfo = QuickInfo(R.string.settings_section_management, R.string.quick_info_management) },
                             modifier = itemModifier
                         )
-
                     }
 
                     ContentManagementOptionsPanel(
@@ -255,6 +252,55 @@ fun CameraTopSheet(
                             handleContentManagementAction(onPresetManageClick)
                         }
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    AdvancedSectionHeader(
+                        expanded = showAdvancedSettings,
+                        onClick = { showAdvancedSettings = !showAdvancedSettings }
+                    )
+
+                    AnimatedVisibility(
+                        visible = showAdvancedSettings,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Column {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            QuickSettingGrid { itemModifier ->
+                                if (!isProfessionalMode) {
+                                    QuickSettingToggle(
+                                        title = stringResource(R.string.settings_use_multiple_exposure),
+                                        checked = useMultipleExposure,
+                                        onCheckedChange = onMultipleExposureToggle,
+                                        onInfoClick = { quickInfo = QuickInfo(R.string.settings_use_multiple_exposure, R.string.quick_info_multiple_exposure) },
+                                        modifier = itemModifier
+                                    )
+                                }
+                                QuickSettingToggle(
+                                    title = stringResource(R.string.settings_ultra_hdr_gain_map),
+                                    checked = ultraHdrEnabled,
+                                    onCheckedChange = onUltraHdrToggle,
+                                    onInfoClick = { quickInfo = QuickInfo(R.string.settings_ultra_hdr_gain_map, R.string.quick_info_ultra_hdr) },
+                                    modifier = itemModifier
+                                )
+                                QuickSettingToggle(
+                                    title = stringResource(R.string.camera_preview_stabilization),
+                                    checked = photoPreviewStabilizationEnabled,
+                                    onCheckedChange = onPhotoPreviewStabilizationChange,
+                                    enabled = photoPreviewStabilizationAvailable,
+                                    onInfoClick = { quickInfo = QuickInfo(R.string.camera_preview_stabilization, R.string.quick_info_stabilization) },
+                                    modifier = itemModifier
+                                )
+                                MeteringModeQuickSetting(
+                                    meteringMode = meteringMode,
+                                    onMeteringModeChange = onMeteringModeChange,
+                                    onInfoClick = { quickInfo = QuickInfo(R.string.metering_mode, R.string.quick_info_metering) },
+                                    modifier = itemModifier
+                                )
+                            }
+                        }
+                    }
                 } else {
                     SectionLabel(title = stringResource(R.string.video_aspect_chip))
                     Row(
@@ -431,6 +477,7 @@ fun CameraTopSheet(
 
                     ContentManagementQuickSetting(
                         onClick = { showContentManagementOptions = !showContentManagementOptions },
+                        onInfoClick = { quickInfo = QuickInfo(R.string.settings_section_management, R.string.quick_info_management) },
                         modifier = Modifier.fillMaxWidth().height(40.dp)
                     )
 
@@ -493,6 +540,19 @@ fun CameraTopSheet(
                 }
             }
         }
+    }
+
+    quickInfo?.let { info ->
+        AlertDialog(
+            onDismissRequest = { quickInfo = null },
+            title = { Text(text = stringResource(info.titleRes)) },
+            text = { Text(text = stringResource(info.bodyRes)) },
+            confirmButton = {
+                TextButton(onClick = { quickInfo = null }) {
+                    Text(text = stringResource(R.string.close))
+                }
+            }
+        )
     }
 
     if (showRenderingEngineSheet) {
@@ -701,6 +761,7 @@ private fun SectionLabel(title: String) {
 private fun MeteringModeQuickSetting(
     meteringMode: MeteringMode,
     onMeteringModeChange: (MeteringMode) -> Unit,
+    onInfoClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val meteringLabel = when (meteringMode) {
@@ -723,6 +784,30 @@ private fun MeteringModeQuickSetting(
             }
             onMeteringModeChange(next)
         },
+        onInfoClick = onInfoClick,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun MegapixelsQuickSetting(
+    megapixels: Int?,
+    choices: List<Int>,
+    onChange: (Int) -> Unit,
+    onInfoClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val selectable = choices.size > 1 && megapixels != null
+    QuickSettingValue(
+        title = stringResource(R.string.quick_megapixels_title),
+        value = megapixels?.let { stringResource(R.string.capture_megapixels_label, it) }
+            ?: stringResource(R.string.quick_megapixels_unavailable),
+        onClick = {
+            if (selectable) {
+                onChange(choices[(choices.indexOf(megapixels) + 1) % choices.size])
+            }
+        },
+        onInfoClick = onInfoClick,
         modifier = modifier
     )
 }
@@ -730,12 +815,14 @@ private fun MeteringModeQuickSetting(
 @Composable
 private fun ToolboxQuickSetting(
     onToolboxClick: () -> Unit,
+    onInfoClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     QuickSettingButton(
         title = stringResource(R.string.toolbox_title),
         icon = AppIcons.Palette,
         onClick = onToolboxClick,
+        onInfoClick = onInfoClick,
         modifier = modifier
     )
 }
@@ -743,12 +830,14 @@ private fun ToolboxQuickSetting(
 @Composable
 private fun ContentManagementQuickSetting(
     onClick: () -> Unit,
+    onInfoClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     QuickSettingButton(
         title = stringResource(R.string.settings_section_management),
         icon = AppIcons.Tune,
         onClick = onClick,
+        onInfoClick = onInfoClick,
         modifier = modifier
     )
 }
@@ -836,6 +925,7 @@ fun QuickSettingValue(
     title: String,
     value: String,
     onClick: () -> Unit,
+    onInfoClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -847,20 +937,30 @@ fun QuickSettingValue(
             .padding(horizontal = 8.dp, vertical = 6.dp),
         contentAlignment = Alignment.CenterStart
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = title,
-                color = Color.White.copy(alpha = 0.6f),
-                fontSize = 8.sp,
-                lineHeight = 10.sp,
-                fontWeight = FontWeight.Normal,
-                maxLines = 1,
-            )
-            QuickSettingLabel(
-                text = value,
-                color = Color.White,
-                fontWeight = FontWeight.Medium
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = title,
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 8.sp,
+                    lineHeight = 10.sp,
+                    fontWeight = FontWeight.Normal,
+                    maxLines = 1,
+                )
+                QuickSettingLabel(
+                    text = value,
+                    color = Color.White,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            onInfoClick?.let { QuickInfoButton(onClick = it, tint = Color.White.copy(alpha = 0.6f)) }
         }
     }
 }
@@ -870,6 +970,7 @@ fun QuickSettingButton(
     title: String,
     icon: ImageVector,
     onClick: () -> Unit,
+    onInfoClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -892,6 +993,7 @@ fun QuickSettingButton(
                 fontWeight = FontWeight.Normal,
                 modifier = Modifier.weight(1f)
             )
+            onInfoClick?.let { QuickInfoButton(onClick = it, tint = Color.White.copy(alpha = 0.6f)) }
             Icon(
                 imageVector = icon,
                 contentDescription = null,
@@ -909,6 +1011,7 @@ fun QuickSettingButton2(
     title: String,
     checked: Boolean,
     onClick: () -> Unit,
+    onInfoClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -935,6 +1038,12 @@ fun QuickSettingButton2(
                 fontWeight = if (checked) FontWeight.Bold else FontWeight.Normal,
                 modifier = Modifier.weight(1f)
             )
+            onInfoClick?.let {
+                QuickInfoButton(
+                    onClick = it,
+                    tint = if (checked) OnAccentColor else Color.White.copy(alpha = 0.9f)
+                )
+            }
             Icon(
                 imageVector = AppIcons.ChevronRight,
                 contentDescription = null,
@@ -951,6 +1060,7 @@ fun QuickSettingToggle(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     enabled: Boolean = true,
+    onInfoClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val contentAlpha = if (enabled) 1f else 0.38f
@@ -983,6 +1093,17 @@ fun QuickSettingToggle(
                 modifier = Modifier.weight(1f)
             )
 
+            onInfoClick?.let {
+                QuickInfoButton(
+                    onClick = it,
+                    tint = if (checked) {
+                        OnAccentColor.copy(alpha = contentAlpha)
+                    } else {
+                        Color.White.copy(alpha = 0.6f * contentAlpha)
+                    }
+                )
+            }
+
             // Simple indicator
             Box(
                 modifier = Modifier
@@ -997,5 +1118,59 @@ fun QuickSettingToggle(
                     )
             )
         }
+    }
+}
+
+/** Texte d'aide affiché quand on touche le « i » d'une tuile. */
+private data class QuickInfo(@StringRes val titleRes: Int, @StringRes val bodyRes: Int)
+
+@Composable
+private fun QuickInfoButton(
+    onClick: () -> Unit,
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .size(20.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Info,
+            contentDescription = stringResource(R.string.quick_info_button),
+            tint = tint,
+            modifier = Modifier.size(14.dp)
+        )
+    }
+}
+
+@Composable
+private fun AdvancedSectionHeader(
+    expanded: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(R.string.settings_group_advanced),
+            color = Color.White.copy(alpha = 0.6f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            imageVector = if (expanded) AppIcons.ExpandLess else AppIcons.ExpandMore,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = 0.6f),
+            modifier = Modifier.size(20.dp)
+        )
     }
 }

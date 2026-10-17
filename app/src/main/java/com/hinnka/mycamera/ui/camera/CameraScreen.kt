@@ -1906,6 +1906,9 @@ fun CameraScreen(
             onRawSpectralFilmPrintChange = { viewModel.setRawSpectralFilmPrint(it) },
             meteringMode = state.meteringMode,
             onMeteringModeChange = { viewModel.setMeteringMode(it) },
+            captureMegapixels = state.captureMegapixels,
+            availableMegapixels = state.availableMegapixels,
+            onCaptureMegapixelsChange = { runPreviewTransition { viewModel.setCaptureMegapixels(it) } },
             onFilterManageClick = {
                 activePanel = ActivePanel.NONE
                 onFilterManagementClick(null)
