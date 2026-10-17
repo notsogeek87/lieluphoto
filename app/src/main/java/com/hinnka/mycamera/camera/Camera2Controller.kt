@@ -2669,6 +2669,7 @@ class Camera2Controller(private val context: Context) {
                 lastWhiteBalanceResult = null
                 // RAW retiré de LieluPhoto : jamais de sortie RAW.
                 isRawSupported = false
+                if (_state.value.nightMode) nightMotionMonitor.start()
 
                 availableAeModes =
                     openCharacteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_MODES) ?: intArrayOf()
@@ -7453,8 +7454,11 @@ class Camera2Controller(private val context: Context) {
         )
     }
 
+    private val nightMotionMonitor = NightMotionMonitor(context)
+
     fun setNightMode(enabled: Boolean) {
         _state.value = _state.value.copy(nightMode = enabled)
+        if (enabled) nightMotionMonitor.start() else nightMotionMonitor.stop()
     }
 
     private fun applyNightExposure(
@@ -7481,6 +7485,7 @@ class Camera2Controller(private val context: Context) {
             isoUpper = isoRange.upper,
             exposureTimeLowerNs = shutterRange.lower,
             exposureTimeUpperNs = shutterRange.upper,
+            angularSpeedRadS = nightMotionMonitor.angularSpeedRadS,
         )
         if (plan == null) {
             PLog.i(TAG, "Night exposure unchanged: scene not dark (ISO$baseIso/${baseShutter}ns)")
@@ -7496,11 +7501,17 @@ class Camera2Controller(private val context: Context) {
             "Night exposure: base=ISO$baseIso/${baseShutter}ns -> " +
                 "ISO${plan.sensitivityIso}/${plan.exposureTimeNs}ns",
         )
-        val shutterText = "1/${(1_000_000_000.0 / plan.exposureTimeNs).roundToInt()} s"
+        val shutterText = if (plan.exposureTimeNs >= 500_000_000L) {
+            "%.1f s".format(plan.exposureTimeNs / 1e9)
+        } else {
+            "1/${(1_000_000_000.0 / plan.exposureTimeNs).roundToInt()} s"
+        }
+        val motionText = nightMotionMonitor.angularSpeedRadS
+            ?.let { "%.3f rad/s".format(it) } ?: "no gyro"
         publishNightInfo(
             state,
             "Night ×${state.activeMultiFrameCount} · ISO ${plan.sensitivityIso} · $shutterText · " +
-                "+${"%.1f".format(plan.liftEv)} EV",
+                "+${"%.1f".format(plan.liftEv)} EV · $motionText",
         )
     }
 
@@ -8757,6 +8768,7 @@ class Camera2Controller(private val context: Context) {
         preserveVideoRecording: Boolean,
         clearPendingOpen: Boolean,
     ) {
+        nightMotionMonitor.stop()
         if (clearPendingOpen) {
             pendingCameraOpenRequest = null
         }
