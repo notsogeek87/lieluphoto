@@ -29,10 +29,10 @@ Réglage : `VirtualApertureDialog` (même fichier), liste `VirtualApertureStops`
 
 ## Mode Portrait
 
-Le sélecteur du bas propose `Pro · Photo · Portrait · Vidéo`. **Portrait** = photo avec le bokeh activé (si le modèle de profondeur manque, le dialogue de téléchargement s'ouvre). Passer à Photo ou Pro coupe le bokeh. Le mode affiché est déduit de l'état : photo non RAW + bokeh actif = Portrait, donc la pastille f/ et le sélecteur restent toujours cohérents.
+Le sélecteur du bas propose `Photo · Nuit · Portrait · Vidéo`. **Portrait** = photo avec le bokeh activé (si le modèle de profondeur manque, le dialogue de téléchargement s'ouvre). Passer à Photo ou Nuit coupe le bokeh. Le mode affiché est déduit de l'état : photo + bokeh actif = Portrait, donc la pastille f/ et le sélecteur restent toujours cohérents.
 
 ## Balayage, Mpx et menus
 
-- **Balayage horizontal du viseur** : change de mode (`Pro · Photo · Portrait · Vidéo`), et plus de style/LUT. Les styles se changent avec la rangée de modèles.
+- **Balayage horizontal du viseur** : change de mode (`Photo · Nuit · Portrait · Vidéo`), et plus de style/LUT. Les styles se changent avec la rangée de modèles.
 - **Pastille « N Mpx »** (haut droite, en photo hors Pro) : un appui passe à la définition suivante (12 / 24 / 50 selon ce que le capteur propose). Réglage `captureMegapixels` ; la caméra est rouverte à chaque changement.
 - **Réglages** : « Appareil photo », « Modèles et IA », « Application » en haut ; objectifs/mise au point, Pro/RAW, Phantom et sauvegarde sont repliés dans « Avancé ».

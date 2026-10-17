@@ -2667,7 +2667,8 @@ class Camera2Controller(private val context: Context) {
                 availableColorCorrectionModes = loadAvailableColorCorrectionModes(openCharacteristics)
                 awbColorTemperatureRange = loadAwbColorTemperatureRange(openCharacteristics)
                 lastWhiteBalanceResult = null
-                isRawSupported = resolveRawCaptureOutput(capabilityCharacteristics, outputPhysicalCameraId) != null
+                // RAW retiré de LieluPhoto : jamais de sortie RAW.
+                isRawSupported = false
 
                 availableAeModes =
                     openCharacteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_MODES) ?: intArrayOf()
@@ -3757,8 +3758,7 @@ class Camera2Controller(private val context: Context) {
 
         when (key.readerFormat) {
             ImageFormat.RAW_SENSOR, ImageFormat.RAW10 -> {
-                isRawSupported = getCameraCharacteristicsOrNull(key.physicalCameraId, "RAW output support")
-                    ?.let { resolveRawCaptureOutput(it, key.physicalCameraId) } != null
+                isRawSupported = false
                 _state.value = _state.value.copy(isRawSupported = isRawSupported)
             }
 

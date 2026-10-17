@@ -622,7 +622,8 @@ class UserPreferencesRepository(private val context: Context) {
             } else {
                 storedUseRaw && legacyMultiFrameEnabled
             }
-            val useRawMax = requestedUseRawMax || storedUseRaw
+            // RAW / mode Pro retirés de LieluPhoto.
+            val useRawMax = false
             // RAW/HDR+ and YUV denoise belong to different shooting modes. Keep the YUV
             // preference while professional mode is active so returning to PHOTO restores it.
             val useJpgMax = requestedUseJpgMax
@@ -779,11 +780,7 @@ class UserPreferencesRepository(private val context: Context) {
                 customVendorKeySettings = CustomVendorKeySettings.deserialize(
                     preferences[CUSTOM_VENDOR_KEY_SETTINGS]
                 ),
-                useRaw = when {
-                    useRawMax -> true
-                    useJpgMax -> false
-                    else -> storedUseRaw
-                },
+                useRaw = false,
                 meteringMode = MeteringMode.valueOf(
                     preferences[METERING_MODE] ?: MeteringMode.SYSTEM_DEFAULT.name
                 ),

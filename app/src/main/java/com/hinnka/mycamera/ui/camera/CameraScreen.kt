@@ -64,7 +64,6 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import coil.compose.AsyncImage
 import com.hinnka.mycamera.ui.components.DepthModelDownloadDialog
 import com.hinnka.mycamera.ui.theme.AccentColor
-import com.hinnka.mycamera.ui.theme.accentContentColor
 import com.hinnka.mycamera.MyCameraApplication
 import com.hinnka.mycamera.R
 import com.hinnka.mycamera.camera.AspectRatio
@@ -110,8 +109,8 @@ enum class ActivePanel {
 }
 
 private enum class CameraShootingMode {
-    PROFESSIONAL,
     PHOTO,
+    NIGHT,
     PORTRAIT,
     VIDEO
 }
@@ -297,6 +296,7 @@ fun CameraScreen(
     val categoryOrder by viewModel.categoryOrder.collectAsState(emptyList())
     val useRaw by viewModel.useRaw.collectAsState()
     val useJpgMax by viewModel.useJpgMax.collectAsState()
+    val nightMode by viewModel.nightMode.collectAsState()
     val jpgFusionScale by viewModel.jpgMultiFrameDenoiseOutputScale.collectAsState()
     val useMultipleExposure by viewModel.useMultipleExposure.collectAsState()
     val useRawMax by viewModel.useRawMax.collectAsState()
@@ -677,8 +677,10 @@ fun CameraScreen(
         runPreviewTransition { viewModel.switchCamera() }
     }
 
-    // Portrait = photo avec bokeh IA activé ; Photo et Pro le coupent.
+    // Portrait = photo avec bokeh IA activé ; Photo et Nuit le coupent.
+    // Nuit = photo avec empilement multi-images renforcé.
     fun applyBokehForMode(mode: CameraShootingMode) {
+        viewModel.setNightMode(mode == CameraShootingMode.NIGHT)
         when (mode) {
             CameraShootingMode.PORTRAIT -> if (!state.isVirtualApertureEnabled) {
                 if (DepthModelManager.isInstalled(context)) {
@@ -689,7 +691,7 @@ fun CameraScreen(
                 }
             }
             CameraShootingMode.PHOTO,
-            CameraShootingMode.PROFESSIONAL -> if (state.isVirtualApertureEnabled) {
+            CameraShootingMode.NIGHT -> if (state.isVirtualApertureEnabled) {
                 viewModel.setVirtualApertureAuto(false)
             }
             CameraShootingMode.VIDEO -> Unit
@@ -697,17 +699,15 @@ fun CameraScreen(
     }
 
     fun setShootingModeWithPreviewTransition(mode: CameraShootingMode) {
-        if (mode == CameraShootingMode.PROFESSIONAL && !state.isRawSupported) return
-
         val targetCaptureMode = when (mode) {
-            CameraShootingMode.PROFESSIONAL,
             CameraShootingMode.PHOTO,
+            CameraShootingMode.NIGHT,
             CameraShootingMode.PORTRAIT -> CaptureMode.PHOTO
             CameraShootingMode.VIDEO -> CaptureMode.VIDEO
         }
         val targetUseRaw = when (mode) {
-            CameraShootingMode.PROFESSIONAL -> true
             CameraShootingMode.PHOTO,
+            CameraShootingMode.NIGHT,
             CameraShootingMode.PORTRAIT -> false
             CameraShootingMode.VIDEO -> null
         }
@@ -728,19 +728,19 @@ fun CameraScreen(
         }
     }
 
-    // Balayage horizontal du viseur : Pro · Photo · Portrait · Vidéo, comme sur l'appareil Samsung.
+    // Balayage horizontal du viseur : Photo · Nuit · Portrait · Vidéo, comme sur l'appareil Samsung.
     fun swipeShootingMode(forward: Boolean) {
         if (state.videoRecordingState.isRecording || state.videoRecordingState.isProcessing) return
         if (previewTransitionActive || lensSwitchTransition.isActive) return
         val modes = buildList {
-            if (state.isRawSupported) add(CameraShootingMode.PROFESSIONAL)
             add(CameraShootingMode.PHOTO)
+            add(CameraShootingMode.NIGHT)
             add(CameraShootingMode.PORTRAIT)
             add(CameraShootingMode.VIDEO)
         }
         val current = when {
             state.captureMode == CaptureMode.VIDEO -> CameraShootingMode.VIDEO
-            state.useRaw && state.isRawSupported -> CameraShootingMode.PROFESSIONAL
+            nightMode -> CameraShootingMode.NIGHT
             state.isVirtualApertureEnabled -> CameraShootingMode.PORTRAIT
             else -> CameraShootingMode.PHOTO
         }
@@ -749,8 +749,8 @@ fun CameraScreen(
         lutNameOverlayState.show(
             context.getString(
                 when (target) {
-                    CameraShootingMode.PROFESSIONAL -> R.string.capture_mode_professional
                     CameraShootingMode.PHOTO -> R.string.capture_mode_photo
+                    CameraShootingMode.NIGHT -> R.string.capture_mode_night
                     CameraShootingMode.PORTRAIT -> R.string.capture_mode_portrait
                     CameraShootingMode.VIDEO -> R.string.capture_mode_video
                 }
@@ -1730,6 +1730,7 @@ fun CameraScreen(
                 },
                 onSwitchCameraClick = ::switchCameraWithPreviewTransition,
                 onCaptureModeSelected = ::setShootingModeWithPreviewTransition,
+                isNightMode = nightMode,
                 modeSwitchEnabled = !previewTransitionActive && !lensSwitchTransition.isActive,
                 onCaptureTap = {
                     val shouldDebounceRawCapture =
@@ -2186,6 +2187,7 @@ private fun Controls(
     onCaptureButtonBoundsChanged: (Rect) -> Unit,
     onSwitchCameraClick: () -> Unit,
     onCaptureModeSelected: (CameraShootingMode) -> Unit,
+    isNightMode: Boolean,
     modeSwitchEnabled: Boolean,
     onCaptureTap: () -> Unit,
     onGalleryClick: () -> Unit,
@@ -2337,11 +2339,10 @@ private fun Controls(
             CaptureModeSwitcher(
                 shootingMode = when {
                     state.captureMode == CaptureMode.VIDEO -> CameraShootingMode.VIDEO
-                    state.useRaw && state.isRawSupported -> CameraShootingMode.PROFESSIONAL
+                    isNightMode -> CameraShootingMode.NIGHT
                     state.isVirtualApertureEnabled -> CameraShootingMode.PORTRAIT
                     else -> CameraShootingMode.PHOTO
                 },
-                professionalModeEnabled = state.isRawSupported,
                 enabled = modeSwitchEnabled &&
                     !state.videoRecordingState.isRecording &&
                     !state.videoRecordingState.isProcessing,
@@ -2668,7 +2669,6 @@ private fun rememberPhotoCaptureProgress(progress: PhotoCaptureProgress?): State
 @Composable
 private fun CaptureModeSwitcher(
     shootingMode: CameraShootingMode,
-    professionalModeEnabled: Boolean,
     enabled: Boolean,
     onModeSelected: (CameraShootingMode) -> Unit
 ) {
@@ -2687,8 +2687,8 @@ private fun CaptureModeSwitcher(
     ) {
         val knobWidth = maxWidth / 4
         val selectedIndex = when (shootingMode) {
-            CameraShootingMode.PROFESSIONAL -> 0
-            CameraShootingMode.PHOTO -> 1
+            CameraShootingMode.PHOTO -> 0
+            CameraShootingMode.NIGHT -> 1
             CameraShootingMode.PORTRAIT -> 2
             CameraShootingMode.VIDEO -> 3
         }
@@ -2698,11 +2698,7 @@ private fun CaptureModeSwitcher(
             label = "modeSwitcher"
         )
         val selectedBackground by animateColorAsState(
-            targetValue = if (shootingMode == CameraShootingMode.PROFESSIONAL) {
-                AccentColor
-            } else {
-                Color.White
-            },
+            targetValue = Color.White,
             animationSpec = tween(durationMillis = 220),
             label = "modeSwitcherColor"
         )
@@ -2719,18 +2715,17 @@ private fun CaptureModeSwitcher(
             verticalAlignment = Alignment.CenterVertically
         ) {
             ModeSwitcherItem(
-                label = stringResource(R.string.capture_mode_professional),
-                selectedContentColor = accentContentColor(selectedBackground),
-                selected = shootingMode == CameraShootingMode.PROFESSIONAL,
-                enabled = enabled && professionalModeEnabled,
-                onClick = { onModeSelected(CameraShootingMode.PROFESSIONAL) },
-                modifier = Modifier.weight(1f)
-            )
-            ModeSwitcherItem(
                 label = stringResource(R.string.capture_mode_photo),
                 selected = shootingMode == CameraShootingMode.PHOTO,
                 enabled = enabled,
                 onClick = { onModeSelected(CameraShootingMode.PHOTO) },
+                modifier = Modifier.weight(1f)
+            )
+            ModeSwitcherItem(
+                label = stringResource(R.string.capture_mode_night),
+                selected = shootingMode == CameraShootingMode.NIGHT,
+                enabled = enabled,
+                onClick = { onModeSelected(CameraShootingMode.NIGHT) },
                 modifier = Modifier.weight(1f)
             )
             ModeSwitcherItem(

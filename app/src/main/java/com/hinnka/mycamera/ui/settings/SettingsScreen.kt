@@ -3354,19 +3354,7 @@ private fun SettingsCategoryOverview(
             onClick = { onPageSelected(SettingsPage.FOCUS_LENS) }
         )
 
-        SettingsCategoryDivider()
-
-        NavigationSettingItem(
-            title = stringResource(R.string.settings_section_professional_mode),
-            description = listOf(
-                stringResource(R.string.settings_professional_group_max_hdr),
-                stringResource(R.string.settings_professional_group_image_quality),
-                stringResource(R.string.settings_raw_group_development),
-                stringResource(R.string.settings_raw_group_capture_output),
-                stringResource(R.string.settings_raw_group_sensor_correction),
-            ).joinToString(" · "),
-            onClick = { onPageSelected(SettingsPage.PROFESSIONAL_MODE) }
-        )
+        // Entrée « Mode pro / RAW » retirée : RAW n'est plus proposé dans LieluPhoto.
 
         if (DeviceUtil.canShowPhantom) {
             SettingsCategoryDivider()

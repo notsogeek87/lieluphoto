@@ -16,6 +16,8 @@ object MultiFrameConfig {
     const val MIN_HDR_PLUS_BRACKET_FRAME_COUNT = 2
     const val DEFAULT_HDR_PLUS_FRAME_COUNT = 3
     const val MAX_FRAME_COUNT = 20
+    /** Nombre minimal d'images empilées en mode Nuit. */
+    const val NIGHT_FRAME_COUNT = 12
     const val DEFAULT_HDR_PLUS_BRACKET_EXPOSURE = false
     const val MIN_OUTPUT_SCALE = 1f
     const val MAX_OUTPUT_SCALE = 2f

@@ -489,6 +489,9 @@ internal fun resolveMultiFrameOutputScale(
     else -> null
 }
 
+internal fun resolveNightFrameCount(userFrameCount: Int, nightMode: Boolean): Int =
+    if (nightMode) maxOf(userFrameCount, MultiFrameConfig.NIGHT_FRAME_COUNT) else userFrameCount
+
 internal fun resolveLutIdForCaptureMode(
     photoLutId: String?,
     videoLutId: String?,
@@ -998,7 +1001,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         }
         // 专业模式与 HDR+ 是同一个拍摄能力，不再保留可独立关闭的状态。
         desiredUseRawMax = desiredUseRaw
-        val activeUseJpgMax = desiredUseJpgMax && !desiredUseRaw
+        val activeUseJpgMax = (desiredUseJpgMax || _nightMode.value) && !desiredUseRaw
         if (activeUseJpgMax && prefs.useLivePhoto) {
             cameraController.setUseLivePhoto(false)
             userPreferencesRepository.saveUseLivePhoto(false)
@@ -2211,9 +2214,10 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                     cameraController.setRawCfaCorrectionModes(it.rawCfaCorrectionModes)
                 }
                 val multipleExposureEnabled = it.useMultipleExposure
-                val effectiveUseRaw = it.useRaw && !multipleExposureEnabled
+                // RAW / mode Pro retirés : on ne capture plus jamais en RAW.
+                val effectiveUseRaw = false
                 val effectiveUseJpgMax =
-                    it.useJpgMax && !effectiveUseRaw && !multipleExposureEnabled
+                    (it.useJpgMax || _nightMode.value) && !multipleExposureEnabled
                 val effectiveUseRawMax =
                     it.useRawMax && effectiveUseRaw && !multipleExposureEnabled
                 val effectiveMultiFrameOutputScale = resolveMultiFrameOutputScale(
@@ -2237,13 +2241,12 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 if (currentCameraState.multiFrameOutputScale != effectiveMultiFrameOutputScale) {
                     cameraController.setMultiFrameOutputScale(effectiveMultiFrameOutputScale)
                 }
-                if (
-                    currentCameraState.jpgMultiFrameDenoiseFrameCount !=
-                    it.jpgMultiFrameDenoiseFrameCount
-                ) {
-                    cameraController.setJpgMultiFrameDenoiseFrameCount(
-                        it.jpgMultiFrameDenoiseFrameCount
-                    )
+                val effectiveFrameCount = resolveNightFrameCount(
+                    it.jpgMultiFrameDenoiseFrameCount,
+                    _nightMode.value
+                )
+                if (currentCameraState.jpgMultiFrameDenoiseFrameCount != effectiveFrameCount) {
+                    cameraController.setJpgMultiFrameDenoiseFrameCount(effectiveFrameCount)
                 }
                 if (currentCameraState.hdrPlusMergeMode != it.hdrPlusMergeMode) {
                     cameraController.setHdrPlusMergeMode(it.hdrPlusMergeMode)
@@ -2542,7 +2545,9 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 )
                 cameraController.setHdrPlusLongFrameExposureEv(prefs.hdrPlusLongFrameExposureEv)
                 cameraController.setHdrPlusShortFrameExposureEv(prefs.hdrPlusShortFrameExposureEv)
-                cameraController.setUseLivePhoto(shouldEnableLivePhoto(prefs))
+                cameraController.setUseLivePhoto(
+                    shouldEnableLivePhoto(prefs) && state.value.captureMode == CaptureMode.PHOTO
+                )
                 // 应用保存的虚拟光圈
                 applyDefaultVirtualAperture(prefs.defaultVirtualAperture)
             } else {
@@ -3940,6 +3945,39 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         setShootingMode(mode, useRaw = null)
     }
 
+    private val _nightMode = MutableStateFlow(false)
+
+    /** Mode Nuit : photo avec empilement multi-images renforcé (non persistant). */
+    val nightMode: StateFlow<Boolean> = _nightMode.asStateFlow()
+
+    fun setNightMode(enabled: Boolean) {
+        if (_nightMode.value == enabled) return
+        _nightMode.value = enabled
+        viewModelScope.launch {
+            val prefs = userPreferencesRepository.userPreferences.first()
+            val useJpgMax = (prefs.useJpgMax || enabled) && !prefs.useMultipleExposure
+            cameraController.setMultiFrameOutputScale(
+                resolveMultiFrameOutputScale(
+                    useJpgMax = useJpgMax,
+                    useRawMax = false,
+                    rawMaxOutputScale = prefs.rawMaxOutputScale,
+                    jpgMultiFrameDenoiseOutputScale = prefs.jpgMultiFrameDenoiseOutputScale,
+                )
+            )
+            cameraController.setJpgMultiFrameDenoiseFrameCount(
+                resolveNightFrameCount(prefs.jpgMultiFrameDenoiseFrameCount, enabled)
+            )
+            // Le Live Photo est incompatible avec l'empilement multi-images.
+            if (enabled) {
+                cameraController.setUseLivePhoto(false)
+            } else {
+                cameraController.setUseLivePhoto(
+                    shouldEnableLivePhoto(prefs) && state.value.captureMode == CaptureMode.PHOTO
+                )
+            }
+        }
+    }
+
     /**
      * Applies the three-way shooting mode selection as one ordered operation.
      *
@@ -5060,7 +5098,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             userPreferencesRepository.saveRawMaxOutputScale(normalizedScale)
             cameraController.setMultiFrameOutputScale(
                 resolveMultiFrameOutputScale(
-                    useJpgMax = prefs.useJpgMax && !prefs.useRaw &&
+                    useJpgMax = (prefs.useJpgMax || _nightMode.value) && !prefs.useRaw &&
                         !prefs.useMultipleExposure,
                     useRawMax = prefs.useRawMax && prefs.useRaw &&
                         !prefs.useMultipleExposure,
@@ -5081,7 +5119,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             val prefs = userPreferencesRepository.userPreferences.first()
             cameraController.setMultiFrameOutputScale(
                 resolveMultiFrameOutputScale(
-                    useJpgMax = prefs.useJpgMax && !prefs.useRaw &&
+                    useJpgMax = (prefs.useJpgMax || _nightMode.value) && !prefs.useRaw &&
                         !prefs.useMultipleExposure,
                     useRawMax = prefs.useRawMax && prefs.useRaw &&
                         !prefs.useMultipleExposure,
@@ -5094,7 +5132,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun shouldEnableLivePhoto(prefs: UserPreferences): Boolean {
         // RAWmax supports Live Photo. A saved JPGmax preference is inactive in RAW mode.
-        val activeUseJpgMax = prefs.useJpgMax && !prefs.useRaw
+        val activeUseJpgMax = (prefs.useJpgMax || _nightMode.value) && !prefs.useRaw
         return prefs.useLivePhoto && !activeUseJpgMax && !prefs.useMultipleExposure &&
             prefs.captureMode == CaptureMode.PHOTO
     }
