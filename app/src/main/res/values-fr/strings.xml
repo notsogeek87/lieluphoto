@@ -1370,4 +1370,6 @@
     <string name="settings_raw_color_engine_leica">Leica M9</string>
     <string name="settings_export_all">Exporter tous les réglages</string>
     <string name="settings_export_all_description">Un seul fichier avec tout : préférences, modèles favoris, préréglages, ouverture, cadres, LUT personnalisés, etc. Utilisez « Importer des réglages » pour le restaurer.</string>
+    <string name="quick_megapixels_switching">Passage à %1$d Mpx…</string>
+    <string name="quick_megapixels_single">Une seule taille de photo est disponible ici (%1$s) : le téléphone n\'en propose pas d\'autre pour ce format d\'image et ce mode. Essayez un autre format d\'image, ou quittez le mode Pro (RAW).</string>
 </resources>

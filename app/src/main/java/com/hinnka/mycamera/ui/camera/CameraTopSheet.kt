@@ -801,6 +801,7 @@ private fun MegapixelsQuickSetting(
     modifier: Modifier = Modifier
 ) {
     val selectable = choices.size > 1 && megapixels != null
+    val context = androidx.compose.ui.platform.LocalContext.current
     QuickSettingValue(
         title = stringResource(R.string.quick_megapixels_title),
         value = megapixels?.let {
@@ -810,7 +811,21 @@ private fun MegapixelsQuickSetting(
         } ?: stringResource(R.string.quick_megapixels_unavailable),
         onClick = {
             if (selectable) {
-                onChange(choices[(choices.indexOf(megapixels) + 1) % choices.size])
+                val next = choices[(choices.indexOf(megapixels) + 1) % choices.size]
+                android.widget.Toast.makeText(
+                    context,
+                    context.getString(R.string.quick_megapixels_switching, next),
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+                onChange(next)
+            } else {
+                // Explique pourquoi rien ne change au lieu de rester silencieux.
+                val sizeText = captureSize?.let { "${it.width}×${it.height}" } ?: "?"
+                android.widget.Toast.makeText(
+                    context,
+                    context.getString(R.string.quick_megapixels_single, sizeText),
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
             }
         },
         onInfoClick = onInfoClick,
