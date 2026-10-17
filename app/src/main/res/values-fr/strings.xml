@@ -368,7 +368,7 @@
     <string name="settings_group_models_ai">Modèles et IA</string>
     <string name="settings_group_app">Application</string>
     <string name="settings_group_advanced">Avancé</string>
-    <string name="settings_group_advanced_desc">Objectifs et mise au point, Pro / RAW, sauvegarde, Phantom</string>
+    <string name="settings_group_advanced_desc">Objectifs et mise au point, Pro / RAW, Phantom</string>
     <string name="quick_info_button">Plus d\'infos</string>
     <string name="quick_info_denoise">Prend plusieurs photos en rafale et les fusionne en une seule, plus propre et avec moins de bruit. Idéal en basse lumière ; le déclenchement est un peu plus long.</string>
     <string name="quick_info_multiple_exposure">Superpose plusieurs expositions dans une seule image (double exposition classique). Le nombre de prises se règle dans les Paramètres.</string>
@@ -530,7 +530,7 @@
     <string name="settings_professional_group_image_quality">Qualité d\'image HDR+</string>
     <string name="settings_section_interface">Styles d\'interface</string>
     <string name="settings_section_system_control">Système et commandes</string>
-    <string name="settings_section_data_maintenance">Maintenance des données</string>
+    <string name="settings_section_data_maintenance">Sauvegarde et restauration</string>
     <string name="settings_section_help_about">Aide et à propos</string>
     <string name="settings_focus_peaking">Focus peaking</string>
     <string name="settings_focus_peaking_description">Met en évidence les zones nettes pendant la mise au point manuelle</string>
@@ -774,9 +774,9 @@
     <string name="settings_openai_api_key_desc">Clé API nécessaire pour l\'IA</string>
     <string name="settings_openai_base_url">URL de base OpenAI</string>
     <string name="settings_openai_base_url_desc">Définissez une destination d\'API personnalisée pour prendre en charge des modèles de langage compatibles</string>
-    <string name="settings_backup_settings">Sauvegarder les réglages</string>
+    <string name="settings_backup_settings">Sauvegarde personnalisée</string>
     <string name="settings_backup_settings_description">Sauvegarde vos préférences ainsi que vos LUT, cadres et profils DCP personnalisés importés.</string>
-    <string name="settings_restore_settings">Restaurer les réglages</string>
+    <string name="settings_restore_settings">Importer des réglages</string>
     <string name="settings_restore_settings_description">Restaure à partir d\'un fichier ZIP de sauvegarde précédent. Un redémarrage de l\'application peut être nécessaire.</string>
     <string name="backup_success">Sauvegarde terminée avec succès</string>
     <string name="backup_select_content">Choisir le contenu à sauvegarder</string>
@@ -1368,4 +1368,6 @@
     <string name="frame_editor_text_gradient_hint">Le remplissage se fond verticalement de la couleur du texte vers la couleur de fin du dégradé.</string>
     <string name="frame_editor_summary_free_layer">Calque libre · %1$s · X %2$.1f %% · Y %3$.1f %%</string>
     <string name="settings_raw_color_engine_leica">Leica M9</string>
+    <string name="settings_export_all">Exporter tous les réglages</string>
+    <string name="settings_export_all_description">Un seul fichier avec tout : préférences, modèles favoris, préréglages, ouverture, cadres, LUT personnalisés, etc. Utilisez « Importer des réglages » pour le restaurer.</string>
 </resources>

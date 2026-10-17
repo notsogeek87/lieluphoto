@@ -244,7 +244,7 @@
     <string name="settings_professional_group_image_quality">HDR+ Image Quality</string>
     <string name="settings_section_interface">Interface Styles</string>
     <string name="settings_section_system_control">System &amp; Controls</string>
-    <string name="settings_section_data_maintenance">Data Maintenance</string>
+    <string name="settings_section_data_maintenance">Backup &amp; Restore</string>
     <string name="settings_section_help_about">Help &amp; About</string>
     <string name="settings_use_raw">RAW Capture</string>
     <string name="settings_use_raw_description">Capture photos in RAW format (DNG) for higher quality.</string>
@@ -634,9 +634,9 @@
     <string name="settings_openai_api_key_desc">API key required for AI</string>
     <string name="settings_openai_base_url">OpenAI Base URL</string>
     <string name="settings_openai_base_url_desc">Set a custom API destination to support compatible language models</string>
-    <string name="settings_backup_settings">Backup Settings</string>
+    <string name="settings_backup_settings">Custom backup</string>
     <string name="settings_backup_settings_description">Backup your preferences and custom imported LUTs, frames, and DCP profiles.</string>
-    <string name="settings_restore_settings">Restore Settings</string>
+    <string name="settings_restore_settings">Import settings</string>
     <string name="settings_restore_settings_description">Restore from a previous backup ZIP file. App may require a restart to apply.</string>
     <string name="backup_success">Backup completed successfully</string>
     <string name="backup_select_content">Choose backup contents</string>
@@ -1397,7 +1397,7 @@
     <string name="settings_group_models_ai">Looks &amp; AI</string>
     <string name="settings_group_app">App</string>
     <string name="settings_group_advanced">Advanced</string>
-    <string name="settings_group_advanced_desc">Lens &amp; focus, Pro / RAW, backup, Phantom</string>
+    <string name="settings_group_advanced_desc">Lens &amp; focus, Pro / RAW, Phantom</string>
     <string name="quick_info_button">More info</string>
     <string name="quick_info_denoise">Takes several shots in a burst and merges them into one cleaner photo with less noise. Best in low light; the shutter takes a bit longer.</string>
     <string name="quick_info_multiple_exposure">Overlay several exposures into a single image (classic double exposure). The number of shots is set in Settings.</string>
@@ -1410,4 +1410,6 @@
     <string name="quick_megapixels_title">Resolution</string>
     <string name="quick_megapixels_unavailable">Max only</string>
     <string name="quick_info_megapixels">Photo size in megapixels (MP). Tap to cycle 12 / 24 / 50 MP: higher means more detail but bigger files; lower is faster and lighter. Only sizes your camera supports are offered. Not used in Pro (RAW) mode.</string>
+    <string name="settings_export_all">Export all settings</string>
+    <string name="settings_export_all_description">One file with everything: preferences, favorite models, presets, aperture, frames, custom LUTs and more. Use "Import settings" to restore it.</string>
 </resources>

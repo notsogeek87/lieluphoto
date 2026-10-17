@@ -104,7 +104,8 @@ fun CameraTopSheet(
     onRawSpectralFilmPrintChange: (String?) -> Unit,
     meteringMode: MeteringMode,
     onMeteringModeChange: (MeteringMode) -> Unit,
-    captureMegapixels: Int = 50,
+    captureMegapixels: Int = 12,
+    captureSize: android.util.Size? = null,
     availableMegapixels: List<Int> = emptyList(),
     onCaptureMegapixelsChange: (Int) -> Unit = {},
     onFilterManageClick: () -> Unit,
@@ -222,6 +223,7 @@ fun CameraTopSheet(
                                     .lastOrNull { it <= captureMegapixels }
                                     ?: availableMegapixels.firstOrNull(),
                                 choices = availableMegapixels,
+                                captureSize = captureSize,
                                 onChange = onCaptureMegapixelsChange,
                                 onInfoClick = { quickInfo = QuickInfo(R.string.quick_megapixels_title, R.string.quick_info_megapixels) },
                                 modifier = itemModifier
@@ -793,6 +795,7 @@ private fun MeteringModeQuickSetting(
 private fun MegapixelsQuickSetting(
     megapixels: Int?,
     choices: List<Int>,
+    captureSize: android.util.Size?,
     onChange: (Int) -> Unit,
     onInfoClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -800,8 +803,11 @@ private fun MegapixelsQuickSetting(
     val selectable = choices.size > 1 && megapixels != null
     QuickSettingValue(
         title = stringResource(R.string.quick_megapixels_title),
-        value = megapixels?.let { stringResource(R.string.capture_megapixels_label, it) }
-            ?: stringResource(R.string.quick_megapixels_unavailable),
+        value = megapixels?.let {
+            val label = stringResource(R.string.capture_megapixels_label, it)
+            // Taille réellement utilisée : permet de vérifier que le changement est pris en compte.
+            captureSize?.let { size -> "$label · ${size.width}×${size.height}" } ?: label
+        } ?: stringResource(R.string.quick_megapixels_unavailable),
         onClick = {
             if (selectable) {
                 onChange(choices[(choices.indexOf(megapixels) + 1) % choices.size])

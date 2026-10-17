@@ -1471,7 +1471,7 @@ fun CameraScreen(
                                     .lastOrNull { it <= state.captureMegapixels }
                                     ?: state.availableMegapixels.first()
                                 Surface(
-                                    color = Color.Black.copy(alpha = 0.2f),
+                                    color = Color.Black.copy(alpha = 0.45f),
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
@@ -1484,10 +1484,10 @@ fun CameraScreen(
                                     Text(
                                         text = stringResource(R.string.capture_megapixels_label, megapixels),
                                         color = Color.White,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
                                         style = TextStyle(shadow = ViewfinderTextShadow),
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                                     )
                                 }
                             }
@@ -1907,6 +1907,7 @@ fun CameraScreen(
             meteringMode = state.meteringMode,
             onMeteringModeChange = { viewModel.setMeteringMode(it) },
             captureMegapixels = state.captureMegapixels,
+            captureSize = state.currentCaptureSize,
             availableMegapixels = state.availableMegapixels,
             onCaptureMegapixelsChange = { runPreviewTransition { viewModel.setCaptureMegapixels(it) } },
             onFilterManageClick = {

@@ -286,7 +286,7 @@ data class CameraState(
     val currentPreviewSize: Size = Size(1440, 1080),
     val currentCaptureSize: Size = Size(1440, 1080),
     // Définition de la photo (Mpx) : choix demandé et choix réellement offerts par le capteur
-    val captureMegapixels: Int = 50,
+    val captureMegapixels: Int = 12,
     val availableMegapixels: List<Int> = emptyList(),
 
     // 曝光控制

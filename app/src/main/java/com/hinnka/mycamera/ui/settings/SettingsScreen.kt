@@ -2832,6 +2832,33 @@ fun SettingsScreen(
                         showTitle = false
                     ) {
                         NavigationSettingItem(
+                            title = stringResource(R.string.settings_export_all),
+                            description = if (backupOperation == BackupOperation.BACKUP) {
+                                stringResource(R.string.backup_in_progress)
+                            } else {
+                                stringResource(R.string.settings_export_all_description)
+                            },
+                            enabled = backupOperation == null && pendingBackupCategories == null,
+                            showProgress = backupOperation == BackupOperation.BACKUP,
+                            onClick = {
+                                coroutineScope.launch {
+                                    val categories = BackupManager.availableCategories(context).map { it.name }
+                                    if (categories.isEmpty()) {
+                                        android.widget.Toast.makeText(context, R.string.backup_no_content, android.widget.Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        pendingBackupCategories = categories
+                                        backupLauncher.launch("lieluphoto_reglages_${System.currentTimeMillis()}.zip")
+                                    }
+                                }
+                            }
+                        )
+
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+
+                        NavigationSettingItem(
                             title = stringResource(R.string.settings_backup_settings),
                             description = if (backupOperation == BackupOperation.BACKUP) {
                                 stringResource(R.string.backup_in_progress)
@@ -3273,6 +3300,17 @@ private fun SettingsCategoryOverview(
         SettingsCategoryDivider()
 
         NavigationSettingItem(
+            title = stringResource(R.string.settings_section_data_maintenance),
+            description = listOf(
+                stringResource(R.string.settings_export_all),
+                stringResource(R.string.settings_restore_settings)
+            ).joinToString(" · "),
+            onClick = { onPageSelected(SettingsPage.DATA_MAINTENANCE) }
+        )
+
+        SettingsCategoryDivider()
+
+        NavigationSettingItem(
             title = stringResource(R.string.settings_section_system_control),
             description = listOf(
                 stringResource(R.string.settings_shutter_sound),
@@ -3344,16 +3382,6 @@ private fun SettingsCategoryOverview(
             )
         }
 
-        SettingsCategoryDivider()
-
-        NavigationSettingItem(
-            title = stringResource(R.string.settings_section_data_maintenance),
-            description = listOf(
-                stringResource(R.string.settings_backup_settings),
-                stringResource(R.string.settings_restore_settings)
-            ).joinToString(" · "),
-            onClick = { onPageSelected(SettingsPage.DATA_MAINTENANCE) }
-        )
     }
 }
 

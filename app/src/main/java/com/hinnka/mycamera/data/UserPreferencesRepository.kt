@@ -164,7 +164,7 @@ data class UserPreferences(
     val frameId: String? = null,
     val phantomFrameId: String? = null,
     val showHistogram: Boolean = true,
-    val captureMegapixels: Int = 50,  // 12 / 24 / 50 Mpx, comme l'appareil Samsung
+    val captureMegapixels: Int = 12,  // 12 / 24 / 50 Mpx, comme l'appareil Samsung (12 par défaut, sûr sur tous les capteurs)
     val showGrid: Boolean = false,  // 网格线显示
     val gridStyle: GridStyle = GridStyle.THIRDS,
     val showLevelIndicator: Boolean = false,  // 水平仪显示
@@ -745,7 +745,7 @@ class UserPreferencesRepository(private val context: Context) {
                 frameId = preferences[FRAME_ID_KEY],
                 phantomFrameId = preferences[PHANTOM_FRAME_ID_KEY],
                 showHistogram = preferences[SHOW_HISTOGRAM] ?: true,
-                captureMegapixels = preferences[CAPTURE_MEGAPIXELS] ?: 50,
+                captureMegapixels = preferences[CAPTURE_MEGAPIXELS] ?: 12,
                 showGrid = preferences[SHOW_GRID] ?: false,
                 gridStyle = GridStyle.fromPersistedName(preferences[GRID_STYLE]),
                 showLevelIndicator = preferences[SHOW_LEVEL_INDICATOR] ?: false,

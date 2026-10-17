@@ -120,9 +120,12 @@ object CameraUtils {
     ): Size {
         return try {
             val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-            val sizes = map?.getOutputSizes(format)
+            // getOutputSizes() exclut les tailles « haute résolution » (24 / 50 Mpx) : on les ajoute.
+            val sizes = (map?.getOutputSizes(format)
                 ?: map?.getOutputSizes(ImageFormat.YUV_420_888)
-                ?: arrayOf(Size(1920, 1080))
+                ?: arrayOf(Size(1920, 1080))).toMutableList().apply {
+                map?.getHighResolutionOutputSizes(format)?.let { addAll(it) }
+            }.distinct()
             val sensorRatio = aspectRatio.getValue(true)
 
             // 寻找比例最匹配传感器原生比例
