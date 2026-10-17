@@ -1217,10 +1217,11 @@ private fun resolutionDiagnosticText(
     captureSize: android.util.Size?,
     d: com.hinnka.mycamera.camera.CameraUtils.ResolutionDiagnostic?
 ): String {
+    val noneLabel = stringResource(R.string.quick_megapixels_diag_none)
     fun android.util.Size?.label(): String = this?.let {
         val mp = it.width.toLong() * it.height / 1_000_000.0
         "${it.width}×${it.height} (${"%.1f".format(mp)} Mpx)"
-    } ?: stringResource(R.string.quick_megapixels_diag_none)
+    } ?: noneLabel
     fun android.util.Size?.pixels() = this?.let { it.width.toLong() * it.height } ?: 0L
     if (d == null) return stringResource(R.string.quick_megapixels_single, captureSize.label())
     val current = captureSize.pixels()
