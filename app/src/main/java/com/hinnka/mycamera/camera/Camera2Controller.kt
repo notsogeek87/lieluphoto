@@ -275,6 +275,9 @@ class Camera2Controller(private val context: Context) {
     private var previewSurface: Surface? = null
     private var previewSurfaceTexture: SurfaceTexture? = null
     private var imageReader: ImageReader? = null
+    // Tailles « constructeur » (hors liste publique) refusées par le téléphone : on n'y revient plus.
+    private val rejectedCaptureSizes = mutableSetOf<Size>()
+    private var usingNonStandardCaptureSize = false
     private var stabilizationImageReader: StabilizationImageReader? = null
 
     // 降噪等级 (0=Off, 1=Fast, 2=High Quality, 3=ZSL, 4=Minimal)
@@ -2825,13 +2828,16 @@ class Camera2Controller(private val context: Context) {
                         outputCharacteristicsForStreams,
                         aspectRatio,
                         captureFormat,
-                        _state.value.captureMegapixels
+                        _state.value.captureMegapixels,
+                        rejectedCaptureSizes
                     )
                 }
+                usingNonStandardCaptureSize = rawOutput == null &&
+                    !CameraUtils.isStandardSize(outputCharacteristicsForStreams, captureFormat, captureSize)
                 val availableMegapixels = if (rawOutput != null) {
                     emptyList()
                 } else {
-                    CameraUtils.availableMegapixels(outputCharacteristicsForStreams, aspectRatio, captureFormat)
+                    CameraUtils.availableMegapixels(outputCharacteristicsForStreams, aspectRatio, captureFormat, rejectedCaptureSizes)
                 }
 
                 val isP3Supported = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -2845,7 +2851,7 @@ class Camera2Controller(private val context: Context) {
                     currentCaptureSize = captureSize,
                     availableMegapixels = availableMegapixels,
                     resolutionDiagnostic = runCatching {
-                        CameraUtils.describeResolutionSupport(outputCharacteristicsForStreams)
+                        CameraUtils.describeResolutionSupport(outputCharacteristicsForStreams, rejectedCaptureSizes)
                     }.getOrNull()
                 )
 
@@ -3295,6 +3301,9 @@ class Camera2Controller(private val context: Context) {
                                     "sessionColorSpace=${if (shouldUseP3ColorSpace()) "DISPLAY_P3" else "DEFAULT"}"
                         )
                         safeCloseCaptureSession(session, "photo configure failure")
+                        if (fallbackFromVendorCaptureSize("photo configure failed", openGeneration)) {
+                            return
+                        }
                         if (vendorSessionParametersApplied &&
                             retryPreviewSessionWithoutVendorSessionParameters(
                                 reason = "photo configure failed",
@@ -3324,6 +3333,9 @@ class Camera2Controller(private val context: Context) {
             device.createCaptureSession(sessionConfig)
         } catch (e: IllegalStateException) {
             PLog.w(TAG, "Failed to create preview session", e)
+            if (fallbackFromVendorCaptureSize("create session failed: ${e.message}", openGeneration)) {
+                return
+            }
             if (vendorSessionParametersApplied &&
                 retryPreviewSessionWithoutVendorSessionParameters(
                     reason = "create session illegal state: ${e.message}",
@@ -3342,6 +3354,9 @@ class Camera2Controller(private val context: Context) {
             handlePreviewSessionFailure("create session illegal state", openGeneration, e)
         } catch (e: Exception) {
             PLog.w(TAG, "Failed to create preview session", e)
+            if (fallbackFromVendorCaptureSize("create session failed: ${e.message}", openGeneration)) {
+                return
+            }
             if (vendorSessionParametersApplied &&
                 retryPreviewSessionWithoutVendorSessionParameters(
                     reason = "create session exception: ${e.message}",
@@ -3544,6 +3559,26 @@ class Camera2Controller(private val context: Context) {
         // their source image and its reader until the upload/sampling has finished.
         reader.close()
         realtimeStabilizationCoordinator.discardStabilizationImages(reader)
+    }
+
+    /**
+     * Le téléphone a refusé une taille déclarée seulement par les clés constructeur (ex. 50 Mpx Samsung) :
+     * on l'écarte et on rouvre la caméra avec la meilleure taille publique.
+     */
+    private fun fallbackFromVendorCaptureSize(reason: String, openGeneration: Long): Boolean {
+        if (!usingNonStandardCaptureSize || openGeneration != cameraOpenGeneration) return false
+        val rejected = _state.value.currentCaptureSize
+        val surfaceTexture = previewSurfaceTexture
+        val handler = cameraHandler
+        if (surfaceTexture == null || handler == null) return false
+        PLog.w(TAG, "Vendor capture size rejected: ${rejected.width}x${rejected.height}, reason=$reason")
+        rejectedCaptureSizes.add(rejected)
+        usingNonStandardCaptureSize = false
+        return handler.post {
+            if (openGeneration == cameraOpenGeneration) {
+                openCamera(surfaceTexture)
+            }
+        }
     }
 
     private fun retryPreviewSessionWithoutVendorSessionParameters(

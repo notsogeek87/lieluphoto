@@ -1423,4 +1423,5 @@
     <string name="quick_megapixels_diag_cause_jpeg_only">Cause: the phone only offers the large size (%1$s) as JPEG, through its own camera app, not as a stream apps can use. Only this size is available here.</string>
     <string name="quick_megapixels_diag_cause_binning">Cause: the phone exposes no other size to apps. High-megapixel sensors usually combine 4 pixels into 1 (binning) to get cleaner 12 MP photos; the full resolution is reserved for the manufacturer\'s camera app.</string>
     <string name="quick_megapixels_diag_cause_vendor">Cause: your phone lists a larger size (%1$s) through private manufacturer keys, which this app does not use yet. The manufacturer\'s own camera app uses them; using them here requires a dedicated capture mode.</string>
+    <string name="quick_megapixels_diag_cause_rejected">Cause: the app tried %1$s through the manufacturer keys, but the phone refused to set up the camera with it (it probably needs a manufacturer-specific session parameter). The app went back to %2$s.</string>
 </resources>

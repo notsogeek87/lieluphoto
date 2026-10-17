@@ -1226,6 +1226,8 @@ private fun resolutionDiagnosticText(
     if (d == null) return stringResource(R.string.quick_megapixels_single, captureSize.label())
     val current = captureSize.pixels()
     val conclusion = when {
+        d.rejectedSize != null ->
+            stringResource(R.string.quick_megapixels_diag_cause_rejected, d.rejectedSize.label(), captureSize.label())
         d.ultraHighResCapability && d.maxResolutionModeMax.pixels() > current * 1.5 ->
             stringResource(R.string.quick_megapixels_diag_cause_max_mode, d.maxResolutionModeMax.label())
         d.vendorMax.pixels() > current * 1.5 ->
