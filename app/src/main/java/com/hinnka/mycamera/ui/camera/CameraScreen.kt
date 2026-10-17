@@ -1000,6 +1000,17 @@ fun CameraScreen(
 
         val zoomBar = @Composable {
             if (activePanel == ActivePanel.NONE && !isXpan) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (!isVideoMode) {
+                    ModelQuickBar(
+                        favorites = viewModel.favoriteLutList,
+                        currentLut = viewModel.availableLutList.firstOrNull { it.id == currentLutId },
+                        onSelect = { viewModel.setLut(it.id) },
+                        onClear = { viewModel.setLut(null) },
+                        onToggleFavorite = { viewModel.toggleLutFavorite(it.id) },
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                }
                 ZoomControlBar(
                     viewModel = viewModel,
                     zoomRatio = viewModel.zoomRatioByMain,
@@ -1020,6 +1031,7 @@ fun CameraScreen(
                             zoomBarBounds = coordinates.boundsInRoot()
                         }
                 )
+                }
             } else {
                 SideEffect {
                     zoomBarBounds = null

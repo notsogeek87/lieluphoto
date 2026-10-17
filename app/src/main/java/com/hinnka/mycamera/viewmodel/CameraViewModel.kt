@@ -4506,6 +4506,21 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    val favoriteLutList: List<LutInfo>
+        get() = selectableLutList.filter { it.isFavorite && it.id != "none" }
+
+    fun toggleLutFavorite(lutId: String) {
+        val current = availableLutList.firstOrNull { it.id == lutId } ?: return
+        val next = !current.isFavorite
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                getCustomImportManager().updateLutFavorite(lutId, next)
+                contentRepository.refreshCustomContent()
+            }
+            vibrationHelper.vibrate()
+        }
+    }
+
     /**
      * 切换到下一个滤镜
      */
