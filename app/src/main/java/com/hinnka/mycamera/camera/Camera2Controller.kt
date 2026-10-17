@@ -7453,6 +7453,50 @@ class Camera2Controller(private val context: Context) {
         )
     }
 
+    fun setNightMode(enabled: Boolean) {
+        _state.value = _state.value.copy(nightMode = enabled)
+    }
+
+    private fun applyNightExposure(
+        builder: CaptureRequest.Builder,
+        state: CameraState,
+        baseResult: CaptureResult?,
+    ) {
+        if (!state.isAutoExposure) return
+        val baseIso = baseResult?.get(CaptureResult.SENSOR_SENSITIVITY)
+        val baseShutter = baseResult?.get(CaptureResult.SENSOR_EXPOSURE_TIME)
+        if (!isManualSensorSupported ||
+            !availableAeModes.contains(CaptureRequest.CONTROL_AE_MODE_OFF) ||
+            baseIso == null || baseShutter == null
+        ) {
+            PLog.w(TAG, "Night exposure skipped: manual sensor exposure or base result unavailable")
+            return
+        }
+        val isoRange = state.getIsoRange()
+        val shutterRange = state.getShutterSpeedRange()
+        val plan = NightExposurePlanner.plan(
+            baseIso = baseIso,
+            baseExposureTimeNs = baseShutter,
+            isoLower = isoRange.lower,
+            isoUpper = isoRange.upper,
+            exposureTimeLowerNs = shutterRange.lower,
+            exposureTimeUpperNs = shutterRange.upper,
+        )
+        if (plan == null) {
+            PLog.i(TAG, "Night exposure unchanged: scene not dark (ISO$baseIso/${baseShutter}ns)")
+            return
+        }
+        builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+        builder.set(CaptureRequest.CONTROL_AE_LOCK, false)
+        builder.set(CaptureRequest.SENSOR_SENSITIVITY, plan.sensitivityIso)
+        builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, plan.exposureTimeNs)
+        PLog.i(
+            TAG,
+            "Night exposure: base=ISO$baseIso/${baseShutter}ns -> " +
+                "ISO${plan.sensitivityIso}/${plan.exposureTimeNs}ns",
+        )
+    }
+
     fun setUseMultipleExposure(useMultipleExposure: Boolean) {
         _state.value = _state.value.copy(useMultipleExposure = useMultipleExposure)
     }
@@ -8315,6 +8359,12 @@ class Camera2Controller(private val context: Context) {
                     lockExposure = true,
                     isRawCapture = isRawCapture,
                 )
+
+                if (currentState.nightMode && currentState.isJpgMaxEnabled &&
+                    !isRawCapture && !useMultiFrameTorch
+                ) {
+                    applyNightExposure(this, currentState, baseExposureResult)
+                }
 
                 PLog.d(
                     TAG,

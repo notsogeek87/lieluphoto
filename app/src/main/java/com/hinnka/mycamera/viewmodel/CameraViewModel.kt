@@ -3953,6 +3953,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     fun setNightMode(enabled: Boolean) {
         if (_nightMode.value == enabled) return
         _nightMode.value = enabled
+        cameraController.setNightMode(enabled)
         viewModelScope.launch {
             val prefs = userPreferencesRepository.userPreferences.first()
             val useJpgMax = (prefs.useJpgMax || enabled) && !prefs.useMultipleExposure

@@ -386,6 +386,8 @@ data class CameraState(
     val hdrPlusLongFrameExposureEv: Float = MultiFrameConfig.LONG_FRAME_EXPOSURE_EV.toFloat(),
     val hdrPlusShortFrameExposureEv: Float = MultiFrameConfig.DEFAULT_SHORT_FRAME_EXPOSURE_EV,
     val useRaw: Boolean = false,
+    // Mode Nuit : pose allongée + éclaircissement quand la scène est sombre (non persistant).
+    val nightMode: Boolean = false,
     val useMultipleExposure: Boolean = false,
     val rawMinShutterSpeedNs: Long = 0L,
     val useLivePhoto: Boolean = false,

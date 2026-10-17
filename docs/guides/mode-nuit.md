@@ -8,6 +8,7 @@ Pour l'utilisateur de LieluPhoto : obtenir des photos nettes et peu bruitées en
 
 - Le sélecteur du bas propose `Photo · Nuit · Portrait · Vidéo` (balayage horizontal du viseur possible).
 - **Nuit** = photo avec l'empilement multi-images YUV (« JPGmax ») renforcé : au moins 12 images alignées puis fusionnées. Garder le téléphone immobile pendant la prise.
+- **Scène sombre** (ISO ≥ 400 ou pose ≥ 1/30 s à l'exposition automatique) : chaque image est en plus éclaircie de +1 EV, en allongeant d'abord la pose (jusqu'à 1/8 s), puis en montant l'ISO (`NightExposurePlanner`). En plein jour ou en exposition manuelle, l'exposition n'est pas modifiée. L'aperçu du viseur n'est pas éclairci : seule la photo l'est.
 - Si le réglage « débruitage multi-images » est déjà supérieur à 12 images, la valeur de l'utilisateur est conservée.
 - Le mode Nuit n'est pas persistant : à la réouverture de l'app, on revient en Photo. Il coupe le bokeh et le Live Photo (incompatibles).
 
@@ -25,4 +26,4 @@ Pour l'utilisateur de LieluPhoto : obtenir des photos nettes et peu bruitées en
 
 ## Limites / suite possible
 
-La durée de pose par image reste celle de l'exposition automatique. Pistes : pose plus longue pilotée par le gyroscope, détection automatique de scène sombre, réglage du rendu final.
+Pose plafonnée à 1/8 s (pas de pilotage par gyroscope). Pistes : pose adaptée au bougé, détection automatique de scène sombre, tone mapping des ombres, éclaircissement de l'aperçu.
