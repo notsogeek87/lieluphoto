@@ -1008,6 +1008,7 @@ fun CameraScreen(
                         onSelect = { viewModel.setLut(it.id) },
                         onClear = { viewModel.setLut(null) },
                         onToggleFavorite = { viewModel.toggleLutFavorite(it.id) },
+                        onOpenPanel = { activePanel = ActivePanel.FILTERS },
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
                 }

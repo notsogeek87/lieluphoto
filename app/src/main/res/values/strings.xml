@@ -1390,4 +1390,5 @@
     <string name="camera_metering_point_label">Metering</string>
     <string name="model_add_favorite">Add current model to favorites</string>
     <string name="model_remove_favorite">Remove current model from favorites</string>
+    <string name="model_open_panel">Models</string>
 </resources>

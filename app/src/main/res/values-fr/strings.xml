@@ -361,4 +361,5 @@
     <string name="virtual_aperture_viewfinder_off">Bokeh off</string>
     <string name="model_add_favorite">Ajouter le modèle actif aux favoris</string>
     <string name="model_remove_favorite">Retirer le modèle actif des favoris</string>
+    <string name="model_open_panel">Modèles</string>
 </resources>

@@ -39,10 +39,10 @@ internal fun ModelQuickBar(
     onSelect: (LutInfo) -> Unit,
     onClear: () -> Unit,
     onToggleFavorite: (LutInfo) -> Unit,
+    onOpenPanel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val currentId = currentLut?.id?.takeIf { it != "none" }
-    if (favorites.isEmpty() && currentId == null) return
 
     Row(
         modifier = modifier
@@ -51,6 +51,13 @@ internal fun ModelQuickBar(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val panelLabel = stringResource(R.string.model_open_panel)
+        QuickChip(
+            text = currentLut?.takeIf { it.id != "none" }?.getName() ?: panelLabel,
+            selected = false,
+            description = panelLabel,
+            onClick = onOpenPanel
+        )
         if (currentLut != null && currentId != null) {
             val label = stringResource(
                 if (currentLut.isFavorite) R.string.model_remove_favorite else R.string.model_add_favorite
