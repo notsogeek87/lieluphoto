@@ -359,5 +359,4 @@
     <string name="camera_metering_point_label">Mesure</string>
     <string name="virtual_aperture_viewfinder_hint">f/%1$s</string>
     <string name="virtual_aperture_viewfinder_off">Bokeh off</string>
-    <string name="virtual_aperture_toggle_needs_model">Installez d\'abord le modèle de profondeur : Réglages → Ouverture virtuelle par défaut.</string>
 </resources>

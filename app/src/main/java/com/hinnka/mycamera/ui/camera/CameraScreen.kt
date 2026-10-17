@@ -10,7 +10,6 @@ import android.os.Environment
 import android.os.SystemClock
 import android.provider.Settings
 import android.view.WindowManager
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -62,6 +61,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import coil.compose.AsyncImage
+import com.hinnka.mycamera.ui.components.DepthModelDownloadDialog
 import com.hinnka.mycamera.ui.theme.AccentColor
 import com.hinnka.mycamera.ui.theme.accentContentColor
 import com.hinnka.mycamera.MyCameraApplication
@@ -72,6 +72,7 @@ import com.hinnka.mycamera.camera.FocusPointSource
 import com.hinnka.mycamera.camera.PhotoCaptureProgress
 import com.hinnka.mycamera.data.CaptureButtonStyle
 import com.hinnka.mycamera.data.DevelopAnimationStyle
+import com.hinnka.mycamera.ml.DepthModelDownloadState
 import com.hinnka.mycamera.ml.DepthModelManager
 import com.hinnka.mycamera.model.CameraPreset
 import com.hinnka.mycamera.model.ColorRecipeParams
@@ -229,6 +230,23 @@ fun CameraScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val state by viewModel.state.collectAsState()
+    val depthModelState by remember(context.applicationContext) {
+        DepthModelManager.observe(context)
+    }.collectAsState()
+    var showDepthModelDownloadDialog by remember { mutableStateOf(false) }
+    var pendingBokehEnable by remember { mutableStateOf(false) }
+    val depthModelImportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { DepthModelManager.importModel(context, it) }
+    }
+    LaunchedEffect(depthModelState, pendingBokehEnable) {
+        if (depthModelState is DepthModelDownloadState.Ready && pendingBokehEnable) {
+            viewModel.setVirtualApertureAuto(true)
+            pendingBokehEnable = false
+            showDepthModelDownloadDialog = false
+        }
+    }
     val isCameraInitialized by viewModel.isInitialized.collectAsState()
     val latestPhoto by galleryViewModel.latestPhoto.collectAsState()
     val showLevelIndicator by viewModel.showLevelIndicator.collectAsState(initial = false)
@@ -1368,11 +1386,8 @@ fun CameraScreen(
                                             } else if (DepthModelManager.isInstalled(context)) {
                                                 viewModel.setVirtualApertureAuto(true)
                                             } else {
-                                                Toast.makeText(
-                                                    context,
-                                                    R.string.virtual_aperture_toggle_needs_model,
-                                                    Toast.LENGTH_LONG
-                                                ).show()
+                                                pendingBokehEnable = true
+                                                showDepthModelDownloadDialog = true
                                             }
                                         }
                                 ) {
@@ -1393,6 +1408,17 @@ fun CameraScreen(
                                             horizontal = 6.dp,
                                             vertical = 3.dp
                                         )
+                                    )
+                                }
+                                if (showDepthModelDownloadDialog) {
+                                    DepthModelDownloadDialog(
+                                        state = depthModelState,
+                                        onDownload = { DepthModelManager.download(context) },
+                                        onImport = { depthModelImportLauncher.launch(arrayOf("*/*")) },
+                                        onDismiss = {
+                                            showDepthModelDownloadDialog = false
+                                            pendingBokehEnable = false
+                                        }
                                     )
                                 }
                             }
