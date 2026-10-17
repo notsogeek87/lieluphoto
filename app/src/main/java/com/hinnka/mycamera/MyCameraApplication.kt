@@ -43,7 +43,7 @@ class MyCameraApplication : Application() {
             PhantomService(this)
         }
         recoverPrivateGalleryIndex()
-//        AppUpdateManager.startSilentUpdate(this)
+        AppUpdateManager.startSilentUpdate(this)
 
         val userPreferencesRepository = contentRepository.userPreferencesRepository
         applicationScope.launch {

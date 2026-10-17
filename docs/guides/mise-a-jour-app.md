@@ -21,3 +21,7 @@ if (VERSION_CODE_BASE + run <= BuildConfig.VERSION_CODE) return null
 - Une release sans asset `.apk`, ou un tag illisible, est ignorée (rien n'est proposé).
 - Les builds installés hors CI (versionCode 162) voient toute release du CI comme plus récente.
 - Conflit probable lors d'un rebase sur upstream : `AppUpdateManager.kt`.
+
+## Vérification au démarrage
+
+`MyCameraApplication` appelle `AppUpdateManager.startSilentUpdate(this)` à chaque lancement : l'app interroge la dernière release en arrière-plan, télécharge l'APK s'il est plus récent, puis `AppUpdateInstallPrompt` (MainActivity) affiche « Installer maintenant ». Aucune vérification manuelle n'est nécessaire dans les réglages. Cet appel était commenté depuis le fork upstream ; il est réactivé.
