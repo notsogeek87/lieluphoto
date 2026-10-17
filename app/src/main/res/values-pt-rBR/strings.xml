@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Photon Camera</string>
+    <string name="app_name">LieluPhoto</string>
     
     <!-- Camera Controls -->
     <string name="switch_camera">Alternar Câmera</string>

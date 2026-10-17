@@ -23,7 +23,7 @@ android {
     ndkVersion = "29.0.14206865"
 
     defaultConfig {
-        applicationId = "com.hinnka.mycamera"
+        applicationId = "eu.lielu.photo"
         minSdk = 30
         targetSdk = 36
         versionCode = 162

@@ -1,6 +1,6 @@
 <resources>
     <string name="camera_video_fps_unavailable">Recording is unavailable because the camera did not provide valid frame rate ranges.</string>
-    <string name="app_name">Photon Camera</string>
+    <string name="app_name">LieluPhoto</string>
 
     <!-- Camera Controls -->
     <string name="switch_camera">Switch Camera</string>

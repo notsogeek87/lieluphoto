@@ -1,6 +1,6 @@
 <resources>
     <string name="camera_video_fps_unavailable">相机未提供有效的帧率范围，暂时无法录像。</string>
-    <string name="app_name">光子相机</string>
+    <string name="app_name">LieluPhoto</string>
 
     <!-- Camera Controls -->
     <string name="switch_camera">切换摄像头</string>
