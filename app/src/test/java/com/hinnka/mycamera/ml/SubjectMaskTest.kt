@@ -54,4 +54,33 @@ class SubjectMaskTest {
         values[2 * 32 + 16] = 0.8f
         assertTrue(mask.touchesInteriorCropBoundary())
     }
+
+    @Test
+    fun subjectFocusPointLandsOnOffCenterSubject() {
+        // Subject occupies the right third of the frame, like an off-center selfie.
+        val values = FloatArray(9 * 9) { if (it % 9 >= 6) 1f else 0f }
+        val point = SubjectMask(9, 9, values).subjectFocusPoint()!!
+        assertTrue(point.first > 2f / 3f)
+        assertEquals(0.5f, point.second, 1e-6f)
+    }
+
+    @Test
+    fun subjectFocusPointAvoidsHoleAtCentroidAndMapsCropRegion() {
+        // A ring-shaped subject: the centroid itself is background.
+        val values = FloatArray(5 * 5) { index ->
+            val x = index % 5
+            val y = index / 5
+            if (x == 0 || x == 4 || y == 0 || y == 4) 1f else 0f
+        }
+        val region = SubjectMaskRegion(0.5f, 0f, 1f, 0.5f)
+        val mask = SubjectMask(5, 5, values, region)
+        val point = mask.subjectFocusPoint()!!
+        assertTrue(mask.isSubjectAt(point.first, point.second))
+        assertTrue(point.first >= 0.5f && point.second <= 0.5f)
+    }
+
+    @Test
+    fun subjectFocusPointIsNullWithoutSubject() {
+        assertEquals(null, SubjectMask(4, 4, FloatArray(16) { 0.2f }).subjectFocusPoint())
+    }
 }

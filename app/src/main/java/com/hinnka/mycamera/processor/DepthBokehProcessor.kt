@@ -104,8 +104,12 @@ class DepthBokehProcessor(context: Context) {
                 PLog.e(TAG, "U2NetP subject mask unavailable; bokeh was not applied")
                 return@withLock originalImage
             }
-            val resolvedFocusX = focusX ?: 0.5f
-            val resolvedFocusY = focusY ?: 0.5f
+            // Without a recorded focus point (fixed-focus front cameras never set one),
+            // the frame center often lands on the background in off-center selfies,
+            // which sharpens the room and blurs the person. Focus on the subject instead.
+            val fallbackFocus = if (focusX == null || focusY == null) subjectMask.subjectFocusPoint() else null
+            val resolvedFocusX = focusX ?: fallbackFocus?.first ?: 0.5f
+            val resolvedFocusY = focusY ?: fallbackFocus?.second ?: 0.5f
             val focusMask = subjectMask.sample(resolvedFocusX, resolvedFocusY)
             val preparedDepth = DepthBokehDepthPreprocessor.prepare(
                 depthMap,
@@ -115,7 +119,7 @@ class DepthBokehProcessor(context: Context) {
             )
             PLog.d(
                 TAG,
-                "Prepared bokeh depth: inverted=${preparedDepth.inverted} focusDepth=${preparedDepth.focusDepth} focusMask=$focusMask normalScore=${preparedDepth.normalScore} invertedScore=${preparedDepth.invertedScore}"
+                "Prepared bokeh depth: focus=($resolvedFocusX,$resolvedFocusY) fallback=${fallbackFocus != null} inverted=${preparedDepth.inverted} focusDepth=${preparedDepth.focusDepth} focusMask=$focusMask normalScore=${preparedDepth.normalScore} invertedScore=${preparedDepth.invertedScore}"
             )
             val bokehResult = processor.applyBokeh(
                 originalImage,
