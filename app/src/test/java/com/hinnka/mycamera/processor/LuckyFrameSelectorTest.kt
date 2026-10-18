@@ -19,10 +19,14 @@ class LuckyFrameSelectorTest {
     }
 
     @Test
-    fun alwaysKeepsAtLeastMinimumFrames() {
-        val blur = listOf(0.001f, 0.02f, 0.03f, 0.04f, 0.05f, 0.06f)
-        val order = LuckyFrameSelector.order(blur)
-        assertEquals(LuckyFrameSelector.MIN_KEPT, order.size)
-        assertEquals(0, order.first())
+    fun singleShakenFrameIsDroppedOthersKept() {
+        val blur = listOf(0.0011f, 0.001f, 0.0012f, 0.0013f, 0.0014f, 0.1f)
+        assertEquals(listOf(1, 0, 2, 3, 4), LuckyFrameSelector.order(blur))
+    }
+
+    @Test
+    fun uniformlySharpBurstKeepsEveryFrame() {
+        val blur = listOf(0.0002f, 0.0001f, 0.0004f, 0.0003f, 0.00045f, 0.0002f)
+        assertEquals(listOf(1, 0, 2, 3, 4, 5), LuckyFrameSelector.order(blur))
     }
 }
