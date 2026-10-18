@@ -80,4 +80,48 @@ data class SubjectMask(
     }
 
     fun isSubjectAt(x: Float, y: Float): Boolean = sample(x, y) >= 0.5f
+
+    /**
+     * Fallback focus point in original-image UVs when the capture recorded none
+     * (e.g. fixed-focus front cameras). Returns the subject texel nearest the
+     * coverage-weighted centroid, so poses with holes (a raised arm) still land
+     * on the subject. Null when no texel is predominantly subject.
+     */
+    fun subjectFocusPoint(): Pair<Float, Float>? {
+        var weightSum = 0.0
+        var sumX = 0.0
+        var sumY = 0.0
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val coverage = values[y * width + x]
+                if (coverage < 0.5f) continue
+                weightSum += coverage
+                sumX += coverage * (x + 0.5)
+                sumY += coverage * (y + 0.5)
+            }
+        }
+        if (weightSum <= 0.0) return null
+        val centroidX = sumX / weightSum
+        val centroidY = sumY / weightSum
+        var bestX = 0
+        var bestY = 0
+        var bestDistance = Double.MAX_VALUE
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                if (values[y * width + x] < 0.5f) continue
+                val dx = (x + 0.5 - centroidX) * region.width / width
+                val dy = (y + 0.5 - centroidY) * region.height / height
+                val distance = dx * dx + dy * dy
+                if (distance < bestDistance) {
+                    bestDistance = distance
+                    bestX = x
+                    bestY = y
+                }
+            }
+        }
+        return Pair(
+            region.left + (bestX + 0.5f) / width * region.width,
+            region.top + (bestY + 0.5f) / height * region.height,
+        )
+    }
 }
