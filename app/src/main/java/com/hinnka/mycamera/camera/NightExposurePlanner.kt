@@ -30,7 +30,7 @@ internal data class NightExposurePlan(
 internal object NightExposurePlanner {
     // Samsung ne brille pas à la prise (même ISO × pose que nous) mais au rendu : à la prise on
     // gagne surtout en propreté (pose longue, ISO bas) avec un éclaircissement modéré.
-    const val MAX_LIFT_EV = 1.0
+    const val MAX_LIFT_EV = 0.7
     const val MAX_SHUTTER_NS = 1_000_000_000L / 3
     const val DEFAULT_SHUTTER_NS = 1_000_000_000L / 8
     const val MIN_SHUTTER_NS = 1_000_000_000L / 30
@@ -40,13 +40,13 @@ internal object NightExposurePlanner {
     private const val LIFT_SLOPE = 0.6
     private const val MIN_LIFT_EV = 0.25
 
-    // Garde-fou : en dessous de ~20 ISO·s (pièce éclairée, seuil de sortie de la suggestion Nuit)
-    // on n'éclaircit jamais, sinon les lampes et fenêtres crament. L'éclaircissement ne démarre
-    // qu'à partir de là et n'atteint son maximum que vers ~64 ISO·s (pièce vraiment sombre).
-    private const val LIFT_START_ISO_SECONDS = 20.0
+    // Garde-fou : en dessous de ~40 ISO·s (seuil d'entrée de la suggestion Nuit : pièce éclairée
+    // le soir) on n'éclaircit jamais, sinon les lampes et fenêtres crament. L'éclaircissement ne
+    // démarre qu'à partir de là et n'atteint son maximum que vers ~90 ISO·s (pièce sombre).
+    private const val LIFT_START_ISO_SECONDS = 40.0
 
     /** Éclaircissement maximal rattrapé en post-traitement (recette), en EV. */
-    const val MAX_POST_EXPOSURE_EV = 0.5
+    const val MAX_POST_EXPOSURE_EV = 0.3
 
     // Pose max (s) = MOTION_BUDGET / vitesse angulaire (rad/s). Calé sur Samsung : 1/4 s à la
     // main (Galaxy Z Fold, stabilisation optique) quand notre gyroscope mesurait ~0,055 rad/s.
