@@ -285,7 +285,7 @@ internal const val AUTO_SHARPNESS_CEILING = 0.5f
 
 // Contraste local (clarté) ajouté en selfie : relief du visage et des textures, comme Samsung,
 // plafonné pour ne pas durcir la peau.
-internal const val AUTO_CLARITY_CEILING = 0.3f
+internal const val AUTO_CLARITY_CEILING = 0.35f
 
 internal fun Float.withAutoBoost(boost: Float, ceiling: Float): Float =
     if (this >= ceiling) this else minOf(this + boost, ceiling)
@@ -547,7 +547,10 @@ private data class ActivePresetMatchState(
 private data class SettingValue<T>(val value: T)
 
 private const val FRONT_SELFIE_SHARPNESS_BOOST = 0.25f
-private const val FRONT_SELFIE_CLARITY_BOOST = 0.15f
+// Mesure (selfie, build 145) : visage encore plus plat que Samsung (poils de barbe, grain de
+// peau) -> 0,15 relevé à 0,25. Objectif arrière : renfort plus léger.
+private const val FRONT_SELFIE_CLARITY_BOOST = 0.25f
+private const val PHOTO_CLARITY_BOOST = 0.15f
 
 internal fun resolveMultiFrameOutputScale(
     useJpgMax: Boolean,
@@ -3641,16 +3644,19 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         val recipe = getMergedRecipeParams().let { merged ->
             nightPostExposureEv?.let(merged::withNightBoost) ?: merged
         }.let { merged ->
-            // Selfie : netteté finale ajoutée pour compenser le capteur frontal mou. En Nuit le
-            // rendu en a déjà ajouté : on ne cumule pas les deux renforts.
+            // Photo (hors rendu Nuit, qui a ses propres renforts) : contraste local ajouté, comme
+            // l'appareil Samsung (barbe, peau, tissus) ; en selfie, netteté en plus pour compenser
+            // le capteur frontal mou. Plafonnés, une recette déjà plus marquée est laissée telle quelle.
             val front = cameraController.getLensFacing() == CameraCharacteristics.LENS_FACING_FRONT
-            if (front && nightPostExposureEv == null) {
-                merged.copy(
+            when {
+                nightPostExposureEv != null -> merged
+                front -> merged.copy(
                     sharpness = merged.sharpness.withAutoSharpnessBoost(FRONT_SELFIE_SHARPNESS_BOOST),
                     clarity = merged.clarity.withAutoBoost(FRONT_SELFIE_CLARITY_BOOST, AUTO_CLARITY_CEILING),
                 )
-            } else {
-                merged
+                else -> merged.copy(
+                    clarity = merged.clarity.withAutoBoost(PHOTO_CLARITY_BOOST, AUTO_CLARITY_CEILING),
+                )
             }
         }
         return buildCaptureSettingsSnapshot(recipe, nightPostExposureEv)

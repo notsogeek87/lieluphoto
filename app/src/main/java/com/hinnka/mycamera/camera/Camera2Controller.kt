@@ -4522,9 +4522,13 @@ class Camera2Controller(private val context: Context) {
         // 如果是全自动曝光，设置曝光补偿
         if (state.isIsoAuto && state.isShutterSpeedAuto) {
             builder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, state.exposureCompensation)
-            if (!isCapture && state.nightMode && state.captureMode == CaptureMode.PHOTO) {
+            // Aperçu Nuit à cadence réduite seulement dans une scène vraiment sombre : en pièce
+            // éclairée, la cadence basse laissait l'exposition auto sur-exposer (+0,6 EV mesuré,
+            // lampe brûlée) alors que la Nuit n'éclaircit rien ; elle expose alors comme en Photo.
+            val nightPreviewActive = state.nightMode && nightPreviewDark
+            if (!isCapture && nightPreviewActive && state.captureMode == CaptureMode.PHOTO) {
                 applyNightPreviewFpsRange(builder)
-            } else if (!state.nightMode && state.captureMode == CaptureMode.PHOTO) {
+            } else if (!nightPreviewActive && state.captureMode == CaptureMode.PHOTO) {
                 applyLowLightPhotoFpsRange(builder)
             }
         } else {
@@ -7502,6 +7506,10 @@ class Camera2Controller(private val context: Context) {
     private fun updateNightSuggestion(result: CaptureResult) {
         val current = _state.value
         if (current.isCapturing) return
+        if (current.captureMode == CaptureMode.PHOTO && current.nightMode && current.isAutoExposure) {
+            updateNightPreviewDarkness(result)
+            return
+        }
         if (current.captureMode != CaptureMode.PHOTO || current.nightMode || !current.isAutoExposure) {
             nightSceneLog2Ema = Float.NaN
             if (current.nightSuggested) _state.update { it.copy(nightSuggested = false) }
@@ -7527,10 +7535,52 @@ class Camera2Controller(private val context: Context) {
         }
     }
 
+    // Mode Nuit : scène jugée sombre (aperçu à cadence réduite), avec hystérésis. Au passage en
+    // Nuit on part de la mesure de l'aperçu Photo.
+    @Volatile
+    private var nightPreviewDark = true
+    private var nightPreviewSceneLog2Ema = Float.NaN
+
+    private fun updateNightPreviewDarkness(result: CaptureResult) {
+        val iso = result.get(CaptureResult.SENSOR_SENSITIVITY) ?: return
+        val exposureNs = result.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: return
+        if (iso <= 0 || exposureNs <= 0L) return
+        val log2Scene = kotlin.math.log2(iso.toDouble() * exposureNs.toDouble() / 1e9).toFloat()
+        val previous = nightPreviewSceneLog2Ema
+        nightPreviewSceneLog2Ema = if (previous.isNaN()) {
+            log2Scene
+        } else {
+            previous + NIGHT_SUGGEST_SMOOTHING * (log2Scene - previous)
+        }
+        val dark = if (nightPreviewDark) {
+            nightPreviewSceneLog2Ema > NIGHT_SUGGEST_OFF_LOG2
+        } else {
+            nightPreviewSceneLog2Ema > NIGHT_SUGGEST_ON_LOG2
+        }
+        if (dark != nightPreviewDark) {
+            nightPreviewDark = dark
+            previewRequestBuilder?.apply {
+                if (!dark) {
+                    (nightPreviewSavedFpsRange ?: defaultPhotoPreviewFpsRange())
+                        ?.let { set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
+                    nightPreviewSavedFpsRange = null
+                }
+                applyExposureSettings(this, _state.value, false)
+                updatePreview()
+            }
+        }
+    }
+
     fun setNightMode(enabled: Boolean) {
         val wasEnabled = _state.value.nightMode
         _state.value = _state.value.copy(nightMode = enabled)
         if (enabled == wasEnabled) return
+        if (enabled) {
+            // Scène inconnue : sombre par défaut (comportement d'origine), sinon mesure Photo.
+            val photoScene = nightSceneLog2Ema
+            nightPreviewDark = photoScene.isNaN() || photoScene > NIGHT_SUGGEST_ON_LOG2
+            nightPreviewSceneLog2Ema = photoScene
+        }
         if (enabled) nightMotionMonitor.start() else nightMotionMonitor.stop()
         previewRequestBuilder?.apply {
             if (!enabled) {
