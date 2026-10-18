@@ -1671,6 +1671,18 @@ fun CameraScreen(
                             )
                         }
 
+                        QrCodeOverlay(
+                            glSurfaceView = viewModel.glSurfaceView,
+                            enabled = state.isPreviewActive &&
+                                state.captureMode == CaptureMode.PHOTO &&
+                                !state.videoRecordingState.isRecording &&
+                                !state.isCapturing &&
+                                activePanel == ActivePanel.NONE,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(top = viewfinderTopOverlayPadding + 48.dp)
+                        )
+
                         if (state.burstCapturing && burstCapturingCount > 0) {
                             BurstCaptureOverlay(
                                 count = burstCapturingCount,

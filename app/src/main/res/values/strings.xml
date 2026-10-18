@@ -1427,4 +1427,9 @@
     <string name="quick_megapixels_diag_cause_vendor">Cause: your phone lists a larger size (%1$s) through private manufacturer keys, which this app does not use yet. The manufacturer\'s own camera app uses them; using them here requires a dedicated capture mode.</string>
     <string name="quick_megapixels_fusion">multi-frame</string>
     <string name="quick_megapixels_switching_fusion">Switching to ~%1$d MP (several photos merged and enlarged)…</string>
+    <string name="qr_code_detected">QR code</string>
+    <string name="qr_code_copy">Copy</string>
+    <string name="qr_code_open">Open</string>
+    <string name="qr_code_copied">Text copied</string>
+    <string name="qr_code_open_failed">No app can open this link</string>
 </resources>

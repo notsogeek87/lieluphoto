@@ -210,6 +210,9 @@ dependencies {
     // MediaPipe Face Detector for human eye autofocus
     implementation("com.google.mediapipe:tasks-vision:1.0.0")
 
+    // Détection des QR codes dans le viseur (modèle embarqué, fonctionne hors ligne)
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+
     // Billing for google flavor
     "googleImplementation"(libs.google.billing)
     "googleImplementation"(libs.google.billing.ktx)

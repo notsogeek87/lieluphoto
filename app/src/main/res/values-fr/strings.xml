@@ -1385,4 +1385,9 @@
     <string name="quick_megapixels_diag_cause_vendor">Cause : votre téléphone liste une taille plus grande (%1$s) via des clés privées du constructeur, que l\'application n\'utilise pas encore. L\'application photo du constructeur les utilise ; les exploiter ici demande un mode de capture dédié.</string>
     <string name="quick_megapixels_fusion">fusion multi-image</string>
     <string name="quick_megapixels_switching_fusion">Passage à ~%1$d Mpx (plusieurs photos fusionnées puis agrandies)…</string>
+    <string name="qr_code_detected">QR code</string>
+    <string name="qr_code_copy">Copier</string>
+    <string name="qr_code_open">Ouvrir</string>
+    <string name="qr_code_copied">Texte copié</string>
+    <string name="qr_code_open_failed">Aucune application ne peut ouvrir ce lien</string>
 </resources>
