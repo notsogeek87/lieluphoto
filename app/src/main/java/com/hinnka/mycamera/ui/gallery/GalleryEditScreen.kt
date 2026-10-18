@@ -1285,7 +1285,7 @@ fun GalleryEditScreen(
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 Surface(
-                    color = Color.Transparent,
+                    color = Color.Black.copy(alpha = 0.9f),
                     shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                     modifier = Modifier
                         .fillMaxWidth()
