@@ -7546,8 +7546,14 @@ class Camera2Controller(private val context: Context) {
         builder.set(CaptureRequest.CONTROL_AE_LOCK, false)
         builder.set(CaptureRequest.SENSOR_SENSITIVITY, plan.sensitivityIso)
         builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, plan.exposureTimeNs)
+        // Le HAL étend la durée de trame si besoin ; sans ça certaines puces bornent la pose.
+        builder.set(CaptureRequest.SENSOR_FRAME_DURATION, plan.exposureTimeNs)
+        // Avec le ZSL, le HAL renvoie des images déjà prises par l'aperçu (exposition auto) et
+        // ignore l'exposition manuelle : constaté sur Galaxy Z Fold (EXIF ISO 7227 à 1/25 s au
+        // lieu de ISO 3200 à 1/11 s demandés). Même raison que pour les rafales HDR.
+        setZslDisabledIfSupported(builder)
         NightDiagnostics.recordPlan(
-            "plan[iso=${plan.sensitivityIso} t=${plan.exposureTimeNs} " +
+            "plan[iso=${plan.sensitivityIso} t=${plan.exposureTimeNs} zsl=off " +
                 "lift=${"%.2f".format(decision.liftEv)} real=${"%.2f".format(plan.realizedEv)} " +
                 "gyro=${nightMotionMonitor.angularSpeedRadS} n=$frames " +
                 "base=${decision.baseIso}/${decision.baseShutterNs}]"

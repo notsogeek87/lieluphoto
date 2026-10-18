@@ -43,9 +43,9 @@ internal object NightExposurePlanner {
     /** Éclaircissement maximal rattrapé en post-traitement (recette), en EV. */
     const val MAX_POST_EXPOSURE_EV = 0.5
 
-    // Pose max (s) = MOTION_BUDGET / vitesse angulaire (rad/s) : ~3 px de flou résiduel avec
-    // une focale de ~3000 px et une stabilisation optique qui en retire ~5/6.
-    private const val MOTION_BUDGET = 0.005
+    // Pose max (s) = MOTION_BUDGET / vitesse angulaire (rad/s). Calé sur Samsung : 1/4 s à la
+    // main (Galaxy Z Fold, stabilisation optique) quand notre gyroscope mesurait ~0,055 rad/s.
+    private const val MOTION_BUDGET = 0.015
     private const val MIN_ANGULAR_SPEED = 1e-4
 
     /** Éclaircissement visé (EV) pour une scène, ou null si elle est assez claire pour ne rien changer. */

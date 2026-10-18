@@ -265,8 +265,10 @@ internal fun ColorRecipeParams.withNightBoost(residualExposureEv: Float): ColorR
 // Rendu prudent : un relevé fort des ombres (0,8) sur une image encore bruitée a amplifié le
 // bruit et viré au violet (noirs bruités du capteur). Le gros du gain doit venir de la prise
 // (empilement, pose longue) ; le style (LUT) choisi est conservé.
-internal const val NIGHT_BASE_EXPOSURE_EV = 0.2f
-internal const val NIGHT_SHADOWS_BOOST = 0.35f
+// Diagnostic réel (Z Fold, escalier) : à +0,2 EV / ombres +0,35 la photo restait 2,3× plus
+// sombre que Samsung (luminance moyenne 0,14 contre 0,33).
+internal const val NIGHT_BASE_EXPOSURE_EV = 0.4f
+internal const val NIGHT_SHADOWS_BOOST = 0.5f
 internal const val NIGHT_HIGHLIGHTS_CUT = 0.15f
 
 private data class PresetMatchSnapshot(

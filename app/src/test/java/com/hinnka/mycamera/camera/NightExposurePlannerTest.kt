@@ -44,11 +44,29 @@ class NightExposurePlannerTest {
             exposureTimeLowerNs = 10_000L,
             exposureTimeUpperNs = 1_000_000_000L,
             liftEv = 3.0,
-            angularSpeedRadS = 0.05f,
+            angularSpeedRadS = 0.15f,
         )
         assertNotNull(plan)
         assertEquals(100_000_000L, plan!!.exposureTimeNs)
         assertEquals(3200, plan.sensitivityIso)
         assertEquals(2.0, plan.realizedEv, 0.05)
+    }
+
+    @Test
+    fun galaxyFoldStairsCaseReachesFullLiftWithinSensorIsoRange() {
+        // Diagnostic EXIF réel : base ISO 7227 à 1/25 s, gyroscope 0,055 rad/s, ISO max 3200.
+        val plan = NightExposurePlanner.plan(
+            baseIso = 7227,
+            baseExposureTimeNs = 39_965_296L,
+            isoLower = 50,
+            isoUpper = 3200,
+            exposureTimeLowerNs = 10_000L,
+            exposureTimeUpperNs = 1_000_000_000L,
+            liftEv = 1.0,
+            angularSpeedRadS = 0.054858368f,
+        )
+        assertNotNull(plan)
+        assertEquals(273_000_000.0, plan!!.exposureTimeNs.toDouble(), 2_000_000.0)
+        assertEquals(1.0, plan.realizedEv, 0.05)
     }
 }
