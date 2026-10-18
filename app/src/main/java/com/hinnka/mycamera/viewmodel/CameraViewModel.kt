@@ -231,13 +231,22 @@ internal data class CaptureDenoiseStrengths(
 internal const val NIGHT_LUMA_DENOISE = 0.5f
 internal const val NIGHT_CHROMA_DENOISE = 1.0f
 
+// Selfie : capteur frontal petit, pose courte (ISO haut) puis accentuation et clarté ; sans
+// débruitage les taches colorées (violet/vert) ressortent. Chroma fort, luminance légère pour
+// garder le détail (barbe, tissu). Appliqué avant l'accentuation.
+internal const val FRONT_SELFIE_LUMA_DENOISE = 0.15f
+internal const val FRONT_SELFIE_CHROMA_DENOISE = 0.7f
+
 internal fun resolveCaptureDenoiseStrengths(
     isRawCapture: Boolean,
     userPrefs: UserPreferences?,
     nightMode: Boolean = false,
+    frontCamera: Boolean = false,
 ): CaptureDenoiseStrengths = when {
     !isRawCapture && nightMode ->
         CaptureDenoiseStrengths(NIGHT_LUMA_DENOISE, NIGHT_CHROMA_DENOISE, null, null)
+    !isRawCapture && frontCamera ->
+        CaptureDenoiseStrengths(FRONT_SELFIE_LUMA_DENOISE, FRONT_SELFIE_CHROMA_DENOISE, null, null)
     !isRawCapture -> CaptureDenoiseStrengths(0f, 0f, null, null)
     else -> CaptureDenoiseStrengths(
         editableLuma = 0f,
@@ -6179,6 +6188,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 isRawCapture = isRawCapture,
                 userPrefs = userPrefs,
                 nightMode = settings.nightPostExposureEv != null,
+                frontCamera = settings.lensFacing == CameraCharacteristics.LENS_FACING_FRONT,
             )
             val noiseReductionValue = denoiseStrengths.editableLuma
             val chromaNoiseReductionValue = denoiseStrengths.editableChroma
@@ -6584,6 +6594,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 isRawCapture = isRawStack,
                 userPrefs = userPrefs,
                 nightMode = settings.nightPostExposureEv != null,
+                frontCamera = settings.lensFacing == CameraCharacteristics.LENS_FACING_FRONT,
             )
             val noiseReductionValue = denoiseStrengths.editableLuma
             val chromaNoiseReductionValue = denoiseStrengths.editableChroma
@@ -6945,6 +6956,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             isRawCapture = isRawCapture,
             userPrefs = userPrefs,
             nightMode = settings.nightPostExposureEv != null,
+            frontCamera = settings.lensFacing == CameraCharacteristics.LENS_FACING_FRONT,
         )
         val noiseReductionValue = denoiseStrengths.editableLuma
         val chromaNoiseReductionValue = denoiseStrengths.editableChroma

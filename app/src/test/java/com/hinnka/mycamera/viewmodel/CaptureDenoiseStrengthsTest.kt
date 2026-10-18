@@ -51,4 +51,20 @@ class CaptureDenoiseStrengthsTest {
         assertNull(resolved.bakedLuma)
         assertNull(resolved.bakedChroma)
     }
+
+    @Test
+    fun selfieGetsChromaHeavyDenoiseAndNightTakesPrecedence() {
+        val selfie = resolveCaptureDenoiseStrengths(isRawCapture = false, userPrefs = null, frontCamera = true)
+        assertEquals(FRONT_SELFIE_LUMA_DENOISE, selfie.editableLuma, 0f)
+        assertEquals(FRONT_SELFIE_CHROMA_DENOISE, selfie.editableChroma, 0f)
+
+        val nightSelfie = resolveCaptureDenoiseStrengths(
+            isRawCapture = false,
+            userPrefs = null,
+            nightMode = true,
+            frontCamera = true,
+        )
+        assertEquals(NIGHT_LUMA_DENOISE, nightSelfie.editableLuma, 0f)
+        assertEquals(NIGHT_CHROMA_DENOISE, nightSelfie.editableChroma, 0f)
+    }
 }
