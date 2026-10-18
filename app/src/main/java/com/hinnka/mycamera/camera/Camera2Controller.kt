@@ -85,6 +85,8 @@ sealed interface EnhancedStabilizationFallback {
 private const val NIGHT_PREVIEW_MIN_FPS = 10
 
 // Proposition du mode Nuit : seuils en log2(ISO × pose en s) avec hystérésis, lissage par image.
+// Plancher de cadence en selfie : pose auto ≤ 1/24 s.
+private const val FRONT_SELFIE_MIN_FPS = 24
 private const val NIGHT_SUGGEST_ON_LOG2 = 5.3f // ~40 ISO·s
 private const val NIGHT_SUGGEST_OFF_LOG2 = 4.3f // ~20 ISO·s
 private const val NIGHT_SUGGEST_SMOOTHING = 0.05f
@@ -7545,13 +7547,14 @@ class Camera2Controller(private val context: Context) {
             ?.maxByOrNull { it.lower }
 
     /**
-     * Selfie : on relève le plancher de cadence (jusqu'à 30 i/s) pour que l'exposition auto ne pose
-     * pas plus de ~1/30 s, ce qui limite le flou de bougé en intérieur (au prix d'un ISO plus haut).
+     * Selfie : on relève le plancher de cadence (jusqu'à 24 i/s) pour que l'exposition auto ne pose
+     * pas plus de ~1/24 s, ce qui limite le flou de bougé en intérieur. À 1/30 s l'ISO plafonnait
+     * le soir : photo sombre et bruitée ; 1/24 s donne ~30 % de lumière en plus par image.
      */
     private fun applyFrontSelfieFpsRange(builder: CaptureRequest.Builder) {
         val target = getActiveOpenCameraCharacteristics()
             ?.readMetadataOrNull(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
-            ?.filter { it.lower <= 30 && it.upper >= it.lower }
+            ?.filter { it.lower <= FRONT_SELFIE_MIN_FPS && it.upper >= it.lower }
             // Plancher le plus haut ; à plancher égal, la cadence max la plus basse (30 plutôt que 60).
             ?.maxWithOrNull(compareBy<android.util.Range<Int>> { it.lower }.thenByDescending { it.upper })
             ?: return
