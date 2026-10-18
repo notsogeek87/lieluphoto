@@ -7797,9 +7797,7 @@ class Camera2Controller(private val context: Context) {
         val baseIso = result.get(CaptureResult.SENSOR_SENSITIVITY) ?: return
         val baseShutter = result.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: return
         val front = isCurrentCameraFrontFacing()
-        val stabilized = !front && availableOpticalStabilizationModes.contains(
-            CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON
-        )
+        val stabilized = !front && isLikelyOpticallyStabilized()
         val minIso = if (stabilized) STABILIZED_LOW_LIGHT_PHOTO_MIN_ISO else LOW_LIGHT_PHOTO_MIN_ISO
         if (baseIso < minIso) return
         val maxShutterNs = if (stabilized) STABILIZED_LOW_LIGHT_MAX_SHUTTER_NS else FRONT_NIGHT_MAX_SHUTTER_NS
@@ -7829,6 +7827,27 @@ class Camera2Controller(private val context: Context) {
             "Low-light photo exposure: base=ISO$baseIso/${baseShutter}ns -> " +
                 "ISO${plan.sensitivityIso}/${plan.exposureTimeNs}ns",
         )
+    }
+
+    /**
+     * Stabilisation optique de l'objectif ouvert. Samsung ne la déclare pas toujours sur la caméra
+     * logique (constaté build 153 : pose longue bornée à 1/15 s, chemin « non stabilisé », alors que
+     * l'objectif principal du Z Fold est stabilisé) : on regarde aussi les caméras physiques, et
+     * l'objectif principal arrière est supposé stabilisé.
+     */
+    private fun isLikelyOpticallyStabilized(): Boolean {
+        val on = CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON
+        if (availableOpticalStabilizationModes.contains(on)) return true
+        if (_state.value.currentLensType == LensType.BACK_MAIN) return true
+        val characteristics = getActiveOpenCameraCharacteristics() ?: return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+        return runCatching {
+            characteristics.physicalCameraIds.any { id ->
+                getCameraCharacteristicsCached(id)
+                    .get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION)
+                    ?.contains(on) == true
+            }
+        }.getOrDefault(false)
     }
 
     private fun publishNightInfo(state: CameraState, info: String) {

@@ -553,6 +553,9 @@ private const val FRONT_SELFIE_SHARPNESS_BOOST = 0.25f
 // peau) -> 0,15 relevé à 0,25. Objectif arrière : renfort plus léger.
 private const val FRONT_SELFIE_CLARITY_BOOST = 0.25f
 private const val PHOTO_CLARITY_BOOST = 0.15f
+// Mesure build 153 : le selfie (netteté +0,25) égale désormais Samsung en détail (8,2 contre 8,1),
+// l'objectif arrière sans renfort restait à ~60 % (3,3 contre 5,5) -> même renfort.
+private const val PHOTO_SHARPNESS_BOOST = 0.25f
 
 internal fun resolveMultiFrameOutputScale(
     useJpgMax: Boolean,
@@ -3657,6 +3660,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                     clarity = merged.clarity.withAutoBoost(FRONT_SELFIE_CLARITY_BOOST, AUTO_CLARITY_CEILING),
                 )
                 else -> merged.copy(
+                    sharpness = merged.sharpness.withAutoSharpnessBoost(PHOTO_SHARPNESS_BOOST),
                     clarity = merged.clarity.withAutoBoost(PHOTO_CLARITY_BOOST, AUTO_CLARITY_CEILING),
                 )
             }
