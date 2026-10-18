@@ -556,6 +556,9 @@ private const val PHOTO_CLARITY_BOOST = 0.15f
 // Mesure build 153 : le selfie (netteté +0,25) égale désormais Samsung en détail (8,2 contre 8,1),
 // l'objectif arrière sans renfort restait à ~60 % (3,3 contre 5,5) -> même renfort.
 private const val PHOTO_SHARPNESS_BOOST = 0.25f
+// Mesure build 155 : photo arrière ~+0,5 EV plus claire que l'appareil Samsung (luminance
+// 97-121 contre 88-90 en pièce éclairée, 62 contre 51 le soir) -> léger assombrissement.
+private const val PHOTO_EXPOSURE_OFFSET_EV = -0.3f
 
 internal fun resolveMultiFrameOutputScale(
     useJpgMax: Boolean,
@@ -3660,6 +3663,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                     clarity = merged.clarity.withAutoBoost(FRONT_SELFIE_CLARITY_BOOST, AUTO_CLARITY_CEILING),
                 )
                 else -> merged.copy(
+                    exposure = (merged.exposure + PHOTO_EXPOSURE_OFFSET_EV).coerceIn(-2f, 2f),
                     sharpness = merged.sharpness.withAutoSharpnessBoost(PHOTO_SHARPNESS_BOOST),
                     clarity = merged.clarity.withAutoBoost(PHOTO_CLARITY_BOOST, AUTO_CLARITY_CEILING),
                 )

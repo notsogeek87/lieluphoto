@@ -100,12 +100,15 @@ private const val FRONT_NIGHT_MAX_SHUTTER_NS = 1_000_000_000L / 15
 // Samsung (1/12,5 s à ISO 800 mesuré) ; sinon 1/15 s. Seuil d'ISO de base sous lequel rien ne
 // change : 400 sur l'objectif stabilisé (build 151 : ISO 731 à 1/33 s restait tel quel alors que
 // Samsung posait 1/4 s), 800 sans stabilisation et en selfie (bougé plus probable).
-private const val STABILIZED_LOW_LIGHT_MAX_SHUTTER_NS = 1_000_000_000L / 12
-private const val STABILIZED_LOW_LIGHT_PHOTO_MIN_ISO = 400
+// Build 155 : à 1/12-1/15 s à main levée la photo arrière sortait floue (bougé) alors que
+// l'appareil Samsung pose court (1/33 à 1/100 s, ISO plus haut, débruitage) -> 1/25 s, dès ISO 800.
+private const val STABILIZED_LOW_LIGHT_MAX_SHUTTER_NS = 1_000_000_000L / 25
+private const val STABILIZED_LOW_LIGHT_PHOTO_MIN_ISO = 800
 private const val LOW_LIGHT_PHOTO_MIN_ISO = 800
 // Mode Nuit, objectif stabilisé : 1/4 s par image (constaté, gyroscope calme) donnait une photo
 // plus molle que celle de l'appareil Samsung à 1/12,5 s ; on borne à 1/10 s, le reste par l'ISO.
-private const val STABILIZED_NIGHT_MAX_SHUTTER_NS = 1_000_000_000L / 10
+// Build 155 : 15 images à 1/10 s donnaient la photo Nuit la plus molle -> 1/20 s.
+private const val STABILIZED_NIGHT_MAX_SHUTTER_NS = 1_000_000_000L / 20
 
 // Proposition du mode Nuit : seuils en log2(ISO × pose en s) avec hystérésis, lissage par image.
 private const val NIGHT_SUGGEST_ON_LOG2 = 5.3f // ~40 ISO·s
