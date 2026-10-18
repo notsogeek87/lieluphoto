@@ -54,7 +54,8 @@ private const val SCAN_INTERVAL_MS = 300L
 private const val SCAN_MAX_LONG_EDGE = 1920
 private const val CAPTURE_TIMEOUT_MS = 1500L
 private const val DECODE_TIMEOUT_MS = 3000L
-private const val LOST_AFTER_MS = 3000L
+private const val LOST_AFTER_MS = 4000L
+private const val STICKY_MAX_MISSES = 3
 
 /**
  * Détecte les QR codes dans l'aperçu et propose de copier le texte ou d'ouvrir le lien,
@@ -81,17 +82,30 @@ fun QrCodeOverlay(
         var lastSeen = 0L
         try {
             var pass = 0
+            // Variante qui a réussi : réutilisée tant que le code reste visible, sinon la carte
+            // clignoterait (les autres variantes ne lisent pas ce même code).
+            var sticky: ScanVariant? = null
+            var misses = 0
             while (true) {
                 delay(SCAN_INTERVAL_MS)
                 val variants = ScanVariant.entries
-                val text = scanFrame(glSurfaceView, scanner, variants[pass++ % variants.size])
+                val variant = sticky ?: variants[pass++ % variants.size]
+                val text = scanFrame(glSurfaceView, scanner, variant)
                 val now = System.currentTimeMillis()
                 if (text != null) {
                     lastSeen = now
+                    sticky = variant
+                    misses = 0
                     if (detected != text) detected = text
-                } else if (detected != null && now - lastSeen > LOST_AFTER_MS) {
-                    detected = null
-                    dismissed = null
+                } else {
+                    if (sticky != null && ++misses >= STICKY_MAX_MISSES) {
+                        sticky = null
+                        misses = 0
+                    }
+                    if (detected != null && now - lastSeen > LOST_AFTER_MS) {
+                        detected = null
+                        dismissed = null
+                    }
                 }
             }
         } finally {
