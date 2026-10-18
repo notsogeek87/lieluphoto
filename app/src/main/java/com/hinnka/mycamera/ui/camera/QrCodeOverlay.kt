@@ -5,6 +5,10 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Paint
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -38,18 +42,19 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.hinnka.mycamera.R
 import com.hinnka.mycamera.utils.PLog
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 private const val TAG = "QrCodeOverlay"
-private const val SCAN_INTERVAL_MS = 500L
+private const val SCAN_INTERVAL_MS = 300L
 private const val SCAN_MAX_LONG_EDGE = 1920
-private const val BLUR_FALLBACK_DIVISOR = 3
 private const val CAPTURE_TIMEOUT_MS = 1500L
 private const val DECODE_TIMEOUT_MS = 3000L
-private const val LOST_AFTER_MS = 1500L
+private const val LOST_AFTER_MS = 3000L
 
 /**
  * Détecte les QR codes dans l'aperçu et propose de copier le texte ou d'ouvrir le lien,
@@ -75,9 +80,11 @@ fun QrCodeOverlay(
         )
         var lastSeen = 0L
         try {
+            var pass = 0
             while (true) {
                 delay(SCAN_INTERVAL_MS)
-                val text = scanFrame(glSurfaceView, scanner)
+                val variants = ScanVariant.entries
+                val text = scanFrame(glSurfaceView, scanner, variants[pass++ % variants.size])
                 val now = System.currentTimeMillis()
                 if (text != null) {
                     lastSeen = now
@@ -140,10 +147,24 @@ fun QrCodeOverlay(
     }
 }
 
+/**
+ * Façons d'analyser une même image, essayées tour à tour (une par passage, pour rester léger) :
+ * ML Kit lit mal les codes clairs sur fond sombre (inversés) et les codes flous ; l'image
+ * réduite rend les modules d'un code défocalisé à nouveau lisibles.
+ */
+private enum class ScanVariant(val divisor: Int, val inverted: Boolean) {
+    FULL(1, false),
+    FULL_INVERTED(1, true),
+    HALF(2, false),
+    THIRD_INVERTED(3, true),
+    THIRD(3, false),
+}
+
 /** Capture l'aperçu courant et retourne le texte du premier QR code trouvé. */
 private suspend fun scanFrame(
     glSurfaceView: CameraGLSurfaceView,
     scanner: BarcodeScanner,
+    variant: ScanVariant,
 ): String? {
     // Le rendu peut ne jamais répondre (aperçu en pause) : sans délai la boucle resterait bloquée.
     val bitmap = withTimeoutOrNull(CAPTURE_TIMEOUT_MS) {
@@ -155,23 +176,33 @@ private suspend fun scanFrame(
         PLog.w(TAG, "QR scan: no preview frame within ${CAPTURE_TIMEOUT_MS}ms")
         return null
     }
+    val prepared = withContext(Dispatchers.Default) { prepare(bitmap, variant) }
     try {
-        decode(scanner, bitmap)?.let { return it }
-        // Image floue (mise au point ailleurs) : réduite, les modules du QR code redeviennent lisibles.
-        val small = Bitmap.createScaledBitmap(
-            bitmap,
-            (bitmap.width / BLUR_FALLBACK_DIVISOR).coerceAtLeast(1),
-            (bitmap.height / BLUR_FALLBACK_DIVISOR).coerceAtLeast(1),
-            true
-        )
-        try {
-            return decode(scanner, small)
-        } finally {
-            small.recycle()
-        }
+        return decode(scanner, prepared)
     } finally {
+        if (prepared !== bitmap) prepared.recycle()
         bitmap.recycle()
     }
+}
+
+private fun prepare(source: Bitmap, variant: ScanVariant): Bitmap {
+    if (variant.divisor == 1 && !variant.inverted) return source
+    val width = (source.width / variant.divisor).coerceAtLeast(1)
+    val height = (source.height / variant.divisor).coerceAtLeast(1)
+    val scaled = if (variant.divisor == 1) source else Bitmap.createScaledBitmap(source, width, height, true)
+    if (!variant.inverted) return scaled
+    val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val invert = ColorMatrix(
+        floatArrayOf(
+            -1f, 0f, 0f, 0f, 255f,
+            0f, -1f, 0f, 0f, 255f,
+            0f, 0f, -1f, 0f, 255f,
+            0f, 0f, 0f, 1f, 0f,
+        )
+    )
+    Canvas(result).drawBitmap(scaled, 0f, 0f, Paint().apply { colorFilter = ColorMatrixColorFilter(invert) })
+    if (scaled !== source) scaled.recycle()
+    return result
 }
 
 private suspend fun decode(scanner: BarcodeScanner, bitmap: Bitmap): String? =
