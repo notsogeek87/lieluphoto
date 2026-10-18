@@ -9,6 +9,13 @@ package com.hinnka.mycamera.lut
 internal object SrgbSharpnessShader {
     const val DEFAULT_RADIUS = 1f
     const val DEFAULT_THRESHOLD = 0.005f
+    private const val MAX_RADIUS = 2.5f
+
+    // Rayon proportionnel à la définition : à rayon fixe de 1 px (sigma 0,5 px) une photo 12 Mpx
+    // n'était accentuée que sur le bruit, pas sur les détails visibles (barbe, tissu). Repère :
+    // ~1 px pour 1500 px de petit côté, soit 2 px en 12 Mpx (3000 px), plafonné à 2,5 px.
+    fun radiusFor(width: Int, height: Int): Float =
+        (minOf(width, height) / 1500f).coerceIn(DEFAULT_RADIUS, MAX_RADIUS)
 
     val FRAGMENT_SHADER = """
         #version 300 es

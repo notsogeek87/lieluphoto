@@ -21,6 +21,23 @@ class SelfieAndNightGuardsTest {
     }
 
     @Test
+    fun selfieClarityIsCappedForSkin() {
+        assertEquals(0.15f, 0f.withAutoBoost(0.15f, AUTO_CLARITY_CEILING), 1e-6f)
+        assertEquals(AUTO_CLARITY_CEILING, 0.2f.withAutoBoost(0.15f, AUTO_CLARITY_CEILING), 1e-6f)
+    }
+
+    @Test
+    fun sharpenRadiusScalesWithResolution() {
+        val shader = com.hinnka.mycamera.lut.SrgbSharpnessShader
+        // Petites images (aperçus, miniatures) : rayon d'origine.
+        assertEquals(1f, shader.radiusFor(1080, 810), 1e-6f)
+        // 12 Mpx (4000 × 3000) : 2 px.
+        assertEquals(2f, shader.radiusFor(4000, 3000), 1e-6f)
+        // 50 Mpx : plafonné.
+        assertEquals(2.5f, shader.radiusFor(8160, 6120), 1e-6f)
+    }
+
+    @Test
     fun nightBoostDoesNotStackSharpnessBeyondCeiling() {
         val boosted = com.hinnka.mycamera.model.ColorRecipeParams(sharpness = 0.4f).withNightBoost(0f)
         assertEquals(AUTO_SHARPNESS_CEILING, boosted.sharpness, 1e-6f)

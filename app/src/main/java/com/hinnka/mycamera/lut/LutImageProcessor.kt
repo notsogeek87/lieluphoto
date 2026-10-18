@@ -1745,7 +1745,7 @@ class LutImageProcessor(context: Context? = null) {
         )
         GLES30.glUniform1f(
             GLES30.glGetUniformLocation(lutSharpenProgram, "uRadius"),
-            SrgbSharpnessShader.DEFAULT_RADIUS
+            SrgbSharpnessShader.radiusFor(width, height)
         )
         GLES30.glUniform1f(
             GLES30.glGetUniformLocation(lutSharpenProgram, "uThreshold"),

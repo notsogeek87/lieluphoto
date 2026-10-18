@@ -268,8 +268,15 @@ internal fun ColorRecipeParams.withNightBoost(residualExposureEv: Float): ColorR
 // bruit amplifié. Une recette déjà plus nette que le plafond est laissée telle quelle.
 internal const val AUTO_SHARPNESS_CEILING = 0.5f
 
+// Contraste local (clarté) ajouté en selfie : relief du visage et des textures, comme Samsung,
+// plafonné pour ne pas durcir la peau.
+internal const val AUTO_CLARITY_CEILING = 0.3f
+
+internal fun Float.withAutoBoost(boost: Float, ceiling: Float): Float =
+    if (this >= ceiling) this else minOf(this + boost, ceiling)
+
 internal fun Float.withAutoSharpnessBoost(boost: Float): Float =
-    if (this >= AUTO_SHARPNESS_CEILING) this else minOf(this + boost, AUTO_SHARPNESS_CEILING)
+    withAutoBoost(boost, AUTO_SHARPNESS_CEILING)
 
 /**
  * Fusion multi-images active : choix de l'utilisateur, mode Nuit, ou selfie (forcée d'office,
@@ -524,6 +531,7 @@ private data class ActivePresetMatchState(
 private data class SettingValue<T>(val value: T)
 
 private const val FRONT_SELFIE_SHARPNESS_BOOST = 0.25f
+private const val FRONT_SELFIE_CLARITY_BOOST = 0.15f
 
 internal fun resolveMultiFrameOutputScale(
     useJpgMax: Boolean,
@@ -3609,7 +3617,10 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             // rendu en a déjà ajouté : on ne cumule pas les deux renforts.
             val front = cameraController.getLensFacing() == CameraCharacteristics.LENS_FACING_FRONT
             if (front && nightPostExposureEv == null) {
-                merged.copy(sharpness = merged.sharpness.withAutoSharpnessBoost(FRONT_SELFIE_SHARPNESS_BOOST))
+                merged.copy(
+                    sharpness = merged.sharpness.withAutoSharpnessBoost(FRONT_SELFIE_SHARPNESS_BOOST),
+                    clarity = merged.clarity.withAutoBoost(FRONT_SELFIE_CLARITY_BOOST, AUTO_CLARITY_CEILING),
+                )
             } else {
                 merged
             }
