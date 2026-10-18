@@ -2246,7 +2246,8 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 // RAW / mode Pro retirés : on ne capture plus jamais en RAW.
                 val effectiveUseRaw = false
                 val effectiveUseJpgMax =
-                    (it.useJpgMax || _nightMode.value) && !multipleExposureEnabled
+                    (it.useJpgMax || _nightMode.value || currentCameraState.currentLensType == LensType.FRONT) &&
+                        !multipleExposureEnabled
                 val effectiveUseRawMax =
                     it.useRawMax && effectiveUseRaw && !multipleExposureEnabled
                 val effectiveMultiFrameOutputScale = resolveMultiFrameOutputScale(
@@ -3825,8 +3826,24 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * 切换摄像头（前后置切换）
      */
+    /** Selfie : fusion multi-images activée d'office sur la caméra frontale. */
+    private fun syncMultiFrameForLens(front: Boolean) {
+        val prefs = userPreferences.value
+        val useJpgMax = (prefs.useJpgMax || _nightMode.value || front) && !prefs.useMultipleExposure
+        cameraController.setMultiFrameOutputScale(
+            resolveMultiFrameOutputScale(
+                useJpgMax = useJpgMax,
+                useRawMax = false,
+                rawMaxOutputScale = prefs.rawMaxOutputScale,
+                jpgMultiFrameDenoiseOutputScale = prefs.jpgMultiFrameDenoiseOutputScale,
+            )
+        )
+    }
+
     fun switchCamera() {
+        val toFront = state.value.currentLensType != LensType.FRONT
         cameraController.switchCamera()
+        syncMultiFrameForLens(toFront)
         reopenCamera(
             preserveVideoRecording = true
         )

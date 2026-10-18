@@ -5112,7 +5112,12 @@ class Camera2Controller(private val context: Context) {
     private fun applyImageQualitySettings(builder: CaptureRequest.Builder, currentState: CameraState) {
         try {
             val isVideo = currentState.captureMode == CaptureMode.VIDEO
-            val selectedEdgeLevel = if (isVideo) videoEdgeLevel else edgeLevel
+            // Selfie : le capteur frontal est petit et mou, on impose au moins la netteté HIGH_QUALITY.
+            val selectedEdgeLevel = when {
+                isVideo -> videoEdgeLevel
+                isCurrentCameraFrontFacing() -> maxOf(edgeLevel, 2)
+                else -> edgeLevel
+            }
             val selectedNrLevel = if (isVideo) videoNrLevel else nrLevel
             val isBurst = !isVideo && currentState.requiresMultiFrameCaptureSequence
             val effectiveEdgeLevel = if (isBurst && selectedEdgeLevel == 2) 1 else selectedEdgeLevel
