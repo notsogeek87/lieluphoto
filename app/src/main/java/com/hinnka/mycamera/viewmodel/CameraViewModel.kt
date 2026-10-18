@@ -261,8 +261,27 @@ internal fun ColorRecipeParams.withNightBoost(residualExposureEv: Float): ColorR
     exposure = (exposure + NIGHT_BASE_EXPOSURE_EV + residualExposureEv).coerceIn(-2f, 2f),
     shadows = (shadows + NIGHT_SHADOWS_BOOST).coerceIn(-1f, 1f),
     highlights = (highlights - NIGHT_HIGHLIGHTS_CUT).coerceIn(-1f, 1f),
-    sharpness = (sharpness + NIGHT_SHARPNESS_BOOST).coerceIn(-1f, 1f),
+    sharpness = sharpness.withAutoSharpnessBoost(NIGHT_SHARPNESS_BOOST),
 )
+
+// Netteté ajoutée automatiquement (Nuit, selfie) : jamais au-delà de ce plafond, sinon halos et
+// bruit amplifié. Une recette déjà plus nette que le plafond est laissée telle quelle.
+internal const val AUTO_SHARPNESS_CEILING = 0.5f
+
+internal fun Float.withAutoSharpnessBoost(boost: Float): Float =
+    if (this >= AUTO_SHARPNESS_CEILING) this else minOf(this + boost, AUTO_SHARPNESS_CEILING)
+
+/**
+ * Fusion multi-images active : choix de l'utilisateur, mode Nuit, ou selfie (forcée d'office,
+ * sauf si Live Photo est actif, incompatible avec la rafale).
+ */
+internal fun resolveEffectiveUseJpgMax(
+    userJpgMax: Boolean,
+    nightMode: Boolean,
+    frontCamera: Boolean,
+    useLivePhoto: Boolean,
+    useMultipleExposure: Boolean,
+): Boolean = (userJpgMax || nightMode || (frontCamera && !useLivePhoto)) && !useMultipleExposure
 
 // Rendu prudent : un relevé fort des ombres (0,8) sur une image encore bruitée a amplifié le
 // bruit et viré au violet (noirs bruités du capteur). Le gros du gain doit venir de la prise
@@ -1038,7 +1057,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             userPreferencesRepository.saveUseLivePhoto(false)
         }
         val desiredMultiFrameOutputScale = resolveMultiFrameOutputScale(
-            useJpgMax = activeUseJpgMax,
+            useJpgMax = !desiredUseRaw && resolveEffectiveUseJpgMax(
+                userJpgMax = desiredUseJpgMax,
+                nightMode = _nightMode.value,
+                frontCamera = isFrontLensActive(),
+                useLivePhoto = prefs.useLivePhoto && !activeUseJpgMax,
+                useMultipleExposure = desiredUseMultipleExposure,
+            ),
             useRawMax = desiredUseRawMax,
             rawMaxOutputScale = prefs.rawMaxOutputScale,
             jpgMultiFrameDenoiseOutputScale = prefs.jpgMultiFrameDenoiseOutputScale,
@@ -2247,9 +2272,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 val multipleExposureEnabled = it.useMultipleExposure
                 // RAW / mode Pro retirés : on ne capture plus jamais en RAW.
                 val effectiveUseRaw = false
-                val effectiveUseJpgMax =
-                    (it.useJpgMax || _nightMode.value || currentCameraState.currentLensType == LensType.FRONT) &&
-                        !multipleExposureEnabled
+                val effectiveUseJpgMax = resolveEffectiveUseJpgMax(
+                    userJpgMax = it.useJpgMax,
+                    nightMode = _nightMode.value,
+                    frontCamera = currentCameraState.currentLensType == LensType.FRONT,
+                    useLivePhoto = it.useLivePhoto,
+                    useMultipleExposure = multipleExposureEnabled,
+                )
                 val effectiveUseRawMax =
                     it.useRawMax && effectiveUseRaw && !multipleExposureEnabled
                 val effectiveMultiFrameOutputScale = resolveMultiFrameOutputScale(
@@ -3576,9 +3605,11 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         val recipe = getMergedRecipeParams().let { merged ->
             nightPostExposureEv?.let(merged::withNightBoost) ?: merged
         }.let { merged ->
-            // Selfie : netteté finale ajoutée pour compenser le capteur frontal mou.
-            if (cameraController.getLensFacing() == CameraCharacteristics.LENS_FACING_FRONT) {
-                merged.copy(sharpness = (merged.sharpness + FRONT_SELFIE_SHARPNESS_BOOST).coerceAtMost(1f))
+            // Selfie : netteté finale ajoutée pour compenser le capteur frontal mou. En Nuit le
+            // rendu en a déjà ajouté : on ne cumule pas les deux renforts.
+            val front = cameraController.getLensFacing() == CameraCharacteristics.LENS_FACING_FRONT
+            if (front && nightPostExposureEv == null) {
+                merged.copy(sharpness = merged.sharpness.withAutoSharpnessBoost(FRONT_SELFIE_SHARPNESS_BOOST))
             } else {
                 merged
             }
@@ -3832,13 +3863,19 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /**
-     * 切换摄像头（前后置切换）
-     */
+    private fun isFrontLensActive(): Boolean =
+        cameraController.state.value.currentLensType == LensType.FRONT
+
     /** Selfie : fusion multi-images activée d'office sur la caméra frontale. */
     private fun syncMultiFrameForLens(front: Boolean) {
         val prefs = userPreferences.value
-        val useJpgMax = (prefs.useJpgMax || _nightMode.value || front) && !prefs.useMultipleExposure
+        val useJpgMax = resolveEffectiveUseJpgMax(
+            userJpgMax = prefs.useJpgMax,
+            nightMode = _nightMode.value,
+            frontCamera = front,
+            useLivePhoto = prefs.useLivePhoto,
+            useMultipleExposure = prefs.useMultipleExposure,
+        )
         cameraController.setMultiFrameOutputScale(
             resolveMultiFrameOutputScale(
                 useJpgMax = useJpgMax,
@@ -3849,6 +3886,9 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
+    /**
+     * 切换摄像头（前后置切换）
+     */
     fun switchCamera() {
         val toFront = state.value.currentLensType != LensType.FRONT
         cameraController.switchCamera()
@@ -3868,6 +3908,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         syncVendorCaptureSettingsToController()
         cameraController.switchToCameraId(cameraId)
         targetCamera?.let { camera ->
+            syncMultiFrameForLens(camera.lensType == LensType.FRONT)
             setZoomRatioForCamera(camera.defaultVisibleZoomRatio(), camera.cameraId)
         }
         reopenCamera(
@@ -4070,7 +4111,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         cameraController.setNightMode(enabled)
         viewModelScope.launch {
             val prefs = userPreferencesRepository.userPreferences.first()
-            val useJpgMax = (prefs.useJpgMax || enabled) && !prefs.useMultipleExposure
+            val useJpgMax = resolveEffectiveUseJpgMax(
+                userJpgMax = prefs.useJpgMax,
+                nightMode = enabled,
+                frontCamera = isFrontLensActive(),
+                useLivePhoto = prefs.useLivePhoto,
+                useMultipleExposure = prefs.useMultipleExposure,
+            )
             cameraController.setMultiFrameOutputScale(
                 resolveMultiFrameOutputScale(
                     useJpgMax = useJpgMax,
@@ -5213,8 +5260,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             userPreferencesRepository.saveRawMaxOutputScale(normalizedScale)
             cameraController.setMultiFrameOutputScale(
                 resolveMultiFrameOutputScale(
-                    useJpgMax = (prefs.useJpgMax || _nightMode.value) && !prefs.useRaw &&
-                        !prefs.useMultipleExposure,
+                    useJpgMax = !prefs.useRaw && resolveEffectiveUseJpgMax(
+                        userJpgMax = prefs.useJpgMax,
+                        nightMode = _nightMode.value,
+                        frontCamera = isFrontLensActive(),
+                        useLivePhoto = prefs.useLivePhoto,
+                        useMultipleExposure = prefs.useMultipleExposure,
+                    ),
                     useRawMax = prefs.useRawMax && prefs.useRaw &&
                         !prefs.useMultipleExposure,
                     rawMaxOutputScale = normalizedScale,
@@ -5234,8 +5286,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             val prefs = userPreferencesRepository.userPreferences.first()
             cameraController.setMultiFrameOutputScale(
                 resolveMultiFrameOutputScale(
-                    useJpgMax = (prefs.useJpgMax || _nightMode.value) && !prefs.useRaw &&
-                        !prefs.useMultipleExposure,
+                    useJpgMax = !prefs.useRaw && resolveEffectiveUseJpgMax(
+                        userJpgMax = prefs.useJpgMax,
+                        nightMode = _nightMode.value,
+                        frontCamera = isFrontLensActive(),
+                        useLivePhoto = prefs.useLivePhoto,
+                        useMultipleExposure = prefs.useMultipleExposure,
+                    ),
                     useRawMax = prefs.useRawMax && prefs.useRaw &&
                         !prefs.useMultipleExposure,
                     rawMaxOutputScale = prefs.rawMaxOutputScale,

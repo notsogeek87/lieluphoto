@@ -5115,6 +5115,8 @@ class Camera2Controller(private val context: Context) {
         try {
             val isVideo = currentState.captureMode == CaptureMode.VIDEO
             // Selfie : le capteur frontal est petit et mou, on impose au moins la netteté HIGH_QUALITY.
+            // En rafale multi-images elle repasse en FAST ci-dessous (on n'accentue pas le bruit avant
+            // la fusion) : la netteté vient alors du rendu final (FRONT_SELFIE_SHARPNESS_BOOST).
             val selectedEdgeLevel = when {
                 isVideo -> videoEdgeLevel
                 isCurrentCameraFrontFacing() -> maxOf(edgeLevel, 2)
@@ -7550,7 +7552,8 @@ class Camera2Controller(private val context: Context) {
         val target = getActiveOpenCameraCharacteristics()
             ?.readMetadataOrNull(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
             ?.filter { it.lower <= 30 && it.upper >= it.lower }
-            ?.maxWithOrNull(compareBy<android.util.Range<Int>> { it.lower }.thenBy { it.upper })
+            // Plancher le plus haut ; à plancher égal, la cadence max la plus basse (30 plutôt que 60).
+            ?.maxWithOrNull(compareBy<android.util.Range<Int>> { it.lower }.thenByDescending { it.upper })
             ?: return
         if (builder.get(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE) != target) {
             builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, target)
