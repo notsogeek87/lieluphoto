@@ -2,7 +2,18 @@ package com.hinnka.mycamera.camera
 
 import android.graphics.ColorSpace
 import android.os.Build
+import com.hinnka.mycamera.BuildConfig
 import com.hinnka.mycamera.utils.DeviceUtil
+
+/**
+ * EXIF « Software » : nom et build exacts, pour relier chaque photo à son APK. Les builds CI ont
+ * versionCode = 1000 + n° de run, comme le tag de release v<version>.<run> (ex. LieluPhoto v1.28.4.141).
+ */
+internal val APP_EXIF_SOFTWARE: String = run {
+    val code = BuildConfig.VERSION_CODE
+    val build = if (code > 1000) ".${code - 1000}" else " ($code)"
+    "LieluPhoto v${BuildConfig.VERSION_NAME}$build"
+}
 
 /**
  * 拍摄信息
@@ -25,7 +36,7 @@ data class CaptureInfo(
     // 设备信息
     val make: String = Build.MANUFACTURER,
     val model: String = DeviceUtil.exifModel, // EXIF 设备型号（优先使用有效 ASCII 营销名）
-    val software: String = "PhotonCamera",
+    val software: String = APP_EXIF_SOFTWARE,
     
     // 拍摄参数
     val whiteBalance: Int? = null,           // EXIF 白平衡: 0=Auto, 1=Manual
