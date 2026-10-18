@@ -97,8 +97,11 @@ private const val UNSTABILIZED_PHOTO_MIN_FPS = 15
 // 1/7 s par image (constaté) rendait chaque image floue avant fusion ; Samsung pose 1/17 s.
 private const val FRONT_NIGHT_MAX_SHUTTER_NS = 1_000_000_000L / 15
 // Photo normale le soir : pose max à la prise. Objectif stabilisé : 1/12 s, comme l'appareil
-// Samsung (1/12,5 s à ISO 800 mesuré) ; sinon 1/15 s. En dessous d'ISO 800, rien ne change.
+// Samsung (1/12,5 s à ISO 800 mesuré) ; sinon 1/15 s. Seuil d'ISO de base sous lequel rien ne
+// change : 400 sur l'objectif stabilisé (build 151 : ISO 731 à 1/33 s restait tel quel alors que
+// Samsung posait 1/4 s), 800 sans stabilisation et en selfie (bougé plus probable).
 private const val STABILIZED_LOW_LIGHT_MAX_SHUTTER_NS = 1_000_000_000L / 12
+private const val STABILIZED_LOW_LIGHT_PHOTO_MIN_ISO = 400
 private const val LOW_LIGHT_PHOTO_MIN_ISO = 800
 // Mode Nuit, objectif stabilisé : 1/4 s par image (constaté, gyroscope calme) donnait une photo
 // plus molle que celle de l'appareil Samsung à 1/12,5 s ; on borne à 1/10 s, le reste par l'ISO.
@@ -7793,14 +7796,13 @@ class Camera2Controller(private val context: Context) {
         val result = baseResult ?: return
         val baseIso = result.get(CaptureResult.SENSOR_SENSITIVITY) ?: return
         val baseShutter = result.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: return
-        if (baseIso < LOW_LIGHT_PHOTO_MIN_ISO) return
-        val maxShutterNs = when {
-            isCurrentCameraFrontFacing() -> FRONT_NIGHT_MAX_SHUTTER_NS
-            availableOpticalStabilizationModes.contains(
-                CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON
-            ) -> STABILIZED_LOW_LIGHT_MAX_SHUTTER_NS
-            else -> FRONT_NIGHT_MAX_SHUTTER_NS
-        }
+        val front = isCurrentCameraFrontFacing()
+        val stabilized = !front && availableOpticalStabilizationModes.contains(
+            CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON
+        )
+        val minIso = if (stabilized) STABILIZED_LOW_LIGHT_PHOTO_MIN_ISO else LOW_LIGHT_PHOTO_MIN_ISO
+        if (baseIso < minIso) return
+        val maxShutterNs = if (stabilized) STABILIZED_LOW_LIGHT_MAX_SHUTTER_NS else FRONT_NIGHT_MAX_SHUTTER_NS
         if (baseShutter >= maxShutterNs) return
         val isoRange = state.getIsoRange()
         val shutterRange = state.getShutterSpeedRange()
