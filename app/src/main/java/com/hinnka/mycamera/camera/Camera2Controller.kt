@@ -81,6 +81,9 @@ sealed interface EnhancedStabilizationFallback {
     data object PhotoPreview : EnhancedStabilizationFallback
 }
 
+// Aperçu Nuit : cadence plancher minimale (i/s) pour laisser l'exposition auto poser plus longtemps.
+private const val NIGHT_PREVIEW_MIN_FPS = 10
+
 /**
  * Camera2 相机控制器
  *
@@ -89,6 +92,7 @@ sealed interface EnhancedStabilizationFallback {
  * - 手动曝光控制（ISO、快门速度）
  * - 变焦控制
  */
+
 class Camera2Controller(private val context: Context) {
 
     companion object {
@@ -4499,6 +4503,9 @@ class Camera2Controller(private val context: Context) {
         // 如果是全自动曝光，设置曝光补偿
         if (state.isIsoAuto && state.isShutterSpeedAuto) {
             builder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, state.exposureCompensation)
+            if (!isCapture && state.nightMode && state.captureMode == CaptureMode.PHOTO) {
+                applyNightPreviewFpsRange(builder)
+            }
         } else {
             // 手动曝光 / 半自动曝光：手动设置 ISO 和快门
             // 只有在支持 MANUAL_SENSOR 的设备上才设置，否则保持自动
@@ -7461,7 +7468,45 @@ class Camera2Controller(private val context: Context) {
         _state.value = _state.value.copy(nightMode = enabled)
         if (enabled == wasEnabled) return
         if (enabled) nightMotionMonitor.start() else nightMotionMonitor.stop()
+        previewRequestBuilder?.apply {
+            if (!enabled) {
+                (nightPreviewSavedFpsRange ?: defaultPhotoPreviewFpsRange())
+                    ?.let { set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
+                nightPreviewSavedFpsRange = null
+            }
+            applyExposureSettings(this, _state.value, false)
+            updatePreview()
+        }
     }
+
+    // Cadence d'aperçu d'origine, restaurée en quittant le mode Nuit.
+    private var nightPreviewSavedFpsRange: android.util.Range<Int>? = null
+
+    /**
+     * Aperçu Nuit : comme Samsung, on baisse la cadence (jusqu'à ~10 i/s) pour que l'exposition
+     * auto puisse poser plus longtemps ; le viseur est plus lumineux et moins bruité.
+     */
+    /** Cadence photo usuelle (jusqu'à 30 i/s, plancher le plus haut) si l'origine est inconnue. */
+    private fun defaultPhotoPreviewFpsRange(): android.util.Range<Int>? =
+        getActiveOpenCameraCharacteristics()
+            ?.readMetadataOrNull(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+            ?.filter { it.upper == 30 }
+            ?.maxByOrNull { it.lower }
+
+    private fun applyNightPreviewFpsRange(builder: CaptureRequest.Builder) {
+        val ranges = getActiveOpenCameraCharacteristics()
+            ?.readMetadataOrNull(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+            ?: return
+        val target = ranges
+            .filter { it.lower >= NIGHT_PREVIEW_MIN_FPS }
+            .minWithOrNull(compareBy<android.util.Range<Int>> { it.lower }.thenByDescending { it.upper })
+            ?: return
+        val current = builder.get(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE)
+        if (current == target) return
+        if (nightPreviewSavedFpsRange == null) nightPreviewSavedFpsRange = current
+        builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, target)
+    }
+
 
     private class NightDecision(
         val baseIso: Int,

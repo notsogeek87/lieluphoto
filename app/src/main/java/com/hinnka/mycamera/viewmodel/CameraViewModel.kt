@@ -3118,8 +3118,11 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 view.setBaselineParams(currentBaselineRecipeParams.value)
                 view.setLut(loadedLut)
                 view.setLutEnabled(loadedLut != null)
-                view.setParams(currentRecipeParams.value)
-                view.setColorRecipeEnabled(!currentRecipeParams.value.isDefault())
+                val previewRecipe = currentRecipeParams.value.let {
+                    if (_nightMode.value) it.withNightBoost(0f) else it
+                }
+                view.setParams(previewRecipe)
+                view.setColorRecipeEnabled(!previewRecipe.isDefault())
                 view.setVideoLogProfile(currentState.videoConfig.logProfile)
                 view.restoreRenderStateAfterResume()
             }

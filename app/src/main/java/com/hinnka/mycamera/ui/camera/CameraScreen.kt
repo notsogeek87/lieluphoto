@@ -82,6 +82,7 @@ import com.hinnka.mycamera.ui.components.*
 import com.hinnka.mycamera.utils.OrientationObserver
 import com.hinnka.mycamera.viewmodel.CameraViewModel
 import com.hinnka.mycamera.viewmodel.GalleryViewModel
+import com.hinnka.mycamera.viewmodel.withNightBoost
 import com.hinnka.mycamera.video.CaptureMode
 import com.hinnka.mycamera.video.VideoAspectRatio
 import com.hinnka.mycamera.video.VideoFpsPreset
@@ -1328,7 +1329,9 @@ fun CameraScreen(
                             currentLut = viewModel.currentLutConfig,
                             enginePreviewPlan = viewModel.currentEnginePreviewPlan,
                             baselineColorRecipeParams = currentBaselineRecipeParams,
-                            colorRecipeParams = previewRecipeParamsOverride ?: currentRecipeParams,
+                            // Mode Nuit : l'aperçu montre le même rendu éclairci que la photo.
+                            colorRecipeParams = previewRecipeParamsOverride
+                                ?: if (nightMode) currentRecipeParams.withNightBoost(0f) else currentRecipeParams,
                             focusPoint = state.focusPoint,
                             meteringPoint = state.meteringPoint,
                             canMoveMeteringPoint = state.supportsPointMetering &&
