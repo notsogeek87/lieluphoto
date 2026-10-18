@@ -22,6 +22,10 @@ Pour l'utilisateur de LieluPhoto : obtenir des photos nettes et peu bruitées en
 - Si le réglage « débruitage multi-images » est déjà supérieur à 12 images, la valeur de l'utilisateur est conservée.
 - Le mode Nuit n'est pas persistant : à la réouverture de l'app, on revient en Photo. Il coupe le bokeh et le Live Photo (incompatibles).
 
+## Proposition automatique
+
+En mode Photo, quand l'aperçu reste sombre environ une seconde (ISO × pose ≥ ~40 ISO·s, par exemple ISO 1600 à 1/40 s), une pastille jaune **🌙 Nuit** apparaît en haut à droite du viseur. Un appui passe en mode Nuit ; rien n'est activé tout seul. Elle disparaît quand la scène s'éclaircit (sous ~20 ISO·s, hystérésis pour éviter le clignotement), en Portrait, en Vidéo, en exposition manuelle ou une fois en Nuit. Code : `Camera2Controller.updateNightSuggestion`, `CameraState.nightSuggested`, `night_mode_suggestion`.
+
 ## Pro / RAW retirés
 
 - Plus de mode Pro dans le sélecteur ni d'entrée « Mode pro » dans les réglages.

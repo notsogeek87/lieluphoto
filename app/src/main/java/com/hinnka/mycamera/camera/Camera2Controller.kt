@@ -84,6 +84,11 @@ sealed interface EnhancedStabilizationFallback {
 // Aperçu Nuit : cadence plancher minimale (i/s) pour laisser l'exposition auto poser plus longtemps.
 private const val NIGHT_PREVIEW_MIN_FPS = 10
 
+// Proposition du mode Nuit : seuils en log2(ISO × pose en s) avec hystérésis, lissage par image.
+private const val NIGHT_SUGGEST_ON_LOG2 = 5.3f // ~40 ISO·s
+private const val NIGHT_SUGGEST_OFF_LOG2 = 4.3f // ~20 ISO·s
+private const val NIGHT_SUGGEST_SMOOTHING = 0.05f
+
 /**
  * Camera2 相机控制器
  *
@@ -1162,6 +1167,7 @@ class Camera2Controller(private val context: Context) {
             )
 
             lastCaptureResult = result
+            updateNightSuggestion(result)
             logVideoCaptureStats(result)
             if (session === captureSession) updateEnginePreviewSource(result)
 
@@ -7462,6 +7468,42 @@ class Camera2Controller(private val context: Context) {
     }
 
     private val nightMotionMonitor = NightMotionMonitor(context)
+
+    // log2(ISO × pose en s) lissé sur l'aperçu, pour proposer le mode Nuit.
+    private var nightSceneLog2Ema = Float.NaN
+
+    /**
+     * Propose le mode Nuit quand l'aperçu Photo est durablement sombre (ISO × pose ≥ ~40 ISO·s,
+     * par exemple ISO 1600 à 1/40 s), et retire la proposition sous ~20 (hystérésis). Lissé sur
+     * ~1 s pour ne pas clignoter.
+     */
+    private fun updateNightSuggestion(result: CaptureResult) {
+        val current = _state.value
+        if (current.isCapturing) return
+        if (current.captureMode != CaptureMode.PHOTO || current.nightMode || !current.isAutoExposure) {
+            nightSceneLog2Ema = Float.NaN
+            if (current.nightSuggested) _state.update { it.copy(nightSuggested = false) }
+            return
+        }
+        val iso = result.get(CaptureResult.SENSOR_SENSITIVITY) ?: return
+        val exposureNs = result.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: return
+        if (iso <= 0 || exposureNs <= 0L) return
+        val log2Scene = kotlin.math.log2(iso.toDouble() * exposureNs.toDouble() / 1e9).toFloat()
+        val previous = nightSceneLog2Ema
+        nightSceneLog2Ema = if (previous.isNaN()) {
+            log2Scene
+        } else {
+            previous + NIGHT_SUGGEST_SMOOTHING * (log2Scene - previous)
+        }
+        val suggested = if (current.nightSuggested) {
+            nightSceneLog2Ema > NIGHT_SUGGEST_OFF_LOG2
+        } else {
+            nightSceneLog2Ema > NIGHT_SUGGEST_ON_LOG2
+        }
+        if (suggested != current.nightSuggested) {
+            _state.update { it.copy(nightSuggested = suggested) }
+        }
+    }
 
     fun setNightMode(enabled: Boolean) {
         val wasEnabled = _state.value.nightMode

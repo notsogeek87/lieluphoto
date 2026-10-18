@@ -391,6 +391,8 @@ data class CameraState(
     // Dernier réglage appliqué par le mode Nuit (texte d'info affiché après la prise) et compteur.
     val nightExposureInfo: String? = null,
     val nightExposureInfoSeq: Int = 0,
+    // Scène sombre détectée en mode Photo : le viseur propose de passer en Nuit.
+    val nightSuggested: Boolean = false,
     val useMultipleExposure: Boolean = false,
     val rawMinShutterSpeedNs: Long = 0L,
     val useLivePhoto: Boolean = false,

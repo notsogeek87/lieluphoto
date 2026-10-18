@@ -357,6 +357,7 @@
     <string name="take_photo">撮影</string>
     <string name="capture_mode_professional">プロ</string>
     <string name="capture_mode_night">夜景</string>
+    <string name="night_mode_suggestion">夜景</string>
     <string name="capture_mode_photo">写真</string>
     <string name="capture_mode_video">動画</string>
     <string name="camera_focus_auto">オート</string>

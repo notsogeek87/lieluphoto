@@ -398,6 +398,7 @@
     <string name="take_photo">Prendre une photo</string>
     <string name="capture_mode_professional">Pro</string>
     <string name="capture_mode_night">Nuit</string>
+    <string name="night_mode_suggestion">Nuit</string>
     <string name="capture_mode_photo">Photo</string>
     <string name="capture_mode_video">Vidéo</string>
     <string name="camera_focus_auto">AUTO</string>

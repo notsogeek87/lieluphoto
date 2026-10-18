@@ -1478,6 +1478,40 @@ fun CameraScreen(
                                     )
                                 }
                             }
+                            // Scène sombre détectée : pastille « Nuit » pour activer le mode d'un appui.
+                            if (state.nightSuggested && !nightMode &&
+                                state.captureMode == CaptureMode.PHOTO &&
+                                !state.isVirtualApertureEnabled
+                            ) {
+                                Surface(
+                                    color = Color(0xFFFFC94D).copy(alpha = 0.92f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable(enabled = !state.isCapturing && !previewTransitionActive) {
+                                            setShootingModeWithPreviewTransition(CameraShootingMode.NIGHT)
+                                        }
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp)
+                                    ) {
+                                        Icon(
+                                            painterResource(R.drawable.ic_night_moon),
+                                            contentDescription = null,
+                                            tint = Color.Black,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text(
+                                            text = stringResource(R.string.night_mode_suggestion),
+                                            color = Color.Black,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
                             if (state.captureMode == CaptureMode.PHOTO && !state.useRaw &&
                                 state.availableMegapixels.size > 1
                             ) {
