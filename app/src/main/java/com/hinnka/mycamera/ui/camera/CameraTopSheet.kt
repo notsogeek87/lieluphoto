@@ -1,5 +1,6 @@
 package com.hinnka.mycamera.ui.camera
 
+import com.hinnka.mycamera.raw.fotufilm.FotufilmDocument
 import android.media.AudioDeviceInfo
 import android.os.Build
 import androidx.annotation.StringRes
@@ -88,6 +89,7 @@ fun CameraTopSheet(
     rawToneMappingParameters: RawToneMappingParameters,
     rawSpectralFilmSelection: SpectralFilmSelection?,
     rawSpectralFilmPrint: String?,
+    rawFotufilmDocument: FotufilmDocument?,
     ultraHdrEnabled: Boolean,
     onUltraHdrToggle: (Boolean) -> Unit,
     photoPreviewStabilizationEnabled: Boolean,
@@ -102,6 +104,7 @@ fun CameraTopSheet(
     onRawToneMappingParametersChange: (RawToneMappingParameters) -> Unit,
     onRawSpectralFilmSelectionChange: (SpectralFilmSelection?) -> Unit,
     onRawSpectralFilmPrintChange: (String?) -> Unit,
+    onRawFotufilmDocumentChange: (FotufilmDocument) -> Unit,
     meteringMode: MeteringMode,
     onMeteringModeChange: (MeteringMode) -> Unit,
     captureMegapixels: Int = 12,
@@ -597,6 +600,8 @@ fun CameraTopSheet(
                     onRawToneMappingParametersChange = onRawToneMappingParametersChange,
                     onSpectralFilmSelectionChange = onRawSpectralFilmSelectionChange,
                     onSpectralFilmPrintChange = onRawSpectralFilmPrintChange,
+                    fotufilmDocument = rawFotufilmDocument,
+                    onFotufilmDocumentChange = onRawFotufilmDocumentChange,
                     inlineEngineOptions = true,
                     showToneMappingControls = true,
                 )

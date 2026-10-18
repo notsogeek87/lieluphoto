@@ -428,6 +428,7 @@ fun SettingsScreen(
     val rawSpectralFilmStock by viewModel.rawSpectralFilmStock.collectAsState()
     val rawSpectralFilmSelection by viewModel.rawSpectralFilmSelection.collectAsState()
     val rawSpectralFilmPrint by viewModel.rawSpectralFilmPrint.collectAsState()
+    val rawFotufilmDocument by viewModel.rawFotufilmDocument.collectAsState()
     val rawMaxOutputScale by viewModel.rawMaxOutputScale.collectAsState()
     val rawOutputUpscaleMode by viewModel.rawOutputUpscaleMode.collectAsState()
     val rawDigitalZoomResamplingEnabled by viewModel.rawDigitalZoomResamplingEnabled.collectAsState()
@@ -2478,6 +2479,8 @@ fun SettingsScreen(
                         onRawToneMappingParametersChange = { rawToneMappingParametersUi = it },
                         onSpectralFilmSelectionChange = { viewModel.setRawSpectralFilmSelection(it) },
                         onSpectralFilmPrintChange = { viewModel.setRawSpectralFilmPrint(it) },
+                        fotufilmDocument = rawFotufilmDocument,
+                        onFotufilmDocumentChange = { viewModel.setRawFotufilmDocument(it) },
                         onAdjustmentStart = { isRawSliderAdjusting = true },
                         onAdjustmentEnd = { commitRawSliderValues() },
                         hncsFilmCurveMode = rawHncsFilmCurveMode,

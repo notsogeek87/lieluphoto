@@ -53,6 +53,8 @@ import com.hinnka.mycamera.raw.RawToneMappingParameters
 import com.hinnka.mycamera.raw.RawWhiteLevelCorrection
 import com.hinnka.mycamera.raw.SpectralFilmSelection
 import com.hinnka.mycamera.raw.SpectralFilmTuning
+import com.hinnka.mycamera.raw.fotufilm.FotufilmDocument
+import com.hinnka.mycamera.raw.fotufilm.FotufilmDocumentStorage
 import com.hinnka.mycamera.ui.gallery.CropAspectOption
 import com.hinnka.mycamera.ui.gallery.calculateInitialCropRect
 import com.hinnka.mycamera.utils.PLog
@@ -468,6 +470,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         private set
     var editRawSpectralFilmYDensityGain = MutableStateFlow(1f)
         private set
+    val editRawFotufilmDocument = MutableStateFlow<FotufilmDocument?>(null)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     var editRawBaselineRecipeParams = editRawBaselineLutId.flatMapLatest { id ->
@@ -1580,6 +1583,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             editRawSpectralFilmCDensityGain.value = m.spectralFilmCDensityGain
             editRawSpectralFilmMDensityGain.value = m.spectralFilmMDensityGain
             editRawSpectralFilmYDensityGain.value = m.spectralFilmYDensityGain
+            editRawFotufilmDocument.value = resolveEditFotufilmDocument(m)
             editRotationDegrees.value = PostEditGeometry.normalizeRotation(m.postRotationDegrees)
             editStraightenDegrees.value =
                 PostEditGeometry.normalizeStraightenDegrees(m.postStraightenDegrees)
@@ -2258,6 +2262,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                 editRawSpectralFilmCDensityGain.value = metadata.spectralFilmCDensityGain
                 editRawSpectralFilmMDensityGain.value = metadata.spectralFilmMDensityGain
                 editRawSpectralFilmYDensityGain.value = metadata.spectralFilmYDensityGain
+                editRawFotufilmDocument.value = resolveEditFotufilmDocument(metadata)
                 editRotationDegrees.value =
                     PostEditGeometry.normalizeRotation(metadata.postRotationDegrees)
                 editStraightenDegrees.value =
@@ -2330,6 +2335,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                 editRawSpectralFilmCDensityGain.value = 1f
                 editRawSpectralFilmMDensityGain.value = 1f
                 editRawSpectralFilmYDensityGain.value = 1f
+                editRawFotufilmDocument.value = null
                 editRotationDegrees.value = 0
                 editStraightenDegrees.value = 0f
                 editMirrorHorizontal.value = false
@@ -2469,6 +2475,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         editRawSpectralFilmCDensityGain.value = 1f
         editRawSpectralFilmMDensityGain.value = 1f
         editRawSpectralFilmYDensityGain.value = 1f
+        editRawFotufilmDocument.value = null
     }
 
     /**
@@ -2874,6 +2881,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         val spectralFilmCDensityGain = editRawSpectralFilmCDensityGain.value
         val spectralFilmMDensityGain = editRawSpectralFilmMDensityGain.value
         val spectralFilmYDensityGain = editRawSpectralFilmYDensityGain.value
+        val fotufilmDocument = editRawFotufilmDocument.value
 
         viewModelScope.launch {
             val context = getApplication<Application>()
@@ -2916,7 +2924,8 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                     spectralFilmPrint = spectralFilmPrint,
                     spectralFilmCDensityGain = spectralFilmCDensityGain,
                     spectralFilmMDensityGain = spectralFilmMDensityGain,
-                    spectralFilmYDensityGain = spectralFilmYDensityGain
+                    spectralFilmYDensityGain = spectralFilmYDensityGain,
+                    fotufilmDocument = FotufilmDocumentStorage.encode(fotufilmDocument)
                 )
             }
             withContext(Dispatchers.Main) {
@@ -3095,7 +3104,32 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                 editRawSpectralFilmPrint.value = "kodak_portra_endura"
             }
         }
+        if (engine == RawRenderingEngine.Fotufilm && editRawFotufilmDocument.value == null) {
+            editRawFotufilmDocument.value = FotufilmDocumentStorage.defaultDocument()
+        }
         persistRawEditMetadata(mediaData, onComplete)
+    }
+
+    fun saveRawFotufilmDocument(
+        mediaData: MediaData,
+        document: FotufilmDocument?,
+        onComplete: ((Boolean) -> Unit)? = null
+    ) {
+        editRawFotufilmDocument.value = document
+        persistRawEditMetadata(mediaData, onComplete)
+    }
+
+    /**
+     * The photo's stored Fotufilm document, else the default film when it renders with Fotufilm
+     * (as the Spektrafilm edit state falls back to a default stock).
+     */
+    private fun resolveEditFotufilmDocument(metadata: MediaMetadata): FotufilmDocument? {
+        return FotufilmDocumentStorage.decode(metadata.fotufilmDocument, "photo metadata")
+            ?: if (metadata.rawRenderingEngine == RawRenderingEngine.Fotufilm) {
+                FotufilmDocumentStorage.defaultDocument()
+            } else {
+                null
+            }
     }
 
     fun saveRawSpectralFilmPrint(mediaData: MediaData, print: String?, onComplete: ((Boolean) -> Unit)? = null) {
@@ -3510,6 +3544,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                         spectralFilmCDensityGain = editRawSpectralFilmCDensityGain.value,
                         spectralFilmMDensityGain = editRawSpectralFilmMDensityGain.value,
                         spectralFilmYDensityGain = editRawSpectralFilmYDensityGain.value,
+                        fotufilmDocument = FotufilmDocumentStorage.encode(editRawFotufilmDocument.value),
                         computationalAperture = editComputationalAperture.value,
                         computationalBokehStyle = editBokehStyle.value.persistedName,
                         focusPointX = editFocusPointX.value,
@@ -3857,6 +3892,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                         spectralFilmCDensityGain = editRawSpectralFilmCDensityGain.value,
                         spectralFilmMDensityGain = editRawSpectralFilmMDensityGain.value,
                         spectralFilmYDensityGain = editRawSpectralFilmYDensityGain.value,
+                        fotufilmDocument = FotufilmDocumentStorage.encode(editRawFotufilmDocument.value),
                         computationalAperture = editComputationalAperture.value,
                         computationalBokehStyle = editBokehStyle.value.persistedName,
                         focusPointX = editFocusPointX.value,

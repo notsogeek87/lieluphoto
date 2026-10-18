@@ -360,7 +360,8 @@ object GalleryMediaStore {
             spectralFilmPrint = metadata.spectralFilmPrint,
             spectralFilmCDensityGain = metadata.spectralFilmCDensityGain,
             spectralFilmMDensityGain = metadata.spectralFilmMDensityGain,
-            spectralFilmYDensityGain = metadata.spectralFilmYDensityGain
+            spectralFilmYDensityGain = metadata.spectralFilmYDensityGain,
+            fotufilmDocument = metadata.fotufilmDocument
         )
     }
 
@@ -563,7 +564,8 @@ object GalleryMediaStore {
             spectralFilmPrint = spectralFilmPrint,
             spectralFilmCDensityGain = spectralFilmCDensityGain,
             spectralFilmMDensityGain = spectralFilmMDensityGain,
-            spectralFilmYDensityGain = spectralFilmYDensityGain
+            spectralFilmYDensityGain = spectralFilmYDensityGain,
+            fotufilmDocument = fotufilmDocument
         )
     }
 

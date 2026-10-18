@@ -101,6 +101,8 @@ import com.hinnka.mycamera.raw.RawWhiteLevelCorrection
 import com.hinnka.mycamera.raw.SpectralFilmProfile
 import com.hinnka.mycamera.raw.SpectralFilmSelection
 import com.hinnka.mycamera.raw.SpectralFilmTuning
+import com.hinnka.mycamera.raw.fotufilm.FotufilmDocument
+import com.hinnka.mycamera.raw.fotufilm.FotufilmDocumentStorage
 import com.hinnka.mycamera.screencapture.PhantomPipCrop
 import com.hinnka.mycamera.stabilization.ExternalLensStabilizationConfig
 import com.hinnka.mycamera.ui.camera.CameraGLSurfaceView
@@ -364,6 +366,7 @@ private data class PresetMatchSnapshot(
     val rawLeicaUseM9ColorMatrix: Boolean,
     val rawSpectralFilmStock: String?,
     val rawSpectralFilmPrint: String?,
+    val rawFotufilmDocument: FotufilmDocument?,
     val rawDROMode: String,
     val rawBaselineLutId: String?
 ) {
@@ -408,6 +411,7 @@ private data class PresetMatchSnapshot(
             rawOppoMasterToneMap == preset.rawOppoMasterToneMap &&
             rawSpectralFilmStock == preset.rawSpectralFilmStock &&
             rawSpectralFilmPrint == preset.rawSpectralFilmPrint &&
+            rawFotufilmDocument == FotufilmDocumentStorage.decode(preset.rawFotufilmDocument, "preset ${preset.id}") &&
             rawDROMode == preset.rawDROMode &&
             rawBaselineLutId == preset.rawBaselineLutId
     }
@@ -537,6 +541,11 @@ private data class PresetMatchSnapshot(
                 if (rawSpectralFilmPrint != preset.rawSpectralFilmPrint) {
                     add("rawSpectralFilmPrint current=$rawSpectralFilmPrint preset=${preset.rawSpectralFilmPrint}")
                 }
+                val presetFotufilmDocument =
+                    FotufilmDocumentStorage.decode(preset.rawFotufilmDocument, "preset ${preset.id}")
+                if (rawFotufilmDocument != presetFotufilmDocument) {
+                    add("rawFotufilmDocument current=$rawFotufilmDocument preset=$presetFotufilmDocument")
+                }
                 if (rawDROMode != preset.rawDROMode) {
                     add("rawDROMode current=$rawDROMode preset=${preset.rawDROMode}")
                 }
@@ -647,6 +656,7 @@ private data class CameraFeatureUpdate(
     val rawLeicaUseM9ColorMatrix: SettingValue<Boolean>? = null,
     val rawSpectralFilmStock: SettingValue<String?>? = null,
     val rawSpectralFilmPrint: SettingValue<String?>? = null,
+    val rawFotufilmDocument: SettingValue<FotufilmDocument?>? = null,
     val droMode: SettingValue<String>? = null,
     val rawBaselineLutId: SettingValue<String?>? = null,
     val activePresetId: SettingValue<String?>? = null,
@@ -807,6 +817,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                             rawLeicaUseM9ColorMatrix = saved.rawLeicaUseM9ColorMatrix,
                             rawSpectralFilmStock = saved.rawSpectralFilmStock,
                             rawSpectralFilmPrint = saved.rawSpectralFilmPrint,
+                            rawFotufilmDocument = saved.rawFotufilmDocument,
                             rawDROMode = saved.rawDROMode,
                             rawBaselineLutId = saved.rawBaselineLutId
                         )
@@ -946,6 +957,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             rawLeicaUseM9ColorMatrix = rawToneMappingParameters.value.leicaUseM9ColorMatrix,
             rawSpectralFilmStock = rawSpectralFilmStock.value,
             rawSpectralFilmPrint = rawSpectralFilmPrint.value,
+            rawFotufilmDocument = FotufilmDocumentStorage.encode(rawFotufilmDocument.value),
             rawDROMode = droMode.value,
             rawBaselineLutId = rawBaselineLutId.value,
             isBuiltIn = isBuiltIn
@@ -1059,6 +1071,9 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             rawLeicaUseM9ColorMatrix = SettingValue(this?.rawLeicaUseM9ColorMatrix ?: false),
             rawSpectralFilmStock = SettingValue(this?.rawSpectralFilmStock),
             rawSpectralFilmPrint = SettingValue(this?.rawSpectralFilmPrint),
+            rawFotufilmDocument = SettingValue(
+                FotufilmDocumentStorage.decode(this?.rawFotufilmDocument, "preset ${this?.id}")
+            ),
             droMode = SettingValue(
                 this?.rawDROMode ?: RawProcessingPreferences.DROMode.OFF.name
             ),
@@ -1323,6 +1338,9 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 },
                 rawSpectralFilmStock = update.rawSpectralFilmStock?.let { PreferenceUpdateValue(it.value) },
                 rawSpectralFilmPrint = update.rawSpectralFilmPrint?.let { PreferenceUpdateValue(it.value) },
+                rawFotufilmDocument = update.rawFotufilmDocument?.let {
+                    PreferenceUpdateValue(FotufilmDocumentStorage.encode(it.value))
+                },
                 droMode = update.droMode?.let {
                     PreferenceUpdateValue(RawProcessingPreferences.DROMode.fromPersistedName(it.value).name)
                 },
@@ -1512,6 +1530,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             rawLeicaUseM9ColorMatrix = prefs.rawToneMappingParameters.leicaUseM9ColorMatrix,
             rawSpectralFilmStock = prefs.rawSpectralFilmStock,
             rawSpectralFilmPrint = prefs.rawSpectralFilmPrint,
+            rawFotufilmDocument = FotufilmDocumentStorage.decode(prefs.rawFotufilmDocument, "preferences"),
             rawDROMode = prefs.droMode,
             rawBaselineLutId = prefs.rawBaselineLutId
         )
@@ -1674,6 +1693,11 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val rawSpectralFilmPrint: StateFlow<String?> = userPreferencesRepository.userPreferences
         .map { it.rawSpectralFilmPrint }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val rawFotufilmDocument: StateFlow<FotufilmDocument?> = userPreferencesRepository.userPreferences
+        .map { it.rawFotufilmDocument }
+        .distinctUntilChanged()
+        .map { FotufilmDocumentStorage.decode(it, "preferences") }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val rawSpectralFilmSelection: StateFlow<SpectralFilmSelection?> = userPreferencesRepository.userPreferences
         .map { prefs ->
@@ -2565,6 +2589,8 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                         tone = prefs.rawToneMappingParameters,
                         hncsFilmCurve = prefs.rawHncsFilmCurveMode,
                         filmStock = requireNotNull(film.stock), filmPrint = requireNotNull(film.print), filmTuning = film.tuning,
+                        fotufilmDocument = resolveRawFotufilmDocument(prefs)
+                            ?.takeIf { prefs.rawRenderingEngine == RawRenderingEngine.Fotufilm },
                     )
                 }
             }.distinctUntilChanged().collectLatest { selection ->
@@ -2824,6 +2850,14 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                         SettingValue("kodak_portra_endura")
                     } else {
                         null
+                    },
+                    rawFotufilmDocument = if (
+                        engine == RawRenderingEngine.Fotufilm &&
+                        FotufilmDocumentStorage.decode(prefs.rawFotufilmDocument, "preferences") == null
+                    ) {
+                        SettingValue(FotufilmDocumentStorage.defaultDocument())
+                    } else {
+                        null
                     }
                 )
             )
@@ -2840,6 +2874,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             applyCameraFeatureUpdate(
                 CameraFeatureUpdate(rawSpectralFilmPrint = SettingValue(print))
+            )
+        }
+    }
+    fun setRawFotufilmDocument(document: FotufilmDocument?) {
+        viewModelScope.launch {
+            applyCameraFeatureUpdate(
+                CameraFeatureUpdate(rawFotufilmDocument = SettingValue(document))
             )
         }
     }
@@ -3347,6 +3388,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             spectralFilmCDensityGain = spectralFilmSettings.tuning.cDensityGain,
             spectralFilmMDensityGain = spectralFilmSettings.tuning.mDensityGain,
             spectralFilmYDensityGain = spectralFilmSettings.tuning.yDensityGain,
+            fotufilmDocument = resolveRawFotufilmDocument(userPrefs)?.toJson(),
             width = width,
             height = height,
             ratio = aspectRatio,
@@ -3384,6 +3426,19 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             print = userPrefs?.rawSpectralFilmPrint ?: "kodak_portra_endura",
             tuning = (userPrefs?.rawSpectralFilmTuningsByStock?.get(stock) ?: SpectralFilmTuning.DEFAULT).normalized()
         )
+    }
+
+    /**
+     * The Fotufilm document a capture records: the stored one, else the default film when the
+     * capture renders with Fotufilm (as [resolveRawSpectralFilmSettings] supplies a default stock).
+     */
+    private fun resolveRawFotufilmDocument(userPrefs: UserPreferences?): FotufilmDocument? {
+        return FotufilmDocumentStorage.decode(userPrefs?.rawFotufilmDocument, "preferences")
+            ?: if (resolveCaptureRawRenderingEngine(userPrefs) == RawRenderingEngine.Fotufilm) {
+                FotufilmDocumentStorage.defaultDocument()
+            } else {
+                null
+            }
     }
 
     private fun resolvePreviewBaselineLut(userPrefs: UserPreferences): LutConfig? {
@@ -6448,6 +6503,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 spectralFilmCDensityGain = spectralFilmSettings.tuning.cDensityGain,
                 spectralFilmMDensityGain = spectralFilmSettings.tuning.mDensityGain,
                 spectralFilmYDensityGain = spectralFilmSettings.tuning.yDensityGain,
+                fotufilmDocument = resolveRawFotufilmDocument(userPrefs)?.toJson(),
                 width = image.width,
                 height = image.height,
                 ratio = aspectRatio,
@@ -6608,6 +6664,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 spectralFilmCDensityGain = spectralFilmSettings.tuning.cDensityGain,
                 spectralFilmMDensityGain = spectralFilmSettings.tuning.mDensityGain,
                 spectralFilmYDensityGain = spectralFilmSettings.tuning.yDensityGain,
+                fotufilmDocument = resolveRawFotufilmDocument(userPrefs)?.toJson(),
                 width = bitmap.width,
                 height = bitmap.height,
                 ratio = ratio,
@@ -6888,6 +6945,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 spectralFilmCDensityGain = spectralFilmSettings.tuning.cDensityGain,
                 spectralFilmMDensityGain = spectralFilmSettings.tuning.mDensityGain,
                 spectralFilmYDensityGain = spectralFilmSettings.tuning.yDensityGain,
+                fotufilmDocument = resolveRawFotufilmDocument(userPrefs)?.toJson(),
                 width = MultiFrameConfig.scaledRawOutputDimension(images[0].width, superResScale),
                 height = MultiFrameConfig.scaledRawOutputDimension(images[0].height, superResScale),
                 ratio = aspectRatio,
@@ -7217,6 +7275,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             spectralFilmCDensityGain = spectralFilmSettings.tuning.cDensityGain,
             spectralFilmMDensityGain = spectralFilmSettings.tuning.mDensityGain,
             spectralFilmYDensityGain = spectralFilmSettings.tuning.yDensityGain,
+            fotufilmDocument = resolveRawFotufilmDocument(userPrefs)?.toJson(),
             width = image.width,
             height = image.height,
             ratio = aspectRatio,
