@@ -2634,8 +2634,12 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 cameraController.setUseLivePhoto(
                     shouldEnableLivePhoto(prefs) && state.value.captureMode == CaptureMode.PHOTO
                 )
-                // 应用保存的虚拟光圈
-                applyDefaultVirtualAperture(prefs.defaultVirtualAperture)
+                // Ouverture de l'app toujours en Photo : le Portrait (bokeh) n'est pas réactivé au
+                // démarrage. L'ouverture par défaut est gardée pour le passage en Portrait.
+                setVirtualApertureAuto(false)
+                if (prefs.defaultVirtualAperture > 0f) {
+                    setAperture(prefs.defaultVirtualAperture)
+                }
             } else {
                 // 如果没有任何偏好设置，使用配置文件中的默认 LUT（第一个）
                 val defaultLut = availableLutList.firstOrNull { it.isDefault }
