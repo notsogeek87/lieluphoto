@@ -181,7 +181,13 @@ data class MediaMetadata(
             exposureBias = exposureBias,
             exposureCompensation = RawCaptureExposureCompensationMetadata.read(customProperties),
             exposureTime = parseExposureTime(shutterSpeed),
-            software = software ?: "PhotonCamera",
+            // Photo prise par l'app : version exacte de la build (le champ n'est pas stocké).
+            // Photo importée : logiciel d'origine conservé.
+            software = if (isImported) {
+                software ?: com.hinnka.mycamera.camera.APP_EXIF_SOFTWARE
+            } else {
+                com.hinnka.mycamera.camera.APP_EXIF_SOFTWARE
+            },
             latitude = latitude,
             longitude = longitude,
             altitude = altitude,
