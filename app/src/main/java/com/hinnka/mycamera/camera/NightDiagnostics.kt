@@ -18,12 +18,21 @@ object NightDiagnostics {
     private var renderNote: String? = null
 
     @Volatile
+    private var stackNote: String? = null
+
+    @Volatile
     private var updatedAtMs = 0L
 
     /** Début de prise : remet à zéro la décision d'exposition de la prise précédente. */
     fun recordCapture(note: String) {
         captureNote = note
         planNote = "plan[none]"
+        stackNote = null
+        updatedAtMs = System.currentTimeMillis()
+    }
+
+    fun recordStack(note: String) {
+        stackNote = note
         updatedAtMs = System.currentTimeMillis()
     }
 
@@ -40,13 +49,14 @@ object NightDiagnostics {
     /** Diagnostic récent (prise de moins de 2 min), ou null hors mode Nuit. */
     fun recent(): String? {
         if (System.currentTimeMillis() - updatedAtMs > MAX_AGE_MS) return null
-        val parts = listOfNotNull(renderNote, captureNote, planNote)
+        val parts = listOfNotNull(renderNote, captureNote, planNote, stackNote)
         return parts.takeIf { it.isNotEmpty() }?.joinToString(" ")
     }
 
     fun clear() {
         captureNote = null
         planNote = null
+        stackNote = null
         renderNote = null
         updatedAtMs = 0L
     }

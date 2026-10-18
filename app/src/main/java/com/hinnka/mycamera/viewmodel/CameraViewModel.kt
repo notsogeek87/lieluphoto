@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hinnka.mycamera.camera.*
+import com.hinnka.mycamera.processor.LuckyFrameSelector
 import com.hinnka.mycamera.data.ContentRepository
 import com.hinnka.mycamera.data.CameraFeaturePreferencesUpdate
 import com.hinnka.mycamera.data.CaptureButtonStyle
@@ -260,6 +261,7 @@ internal fun ColorRecipeParams.withNightBoost(residualExposureEv: Float): ColorR
     exposure = (exposure + NIGHT_BASE_EXPOSURE_EV + residualExposureEv).coerceIn(-2f, 2f),
     shadows = (shadows + NIGHT_SHADOWS_BOOST).coerceIn(-1f, 1f),
     highlights = (highlights - NIGHT_HIGHLIGHTS_CUT).coerceIn(-1f, 1f),
+    sharpness = (sharpness + NIGHT_SHARPNESS_BOOST).coerceIn(-1f, 1f),
 )
 
 // Rendu prudent : un relevé fort des ombres (0,8) sur une image encore bruitée a amplifié le
@@ -270,6 +272,8 @@ internal fun ColorRecipeParams.withNightBoost(residualExposureEv: Float): ColorR
 internal const val NIGHT_BASE_EXPOSURE_EV = 0.4f
 internal const val NIGHT_SHADOWS_BOOST = 0.5f
 internal const val NIGHT_HIGHLIGHTS_CUT = 0.15f
+// Photo Nuit à 1/4 s mesurée ~2,7× moins nette que Samsung à pose égale.
+internal const val NIGHT_SHARPNESS_BOOST = 0.25f
 
 private data class PresetMatchSnapshot(
     val lutId: String?,
@@ -3686,12 +3690,37 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             // Geometry is planned by the Radiance stacker's coarse temporal-flow graph.
             // Running a second exhaustive RAW proxy registration here blocks the
             // post-capture path on CPU and duplicates the GLES registration work.
-            val orderedNormalFrames = normalFrames
+            // Non RAW : la plus nette (gyroscope) sert de référence, les plus floues sont écartées.
+            val luckyOrder = if (isRawStack) {
+                normalFrames.indices.toList()
+            } else {
+                LuckyFrameSelector.order(
+                    normalFrames.map { pending ->
+                        pending.frame.gyroWindow?.let(LuckyFrameSelector::blurRad)
+                    }
+                )
+            }
+            val luckyKept = luckyOrder.toSet()
+            normalFrames.forEachIndexed { index, pending ->
+                if (index !in luckyKept) pending.frame.image.close()
+            }
+            val orderedNormalFrames = luckyOrder.map(normalFrames::get)
+            if (!isRawStack && settings.nightPostExposureEv != null) {
+                val blurText = normalFrames.joinToString(",") { pending ->
+                    pending.frame.gyroWindow?.let(LuckyFrameSelector::blurRad)
+                        ?.let { "%.1f".format(it * 1000f) } ?: "?"
+                }
+                NightDiagnostics.recordStack(
+                    "stack[ref=${luckyOrder.firstOrNull()} kept=${luckyOrder.size}/${normalFrames.size} " +
+                        "blurMrad=$blurText]"
+                )
+            }
             val orderedFrames = orderedNormalFrames + auxiliaryFrames
             val referencePlanLog = if (isRawStack) {
                 "deferred_mgc_gles, reference=pending, "
             } else {
-                "chronological, reference=0, "
+                "gyro_lucky, reference=${luckyOrder.firstOrNull()}, " +
+                    "kept=${luckyOrder.size}/${normalFrames.size}, "
             }
             PLog.i(
                 TAG,
