@@ -4511,6 +4511,8 @@ class Camera2Controller(private val context: Context) {
             builder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, state.exposureCompensation)
             if (!isCapture && state.nightMode && state.captureMode == CaptureMode.PHOTO) {
                 applyNightPreviewFpsRange(builder)
+            } else if (!state.nightMode && state.captureMode == CaptureMode.PHOTO && isCurrentCameraFrontFacing()) {
+                applyFrontSelfieFpsRange(builder)
             }
         } else {
             // 手动曝光 / 半自动曝光：手动设置 ISO 和快门
@@ -7539,6 +7541,21 @@ class Camera2Controller(private val context: Context) {
             ?.readMetadataOrNull(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
             ?.filter { it.upper == 30 }
             ?.maxByOrNull { it.lower }
+
+    /**
+     * Selfie : on relève le plancher de cadence (jusqu'à 30 i/s) pour que l'exposition auto ne pose
+     * pas plus de ~1/30 s, ce qui limite le flou de bougé en intérieur (au prix d'un ISO plus haut).
+     */
+    private fun applyFrontSelfieFpsRange(builder: CaptureRequest.Builder) {
+        val target = getActiveOpenCameraCharacteristics()
+            ?.readMetadataOrNull(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+            ?.filter { it.lower <= 30 && it.upper >= it.lower }
+            ?.maxWithOrNull(compareBy<android.util.Range<Int>> { it.lower }.thenBy { it.upper })
+            ?: return
+        if (builder.get(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE) != target) {
+            builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, target)
+        }
+    }
 
     private fun applyNightPreviewFpsRange(builder: CaptureRequest.Builder) {
         val ranges = getActiveOpenCameraCharacteristics()

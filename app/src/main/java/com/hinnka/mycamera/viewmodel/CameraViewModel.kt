@@ -504,6 +504,8 @@ private data class ActivePresetMatchState(
 
 private data class SettingValue<T>(val value: T)
 
+private const val FRONT_SELFIE_SHARPNESS_BOOST = 0.25f
+
 internal fun resolveMultiFrameOutputScale(
     useJpgMax: Boolean,
     useRawMax: Boolean,
@@ -3573,6 +3575,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         }
         val recipe = getMergedRecipeParams().let { merged ->
             nightPostExposureEv?.let(merged::withNightBoost) ?: merged
+        }.let { merged ->
+            // Selfie : netteté finale ajoutée pour compenser le capteur frontal mou.
+            if (cameraController.getLensFacing() == CameraCharacteristics.LENS_FACING_FRONT) {
+                merged.copy(sharpness = (merged.sharpness + FRONT_SELFIE_SHARPNESS_BOOST).coerceAtMost(1f))
+            } else {
+                merged
+            }
         }
         return buildCaptureSettingsSnapshot(recipe, nightPostExposureEv)
     }
