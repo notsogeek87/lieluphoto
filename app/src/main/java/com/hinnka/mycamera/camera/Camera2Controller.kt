@@ -85,8 +85,13 @@ sealed interface EnhancedStabilizationFallback {
 private const val NIGHT_PREVIEW_MIN_FPS = 10
 
 // Proposition du mode Nuit : seuils en log2(ISO × pose en s) avec hystérésis, lissage par image.
-// Plancher de cadence en selfie : pose auto ≤ 1/24 s.
-private const val FRONT_SELFIE_MIN_FPS = 24
+// Plancher de cadence en selfie : pose auto ≤ ~1/15 s. Mesure EXIF (Z Fold, salon le soir) :
+// l'appareil Samsung pose 1/17 s à ISO 1000 en selfie ; plafonnés à 1/30 s nous montions à
+// ISO 3000 (trois fois plus de bruit). La fusion multi-images compense le bougé résiduel.
+private const val FRONT_SELFIE_MIN_FPS = 15
+// Mode Nuit en selfie : pose max par image. Sans stabilisation optique sur le capteur frontal,
+// 1/7 s par image (constaté) rendait chaque image floue avant fusion ; Samsung pose 1/17 s.
+private const val FRONT_NIGHT_MAX_SHUTTER_NS = 1_000_000_000L / 15
 private const val NIGHT_SUGGEST_ON_LOG2 = 5.3f // ~40 ISO·s
 private const val NIGHT_SUGGEST_OFF_LOG2 = 4.3f // ~20 ISO·s
 private const val NIGHT_SUGGEST_SMOOTHING = 0.05f
@@ -7547,9 +7552,8 @@ class Camera2Controller(private val context: Context) {
             ?.maxByOrNull { it.lower }
 
     /**
-     * Selfie : on relève le plancher de cadence (jusqu'à 24 i/s) pour que l'exposition auto ne pose
-     * pas plus de ~1/24 s, ce qui limite le flou de bougé en intérieur. À 1/30 s l'ISO plafonnait
-     * le soir : photo sombre et bruitée ; 1/24 s donne ~30 % de lumière en plus par image.
+     * Selfie : plancher de cadence à 15 i/s, pour que l'exposition auto pose jusqu'à ~1/15 s
+     * comme l'appareil Samsung (la cadence photo par défaut, 30 i/s, bornait à 1/30 s).
      */
     private fun applyFrontSelfieFpsRange(builder: CaptureRequest.Builder) {
         val target = getActiveOpenCameraCharacteristics()
@@ -7608,7 +7612,11 @@ class Camera2Controller(private val context: Context) {
                 isoLower = isoRange.lower,
                 isoUpper = isoRange.upper,
                 exposureTimeLowerNs = shutterRange.lower,
-                exposureTimeUpperNs = shutterRange.upper,
+                exposureTimeUpperNs = if (isCurrentCameraFrontFacing()) {
+                    minOf(shutterRange.upper, maxOf(FRONT_NIGHT_MAX_SHUTTER_NS, shutterRange.lower))
+                } else {
+                    shutterRange.upper
+                },
                 liftEv = liftEv,
                 angularSpeedRadS = nightMotionMonitor.angularSpeedRadS,
             )

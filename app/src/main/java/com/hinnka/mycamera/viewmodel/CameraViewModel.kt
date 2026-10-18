@@ -235,6 +235,9 @@ internal const val NIGHT_CHROMA_DENOISE = 1.0f
 // débruitage les taches colorées (violet/vert) ressortent. Chroma fort, luminance légère pour
 // garder le détail (barbe, tissu). Appliqué avant l'accentuation.
 internal const val FRONT_SELFIE_LUMA_DENOISE = 0.15f
+// Nuit en selfie : 0,5 en luminance lissait les yeux et les cheveux (comparaison au pixel avec
+// Samsung) ; l'empilement de 15 images suffit à tenir le bruit de luminance.
+internal const val FRONT_NIGHT_LUMA_DENOISE = 0.25f
 // 0,7 laissait encore des taches violettes sur les aplats (canapé, t-shirt) le soir.
 internal const val FRONT_SELFIE_CHROMA_DENOISE = 1.0f
 
@@ -244,6 +247,8 @@ internal fun resolveCaptureDenoiseStrengths(
     nightMode: Boolean = false,
     frontCamera: Boolean = false,
 ): CaptureDenoiseStrengths = when {
+    !isRawCapture && nightMode && frontCamera ->
+        CaptureDenoiseStrengths(FRONT_NIGHT_LUMA_DENOISE, NIGHT_CHROMA_DENOISE, null, null)
     !isRawCapture && nightMode ->
         CaptureDenoiseStrengths(NIGHT_LUMA_DENOISE, NIGHT_CHROMA_DENOISE, null, null)
     !isRawCapture && frontCamera ->
