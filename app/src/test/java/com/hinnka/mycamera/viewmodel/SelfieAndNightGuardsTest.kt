@@ -56,4 +56,14 @@ class SelfieAndNightGuardsTest {
         assertTrue(resolveEffectiveUseJpgMax(true, false, frontCamera = false, useLivePhoto = false, useMultipleExposure = false))
         assertTrue(resolveEffectiveUseJpgMax(false, true, frontCamera = false, useLivePhoto = false, useMultipleExposure = false))
     }
+
+    @Test
+    fun selfieStacksAtLeastEightFramesAndNightAtLeastFifteen() {
+        val front = com.hinnka.mycamera.camera.MultiFrameConfig.FRONT_SELFIE_FRAME_COUNT
+        val night = com.hinnka.mycamera.camera.MultiFrameConfig.NIGHT_FRAME_COUNT
+        assertEquals(5, resolveEffectiveFrameCount(5, nightMode = false, frontCamera = false))
+        assertEquals(front, resolveEffectiveFrameCount(5, nightMode = false, frontCamera = true))
+        assertEquals(12, resolveEffectiveFrameCount(12, nightMode = false, frontCamera = true))
+        assertEquals(night, resolveEffectiveFrameCount(5, nightMode = true, frontCamera = true))
+    }
 }

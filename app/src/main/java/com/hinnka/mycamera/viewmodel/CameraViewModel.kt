@@ -556,8 +556,15 @@ internal fun resolveMultiFrameOutputScale(
     else -> null
 }
 
-internal fun resolveNightFrameCount(userFrameCount: Int, nightMode: Boolean): Int =
-    if (nightMode) maxOf(userFrameCount, MultiFrameConfig.NIGHT_FRAME_COUNT) else userFrameCount
+internal fun resolveEffectiveFrameCount(
+    userFrameCount: Int,
+    nightMode: Boolean,
+    frontCamera: Boolean,
+): Int = when {
+    nightMode -> maxOf(userFrameCount, MultiFrameConfig.NIGHT_FRAME_COUNT)
+    frontCamera -> maxOf(userFrameCount, MultiFrameConfig.FRONT_SELFIE_FRAME_COUNT)
+    else -> userFrameCount
+}
 
 internal fun resolveLutIdForCaptureMode(
     photoLutId: String?,
@@ -2319,9 +2326,10 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 if (currentCameraState.multiFrameOutputScale != effectiveMultiFrameOutputScale) {
                     cameraController.setMultiFrameOutputScale(effectiveMultiFrameOutputScale)
                 }
-                val effectiveFrameCount = resolveNightFrameCount(
-                    it.jpgMultiFrameDenoiseFrameCount,
-                    _nightMode.value
+                val effectiveFrameCount = resolveEffectiveFrameCount(
+                    userFrameCount = it.jpgMultiFrameDenoiseFrameCount,
+                    nightMode = _nightMode.value,
+                    frontCamera = currentCameraState.currentLensType == LensType.FRONT,
                 )
                 if (currentCameraState.jpgMultiFrameDenoiseFrameCount != effectiveFrameCount) {
                     cameraController.setJpgMultiFrameDenoiseFrameCount(effectiveFrameCount)
@@ -3904,6 +3912,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 jpgMultiFrameDenoiseOutputScale = prefs.jpgMultiFrameDenoiseOutputScale,
             )
         )
+        cameraController.setJpgMultiFrameDenoiseFrameCount(
+            resolveEffectiveFrameCount(
+                userFrameCount = prefs.jpgMultiFrameDenoiseFrameCount,
+                nightMode = _nightMode.value,
+                frontCamera = front,
+            )
+        )
     }
 
     /**
@@ -4147,7 +4162,11 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 )
             )
             cameraController.setJpgMultiFrameDenoiseFrameCount(
-                resolveNightFrameCount(prefs.jpgMultiFrameDenoiseFrameCount, enabled)
+                resolveEffectiveFrameCount(
+                    userFrameCount = prefs.jpgMultiFrameDenoiseFrameCount,
+                    nightMode = enabled,
+                    frontCamera = isFrontLensActive(),
+                )
             )
             // Le Live Photo est incompatible avec l'empilement multi-images.
             if (enabled) {

@@ -18,6 +18,8 @@ object MultiFrameConfig {
     const val MAX_FRAME_COUNT = 20
     /** Nombre minimal d'images empilées en mode Nuit. */
     const val NIGHT_FRAME_COUNT = 15
+    /** Nombre minimal d'images empilées en selfie (capteur frontal bruité, pose ≤ 1/30 s). */
+    const val FRONT_SELFIE_FRAME_COUNT = 8
     const val DEFAULT_HDR_PLUS_BRACKET_EXPOSURE = false
     const val MIN_OUTPUT_SCALE = 1f
     const val MAX_OUTPUT_SCALE = 2f
