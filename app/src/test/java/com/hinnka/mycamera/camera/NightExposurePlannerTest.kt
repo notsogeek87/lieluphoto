@@ -12,6 +12,22 @@ class NightExposurePlannerTest {
     }
 
     @Test
+    fun litRoomIsLeftUntouched() {
+        // Pièce éclairée (selfie intérieur) : ISO 400 à 1/30 s ≈ 13 ISO·s, jamais éclaircie.
+        assertNull(NightExposurePlanner.sceneLiftEv(baseIso = 400, baseExposureTimeNs = 33_000_000L))
+        // ISO 150 à 1/30 s ≈ 5 ISO·s.
+        assertNull(NightExposurePlanner.sceneLiftEv(baseIso = 150, baseExposureTimeNs = 33_000_000L))
+    }
+
+    @Test
+    fun liftGrowsGraduallyWithDarkness() {
+        // ~40 ISO·s : un EV de scène sombre au-dessus du seuil, éclaircissement modéré (< maximum).
+        val lift = NightExposurePlanner.sceneLiftEv(baseIso = 1200, baseExposureTimeNs = 33_000_000L)
+        assertNotNull(lift)
+        assertEquals(0.6, lift!!, 0.05)
+    }
+
+    @Test
     fun darkSceneIsCappedAtMaxLift() {
         val lift = NightExposurePlanner.sceneLiftEv(baseIso = 2000, baseExposureTimeNs = 40_000_000L)
         assertEquals(NightExposurePlanner.MAX_LIFT_EV, lift ?: -1.0, 1e-9)

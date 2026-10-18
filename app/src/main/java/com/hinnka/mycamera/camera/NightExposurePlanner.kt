@@ -40,6 +40,11 @@ internal object NightExposurePlanner {
     private const val LIFT_SLOPE = 0.6
     private const val MIN_LIFT_EV = 0.25
 
+    // Garde-fou : en dessous de ~20 ISO·s (pièce éclairée, seuil de sortie de la suggestion Nuit)
+    // on n'éclaircit jamais, sinon les lampes et fenêtres crament. L'éclaircissement ne démarre
+    // qu'à partir de là et n'atteint son maximum que vers ~64 ISO·s (pièce vraiment sombre).
+    private const val LIFT_START_ISO_SECONDS = 20.0
+
     /** Éclaircissement maximal rattrapé en post-traitement (recette), en EV. */
     const val MAX_POST_EXPOSURE_EV = 0.5
 
@@ -52,7 +57,8 @@ internal object NightExposurePlanner {
     fun sceneLiftEv(baseIso: Int, baseExposureTimeNs: Long): Double? {
         if (baseIso <= 0 || baseExposureTimeNs <= 0L) return null
         val sceneIsoSeconds = baseIso.toDouble() * baseExposureTimeNs.toDouble() / 1e9
-        val liftEv = (LIFT_SLOPE * log2(sceneIsoSeconds)).coerceIn(0.0, MAX_LIFT_EV)
+        val liftEv = (LIFT_SLOPE * log2(sceneIsoSeconds / LIFT_START_ISO_SECONDS))
+            .coerceIn(0.0, MAX_LIFT_EV)
         return liftEv.takeIf { it >= MIN_LIFT_EV }
     }
 
