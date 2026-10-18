@@ -17,7 +17,9 @@ class ShutterSoundPlayer(private val context: Context) {
             .setMaxStreams(1)
             .setAudioAttributes(
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    // USAGE_GAME is mixed with the user's music; sonification usages make some
+                    // devices pause Bluetooth playback on every shutter click.
+                    .setUsage(AudioAttributes.USAGE_GAME)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()
             )
