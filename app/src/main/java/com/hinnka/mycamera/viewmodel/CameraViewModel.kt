@@ -234,7 +234,9 @@ internal const val NIGHT_CHROMA_DENOISE = 1.0f
 // Selfie : capteur frontal petit, pose courte (ISO haut) puis accentuation et clarté ; sans
 // débruitage les taches colorées (violet/vert) ressortent. Chroma fort, luminance légère pour
 // garder le détail (barbe, tissu). Appliqué avant l'accentuation.
-internal const val FRONT_SELFIE_LUMA_DENOISE = 0.15f
+// Luminance : 0 depuis la comparaison au pixel avec Samsung (build 149) : peau lissée,
+// « plastique » ; l'empilement d'images tient déjà le bruit de luminance.
+internal const val FRONT_SELFIE_LUMA_DENOISE = 0f
 // Nuit en selfie : 0,5 en luminance lissait les yeux et les cheveux (comparaison au pixel avec
 // Samsung) ; l'empilement de 15 images suffit à tenir le bruit de luminance.
 internal const val FRONT_NIGHT_LUMA_DENOISE = 0.25f

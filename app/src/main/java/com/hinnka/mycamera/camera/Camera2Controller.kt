@@ -96,6 +96,13 @@ private const val UNSTABILIZED_PHOTO_MIN_FPS = 15
 // Mode Nuit en selfie : pose max par image. Sans stabilisation optique sur le capteur frontal,
 // 1/7 s par image (constaté) rendait chaque image floue avant fusion ; Samsung pose 1/17 s.
 private const val FRONT_NIGHT_MAX_SHUTTER_NS = 1_000_000_000L / 15
+// Photo normale le soir : pose max à la prise. Objectif stabilisé : 1/12 s, comme l'appareil
+// Samsung (1/12,5 s à ISO 800 mesuré) ; sinon 1/15 s. En dessous d'ISO 800, rien ne change.
+private const val STABILIZED_LOW_LIGHT_MAX_SHUTTER_NS = 1_000_000_000L / 12
+private const val LOW_LIGHT_PHOTO_MIN_ISO = 800
+// Mode Nuit, objectif stabilisé : 1/4 s par image (constaté, gyroscope calme) donnait une photo
+// plus molle que celle de l'appareil Samsung à 1/12,5 s ; on borne à 1/10 s, le reste par l'ISO.
+private const val STABILIZED_NIGHT_MAX_SHUTTER_NS = 1_000_000_000L / 10
 
 // Proposition du mode Nuit : seuils en log2(ISO × pose en s) avec hystérésis, lissage par image.
 private const val NIGHT_SUGGEST_ON_LOG2 = 5.3f // ~40 ISO·s
@@ -7675,11 +7682,17 @@ class Camera2Controller(private val context: Context) {
                 isoLower = isoRange.lower,
                 isoUpper = isoRange.upper,
                 exposureTimeLowerNs = shutterRange.lower,
-                exposureTimeUpperNs = if (isCurrentCameraFrontFacing()) {
-                    minOf(shutterRange.upper, maxOf(FRONT_NIGHT_MAX_SHUTTER_NS, shutterRange.lower))
-                } else {
-                    shutterRange.upper
-                },
+                exposureTimeUpperNs = minOf(
+                    shutterRange.upper,
+                    maxOf(
+                        if (isCurrentCameraFrontFacing()) {
+                            FRONT_NIGHT_MAX_SHUTTER_NS
+                        } else {
+                            STABILIZED_NIGHT_MAX_SHUTTER_NS
+                        },
+                        shutterRange.lower,
+                    ),
+                ),
                 liftEv = liftEv,
                 angularSpeedRadS = nightMotionMonitor.angularSpeedRadS,
             )
@@ -7761,6 +7774,58 @@ class Camera2Controller(private val context: Context) {
             "Night ×$frames · ISO ${plan.sensitivityIso} · $shutterText · " +
                 "+${"%.1f".format(plan.realizedEv)} EV capture · " +
                 "+${"%.1f".format(decision.residualEv)} EV post · $motionText",
+        )
+    }
+
+    /**
+     * Photo normale le soir : à luminosité égale, pose plus longue et ISO plus bas, réglés à la
+     * prise. L'exposition auto de ce téléphone (Z Fold) ne pose jamais plus de ~1/30 s, même avec
+     * une cadence plancher basse : ISO 2683 à 1/33 s mesuré là où l'appareil Samsung pose 1/12,5 s
+     * à ISO 800. Même ISO × pose que l'aperçu (aucun éclaircissement), seulement redistribué.
+     */
+    private fun applyLowLightPhotoExposure(
+        builder: CaptureRequest.Builder,
+        state: CameraState,
+        baseResult: CaptureResult?,
+    ) {
+        if (!state.isAutoExposure) return
+        if (!isManualSensorSupported || !availableAeModes.contains(CaptureRequest.CONTROL_AE_MODE_OFF)) return
+        val result = baseResult ?: return
+        val baseIso = result.get(CaptureResult.SENSOR_SENSITIVITY) ?: return
+        val baseShutter = result.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: return
+        if (baseIso < LOW_LIGHT_PHOTO_MIN_ISO) return
+        val maxShutterNs = when {
+            isCurrentCameraFrontFacing() -> FRONT_NIGHT_MAX_SHUTTER_NS
+            availableOpticalStabilizationModes.contains(
+                CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON
+            ) -> STABILIZED_LOW_LIGHT_MAX_SHUTTER_NS
+            else -> FRONT_NIGHT_MAX_SHUTTER_NS
+        }
+        if (baseShutter >= maxShutterNs) return
+        val isoRange = state.getIsoRange()
+        val shutterRange = state.getShutterSpeedRange()
+        val plan = NightExposurePlanner.plan(
+            baseIso = baseIso,
+            baseExposureTimeNs = baseShutter,
+            isoLower = isoRange.lower,
+            isoUpper = isoRange.upper,
+            exposureTimeLowerNs = shutterRange.lower,
+            exposureTimeUpperNs = minOf(shutterRange.upper, maxOf(maxShutterNs, shutterRange.lower)),
+            liftEv = 0.0,
+            angularSpeedRadS = null,
+        ) ?: return
+        if (plan.exposureTimeNs <= baseShutter) return
+        builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+        builder.set(CaptureRequest.CONTROL_AE_LOCK, false)
+        builder.set(CaptureRequest.SENSOR_SENSITIVITY, plan.sensitivityIso)
+        builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, plan.exposureTimeNs)
+        builder.set(CaptureRequest.SENSOR_FRAME_DURATION, plan.exposureTimeNs)
+        // Le ZSL renverrait une image de l'aperçu (exposition auto) en ignorant ces réglages.
+        setZslDisabledIfSupported(builder)
+        PLog.i(
+            TAG,
+            "Low-light photo exposure: base=ISO$baseIso/${baseShutter}ns -> " +
+                "ISO${plan.sensitivityIso}/${plan.exposureTimeNs}ns",
         )
     }
 
@@ -8651,6 +8716,11 @@ class Camera2Controller(private val context: Context) {
                     !isRawCapture && !useMultiFrameTorch
                 ) {
                     applyNightExposure(this, currentState, baseExposureResult)
+                } else if (!currentState.nightMode && !isRawCapture && !useMultiFrameTorch &&
+                    currentState.captureMode == CaptureMode.PHOTO &&
+                    currentState.flashMode == CameraMetadata.FLASH_MODE_OFF
+                ) {
+                    applyLowLightPhotoExposure(this, currentState, baseExposureResult)
                 }
 
                 PLog.d(
