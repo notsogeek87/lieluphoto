@@ -104,7 +104,7 @@ fun QrCodeOverlay(
     if (text == null || text == dismissed) return
 
     val url = remember(text) { text.toWebUrl() }
-    Box(modifier = modifier, contentAlignment = Alignment.TopCenter) {
+    Box(modifier = modifier, contentAlignment = Alignment.BottomCenter) {
         Surface(
             color = Color.Black.copy(alpha = 0.65f),
             shape = RoundedCornerShape(16.dp),

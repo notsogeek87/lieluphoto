@@ -1680,7 +1680,18 @@ fun CameraScreen(
                                 activePanel == ActivePanel.NONE,
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(top = viewfinderTopOverlayPadding + 48.dp)
+                                .padding(
+                                    bottom = with(LocalDensity.current) {
+                                        // En bas du viseur, au-dessus du zoom et des styles s'ils le recouvrent.
+                                        val viewfinder = viewfinderAreaBounds
+                                        val zoom = zoomBarBounds
+                                        if (viewfinder != null && zoom != null && zoom.top < viewfinder.bottom) {
+                                            (viewfinder.bottom - zoom.top).toDp() + 52.dp
+                                        } else {
+                                            12.dp
+                                        }
+                                    }
+                                )
                         )
 
                         if (state.burstCapturing && burstCapturingCount > 0) {

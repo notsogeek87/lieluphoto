@@ -1,6 +1,6 @@
 # Détection des QR codes dans le viseur
 
-Comme l'appareil photo de Samsung ou de Google : si un QR code est visible, une carte apparaît en haut du viseur avec le texte lu et les boutons **Copier** et **Ouvrir** (Ouvrir seulement si le texte est un lien `http(s)`).
+Comme l'appareil photo de Samsung ou de Google : si un QR code est visible, une carte apparaît en bas du viseur, au-dessus du zoom, avec le texte lu et les boutons **Copier** et **Ouvrir** (Ouvrir seulement si le texte est un lien `http(s)`).
 
 - Code : `ui/camera/QrCodeOverlay.kt`, branché dans `CameraScreen.kt` (après `CountdownOverlay`).
 - Principe : toutes les 300 ms, une image de l'aperçu (1920 px max) est lue via `CameraGLSurfaceView.capturePreviewFrame` puis analysée par ML Kit (`com.google.mlkit:barcode-scanning`, modèle embarqué, hors ligne). Chaque passage essaie une variante de l'image (normale, inversée, réduite) car ML Kit lit mal les codes clairs sur fond sombre et les codes flous.
