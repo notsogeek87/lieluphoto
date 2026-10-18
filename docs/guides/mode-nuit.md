@@ -24,7 +24,7 @@ Pour l'utilisateur de LieluPhoto : obtenir des photos nettes et peu bruitées en
 
 ## Proposition automatique
 
-En mode Photo, quand l'aperçu reste sombre environ une seconde (ISO × pose ≥ ~40 ISO·s, par exemple ISO 1600 à 1/40 s), une pastille jaune **🌙 Nuit** apparaît en haut à droite du viseur. Un appui passe en mode Nuit ; rien n'est activé tout seul. Elle disparaît quand la scène s'éclaircit (sous ~20 ISO·s, hystérésis pour éviter le clignotement), en Portrait, en Vidéo, en exposition manuelle ou une fois en Nuit. Code : `Camera2Controller.updateNightSuggestion`, `CameraState.nightSuggested`, `night_mode_suggestion`.
+En mode Photo, quand l'aperçu reste sombre environ une seconde (ISO × pose ≥ ~40 ISO·s, par exemple ISO 1600 à 1/40 s), une pastille jaune **🌙 Nuit** apparaît en bas à droite du viseur (au-dessus du zoom et des styles quand ils recouvrent le bas de l’image). Un appui passe en mode Nuit ; rien n'est activé tout seul. Elle disparaît quand la scène s'éclaircit (sous ~20 ISO·s, hystérésis pour éviter le clignotement), en Portrait, en Vidéo, en exposition manuelle ou une fois en Nuit. Code : `Camera2Controller.updateNightSuggestion`, `CameraState.nightSuggested`, `night_mode_suggestion`.
 
 ## Pro / RAW retirés
 
