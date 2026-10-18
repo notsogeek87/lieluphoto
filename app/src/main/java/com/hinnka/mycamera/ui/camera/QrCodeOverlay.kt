@@ -32,18 +32,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.hinnka.mycamera.R
 import com.hinnka.mycamera.utils.PLog
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 private const val TAG = "QrCodeOverlay"
 private const val SCAN_INTERVAL_MS = 500L
-private const val SCAN_MAX_LONG_EDGE = 1280
+private const val SCAN_MAX_LONG_EDGE = 1920
+private const val BLUR_FALLBACK_DIVISOR = 3
+private const val CAPTURE_TIMEOUT_MS = 1500L
+private const val DECODE_TIMEOUT_MS = 3000L
 private const val LOST_AFTER_MS = 1500L
 
 /**
@@ -138,12 +143,39 @@ fun QrCodeOverlay(
 /** Capture l'aperçu courant et retourne le texte du premier QR code trouvé. */
 private suspend fun scanFrame(
     glSurfaceView: CameraGLSurfaceView,
-    scanner: com.google.mlkit.vision.barcode.BarcodeScanner,
+    scanner: BarcodeScanner,
 ): String? {
-    val bitmap = suspendCancellableCoroutine<Bitmap?> { cont ->
-        glSurfaceView.capturePreviewFrame(SCAN_MAX_LONG_EDGE) { cont.resume(it) }
-    } ?: return null
-    return try {
+    // Le rendu peut ne jamais répondre (aperçu en pause) : sans délai la boucle resterait bloquée.
+    val bitmap = withTimeoutOrNull(CAPTURE_TIMEOUT_MS) {
+        suspendCancellableCoroutine<Bitmap?> { cont ->
+            glSurfaceView.capturePreviewFrame(SCAN_MAX_LONG_EDGE) { cont.resume(it) }
+        }
+    }
+    if (bitmap == null) {
+        PLog.w(TAG, "QR scan: no preview frame within ${CAPTURE_TIMEOUT_MS}ms")
+        return null
+    }
+    try {
+        decode(scanner, bitmap)?.let { return it }
+        // Image floue (mise au point ailleurs) : réduite, les modules du QR code redeviennent lisibles.
+        val small = Bitmap.createScaledBitmap(
+            bitmap,
+            (bitmap.width / BLUR_FALLBACK_DIVISOR).coerceAtLeast(1),
+            (bitmap.height / BLUR_FALLBACK_DIVISOR).coerceAtLeast(1),
+            true
+        )
+        try {
+            return decode(scanner, small)
+        } finally {
+            small.recycle()
+        }
+    } finally {
+        bitmap.recycle()
+    }
+}
+
+private suspend fun decode(scanner: BarcodeScanner, bitmap: Bitmap): String? =
+    withTimeoutOrNull(DECODE_TIMEOUT_MS) {
         suspendCancellableCoroutine { cont ->
             scanner.process(InputImage.fromBitmap(bitmap, 0))
                 .addOnSuccessListener { codes ->
@@ -154,10 +186,7 @@ private suspend fun scanFrame(
                     cont.resume(null)
                 }
         }
-    } finally {
-        bitmap.recycle()
     }
-}
 
 private fun String.toWebUrl(): String? {
     val value = trim()
