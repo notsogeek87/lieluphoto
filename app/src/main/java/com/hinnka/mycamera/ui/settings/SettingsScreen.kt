@@ -142,6 +142,8 @@ import com.hinnka.mycamera.gallery.Jpeg444ExportEncoder
 import com.hinnka.mycamera.lut.creator.OpenAIApiClient
 import com.hinnka.mycamera.ml.DepthModelDownloadState
 import com.hinnka.mycamera.ml.DepthModelManager
+import com.hinnka.mycamera.ml.AiEnhanceModelManager
+import com.hinnka.mycamera.ml.AiEnhanceModelState
 import com.hinnka.mycamera.raw.RawCfaCorrection
 import com.hinnka.mycamera.raw.RawSharpeningDefaults
 import com.hinnka.mycamera.raw.RawDenoiseDefaults
@@ -564,6 +566,9 @@ fun SettingsScreen(
         DepthModelManager.observe(context)
     }.collectAsState()
     val isDepthModelInstalled = DepthModelManager.isInstalled(context)
+    val aiEnhanceModelState by remember(context.applicationContext) {
+        AiEnhanceModelManager.observe(context)
+    }.collectAsState()
     var showDepthModelDownloadDialog by remember { mutableStateOf(false) }
     var pendingDefaultVirtualAperture by remember { mutableStateOf<Float?>(null) }
     val depthModelImportLauncher = rememberLauncherForActivityResult(
@@ -1269,6 +1274,50 @@ fun SettingsScreen(
                             cameras = state.availableCameras,
                             orientationOffsets = userPreferences.cameraOrientationOffsets,
                             onOrientationSelected = viewModel::setCameraOrientationOffset
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    SettingsSection(
+                        title = stringResource(R.string.ai_enhance_section)
+                    ) {
+                        val aiEnhanceState = aiEnhanceModelState
+                        NavigationSettingItem(
+                            title = stringResource(R.string.ai_enhance_model_title),
+                            description = when (aiEnhanceState) {
+                                AiEnhanceModelState.Ready -> stringResource(R.string.ai_enhance_model_ready)
+                                is AiEnhanceModelState.Downloading -> stringResource(
+                                    R.string.ai_enhance_model_downloading,
+                                    ((aiEnhanceState.progress ?: 0f) * 100f).toInt()
+                                )
+                                AiEnhanceModelState.Failed -> stringResource(R.string.ai_enhance_model_failed)
+                                AiEnhanceModelState.Missing -> stringResource(R.string.ai_enhance_model_description)
+                            },
+                            showProgress = aiEnhanceState is AiEnhanceModelState.Downloading,
+                            enabled = aiEnhanceState !is AiEnhanceModelState.Downloading,
+                            onClick = {
+                                if (aiEnhanceState == AiEnhanceModelState.Ready) {
+                                    viewModel.setAiEnhanceEnabled(false)
+                                    AiEnhanceModelManager.delete(context)
+                                } else {
+                                    AiEnhanceModelManager.download(context)
+                                }
+                            }
+                        )
+
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+
+                        SwitchSettingItem(
+                            title = stringResource(R.string.ai_enhance_enable_title),
+                            description = stringResource(R.string.ai_enhance_enable_description),
+                            checked = userPreferences.aiEnhanceEnabled &&
+                                aiEnhanceState == AiEnhanceModelState.Ready,
+                            enabled = aiEnhanceState == AiEnhanceModelState.Ready,
+                            onCheckedChange = { viewModel.setAiEnhanceEnabled(it) }
                         )
                     }
 

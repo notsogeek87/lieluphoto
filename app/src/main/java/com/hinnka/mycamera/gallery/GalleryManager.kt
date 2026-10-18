@@ -1,5 +1,6 @@
 package com.hinnka.mycamera.gallery
 
+import com.hinnka.mycamera.ml.AiEnhanceModelManager
 import android.app.PendingIntent
 import android.content.ContentUris
 import android.content.ContentValues
@@ -2107,6 +2108,13 @@ object GalleryManager {
                 previewBitmap = mirroredPreview
             }
 
+            val sourcePreview = checkNotNull(previewBitmap)
+            val enhancedPreview = AiEnhanceModelManager.enhanceIfEnabled(context, sourcePreview, metadata.iso)
+            if (enhancedPreview !== sourcePreview) {
+                sourcePreview.recycle()
+                previewBitmap = enhancedPreview
+            }
+
             val originalFile = writeInternalOriginalPhoto(photoDir, checkNotNull(previewBitmap), photoQuality)
                 ?: return@withContext
             PLog.d(TAG, "saveYuvPhoto internal original saved=${originalFile.name}")
@@ -3217,6 +3225,13 @@ object GalleryManager {
 
             if (metadata.isMirrored) {
                 result = BitmapUtils.flipHorizontal(result)
+            }
+
+            val stackedResult = checkNotNull(result)
+            val enhancedResult = AiEnhanceModelManager.enhanceIfEnabled(context, stackedResult, metadata.iso)
+            if (enhancedResult !== stackedResult) {
+                stackedResult.recycle()
+                result = enhancedResult
             }
 
             val previewBitmap = result

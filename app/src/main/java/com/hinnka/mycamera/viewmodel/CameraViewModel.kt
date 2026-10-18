@@ -5430,6 +5430,12 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * 设置是否显示网格线
      */
+    fun setAiEnhanceEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.saveAiEnhanceEnabled(enabled)
+        }
+    }
+
     fun setShowGrid(show: Boolean) {
         cameraController.setShowGrid(show)
         viewModelScope.launch {

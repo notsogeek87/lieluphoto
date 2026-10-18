@@ -1432,4 +1432,12 @@
     <string name="qr_code_open">Open</string>
     <string name="qr_code_copied">Text copied</string>
     <string name="qr_code_open_failed">No app can open this link</string>
+    <string name="ai_enhance_section">AI enhancement</string>
+    <string name="ai_enhance_model_title">Enhancement model (NAFNet)</string>
+    <string name="ai_enhance_model_description">Tap to download the NAFNet denoising model (about 62 MB, MIT license). It runs entirely on the phone; photos never leave the device.</string>
+    <string name="ai_enhance_model_downloading">Downloading… %1$d %%</string>
+    <string name="ai_enhance_model_ready">Model installed. Tap to delete it and free 62 MB.</string>
+    <string name="ai_enhance_model_failed">Download failed. Tap to try again.</string>
+    <string name="ai_enhance_enable_title">Enhance low-light photos</string>
+    <string name="ai_enhance_enable_description">Automatically cleans up noise on photos taken in low light (ISO 800 and above). Saving takes a few more seconds.</string>
 </resources>

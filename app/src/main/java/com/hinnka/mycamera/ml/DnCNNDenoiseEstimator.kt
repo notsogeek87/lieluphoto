@@ -25,7 +25,11 @@ import java.util.concurrent.atomic.AtomicLong
 class DnCNNDenoiseEstimator(
     context: Context,
     private val modelAssetName: String = MODEL_DNCNN,
-    private val backend: Backend = Backend.AUTO
+    private val backend: Backend = Backend.AUTO,
+    // Modèle téléchargé (stockage privé) au lieu d'un asset intégré, même format d'entrée/sortie.
+    private val modelFile: java.io.File? = null,
+    // Recouvrement des tuiles en pixels (4 pour DnCNN).
+    private val tileOverlap: Int = 4,
 ) {
     private var interpreter: Interpreter? = null
     private val extraCpuInterpreters = mutableListOf<Interpreter>()
@@ -45,14 +49,21 @@ class DnCNNDenoiseEstimator(
 
     init {
         try {
+            val externalModel = this.modelFile
             val modelFile = StartupTrace.measure("DnCNNDenoiseEstimator.loadMappedFile") {
-                FileUtil.loadMappedFile(context, modelAssetName)
+                if (externalModel != null) {
+                    java.io.RandomAccessFile(externalModel, "r").use { file ->
+                        file.channel.map(java.nio.channels.FileChannel.MapMode.READ_ONLY, 0, file.length())
+                    }
+                } else {
+                    FileUtil.loadMappedFile(context, modelAssetName)
+                }
             }
             val delegateCache = MlDelegateCacheFactory.create(
                 context = context,
                 tag = TAG,
-                cacheName = "dncnn_denoise",
-                modelAssetName = modelAssetName,
+                cacheName = if (externalModel != null) "ai_enhance" else "dncnn_denoise",
+                modelAssetName = externalModel?.name ?: modelAssetName,
                 modelSizeBytes = modelFile.capacity()
             )
 
@@ -322,7 +333,7 @@ class DnCNNDenoiseEstimator(
         val height = inputBitmap.height
         val resultBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
 
-        val overlap = 4
+        val overlap = tileOverlap
         val strideX = inputWidth - 2 * overlap
         val strideY = inputHeight - 2 * overlap
 

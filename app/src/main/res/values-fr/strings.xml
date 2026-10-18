@@ -1390,4 +1390,12 @@
     <string name="qr_code_open">Ouvrir</string>
     <string name="qr_code_copied">Texte copié</string>
     <string name="qr_code_open_failed">Aucune application ne peut ouvrir ce lien</string>
+    <string name="ai_enhance_section">Amélioration IA</string>
+    <string name="ai_enhance_model_title">Modèle d\'amélioration (NAFNet)</string>
+    <string name="ai_enhance_model_description">Touchez pour télécharger le modèle de débruitage NAFNet (environ 62 Mo, licence MIT). Il fonctionne entièrement sur le téléphone : les photos ne sortent jamais de l\'appareil.</string>
+    <string name="ai_enhance_model_downloading">Téléchargement… %1$d %%</string>
+    <string name="ai_enhance_model_ready">Modèle installé. Touchez pour le supprimer et libérer 62 Mo.</string>
+    <string name="ai_enhance_model_failed">Échec du téléchargement. Touchez pour réessayer.</string>
+    <string name="ai_enhance_enable_title">Améliorer les photos en faible lumière</string>
+    <string name="ai_enhance_enable_description">Nettoie automatiquement le bruit des photos prises en faible lumière (ISO 800 et plus). L\'enregistrement prend quelques secondes de plus.</string>
 </resources>
