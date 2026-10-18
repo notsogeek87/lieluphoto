@@ -1,6 +1,5 @@
 AGENTS.md
 
-优先说中文
 ## Fork LieluPhoto : récupérer les nouveautés de bjzhou
 
 Détails : [docs/guides/sync-upstream.md](docs/guides/sync-upstream.md) et [docs/README.md](docs/README.md).
