@@ -21,10 +21,12 @@ class NightExposurePlannerTest {
 
     @Test
     fun liftGrowsGraduallyWithDarkness() {
-        // ~80 ISO·s : un EV de scène sombre au-dessus du seuil, éclaircissement modéré (0,6 EV).
-        val lift = NightExposurePlanner.sceneLiftEv(baseIso = 2400, baseExposureTimeNs = 33_000_000L)
+        // ~57 ISO·s : un demi-EV de scène sombre au-dessus du seuil, éclaircissement modéré (0,3 EV),
+        // sous le plafond.
+        val lift = NightExposurePlanner.sceneLiftEv(baseIso = 1720, baseExposureTimeNs = 33_000_000L)
         assertNotNull(lift)
-        assertEquals(0.6, lift!!, 0.05)
+        assertEquals(0.3, lift!!, 0.05)
+        assert(lift < NightExposurePlanner.MAX_LIFT_EV)
     }
 
     @Test

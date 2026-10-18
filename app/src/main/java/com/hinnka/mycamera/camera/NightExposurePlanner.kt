@@ -30,7 +30,9 @@ internal data class NightExposurePlan(
 internal object NightExposurePlanner {
     // Samsung ne brille pas à la prise (même ISO × pose que nous) mais au rendu : à la prise on
     // gagne surtout en propreté (pose longue, ISO bas) avec un éclaircissement modéré.
-    const val MAX_LIFT_EV = 0.7
+    // Mesure (salon sombre, objectif principal) : à +0,7 EV la photo Nuit sortait plus claire que
+    // celle de l'appareil Samsung (luminance moyenne 78 contre 61), halo autour des lampes.
+    const val MAX_LIFT_EV = 0.4
     const val MAX_SHUTTER_NS = 1_000_000_000L / 3
     const val DEFAULT_SHUTTER_NS = 1_000_000_000L / 8
     const val MIN_SHUTTER_NS = 1_000_000_000L / 30

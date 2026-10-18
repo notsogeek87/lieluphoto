@@ -84,14 +84,20 @@ sealed interface EnhancedStabilizationFallback {
 // Aperçu Nuit : cadence plancher minimale (i/s) pour laisser l'exposition auto poser plus longtemps.
 private const val NIGHT_PREVIEW_MIN_FPS = 10
 
-// Proposition du mode Nuit : seuils en log2(ISO × pose en s) avec hystérésis, lissage par image.
-// Plancher de cadence en selfie : pose auto ≤ ~1/15 s. Mesure EXIF (Z Fold, salon le soir) :
-// l'appareil Samsung pose 1/17 s à ISO 1000 en selfie ; plafonnés à 1/30 s nous montions à
-// ISO 3000 (trois fois plus de bruit). La fusion multi-images compense le bougé résiduel.
+// Plancher de cadence en photo auto : la cadence photo par défaut (30 i/s) bornait la pose à
+// ~1/30 s et faisait grimper l'ISO. Mesures EXIF sur le même Z Fold, salon le soir :
+// - selfie : Samsung 1/17 s à ISO 1000, nous 1/33 s à ISO 3000 -> plancher 15 i/s (~1/15 s) ;
+// - objectif principal (stabilisé) : Samsung 1/7,7 s à ISO 800, nous 1/25 s à ISO 4332
+//   -> plancher 10 i/s (~1/10 s) quand la stabilisation optique existe.
+// En pleine lumière l'exposition auto reste courte et l'aperçu à 30 i/s.
 private const val FRONT_SELFIE_MIN_FPS = 15
+private const val STABILIZED_PHOTO_MIN_FPS = 10
+private const val UNSTABILIZED_PHOTO_MIN_FPS = 15
 // Mode Nuit en selfie : pose max par image. Sans stabilisation optique sur le capteur frontal,
 // 1/7 s par image (constaté) rendait chaque image floue avant fusion ; Samsung pose 1/17 s.
 private const val FRONT_NIGHT_MAX_SHUTTER_NS = 1_000_000_000L / 15
+
+// Proposition du mode Nuit : seuils en log2(ISO × pose en s) avec hystérésis, lissage par image.
 private const val NIGHT_SUGGEST_ON_LOG2 = 5.3f // ~40 ISO·s
 private const val NIGHT_SUGGEST_OFF_LOG2 = 4.3f // ~20 ISO·s
 private const val NIGHT_SUGGEST_SMOOTHING = 0.05f
@@ -4518,8 +4524,8 @@ class Camera2Controller(private val context: Context) {
             builder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, state.exposureCompensation)
             if (!isCapture && state.nightMode && state.captureMode == CaptureMode.PHOTO) {
                 applyNightPreviewFpsRange(builder)
-            } else if (!state.nightMode && state.captureMode == CaptureMode.PHOTO && isCurrentCameraFrontFacing()) {
-                applyFrontSelfieFpsRange(builder)
+            } else if (!state.nightMode && state.captureMode == CaptureMode.PHOTO) {
+                applyLowLightPhotoFpsRange(builder)
             }
         } else {
             // 手动曝光 / 半自动曝光：手动设置 ISO 和快门
@@ -7552,13 +7558,20 @@ class Camera2Controller(private val context: Context) {
             ?.maxByOrNull { it.lower }
 
     /**
-     * Selfie : plancher de cadence à 15 i/s, pour que l'exposition auto pose jusqu'à ~1/15 s
-     * comme l'appareil Samsung (la cadence photo par défaut, 30 i/s, bornait à 1/30 s).
+     * Photo auto : plancher de cadence abaissé pour que l'exposition auto puisse poser plus
+     * longtemps le soir, comme l'appareil Samsung (voir FRONT_SELFIE_MIN_FPS et suivants).
      */
-    private fun applyFrontSelfieFpsRange(builder: CaptureRequest.Builder) {
+    private fun applyLowLightPhotoFpsRange(builder: CaptureRequest.Builder) {
+        val minFps = when {
+            isCurrentCameraFrontFacing() -> FRONT_SELFIE_MIN_FPS
+            availableOpticalStabilizationModes.contains(
+                CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON
+            ) -> STABILIZED_PHOTO_MIN_FPS
+            else -> UNSTABILIZED_PHOTO_MIN_FPS
+        }
         val target = getActiveOpenCameraCharacteristics()
             ?.readMetadataOrNull(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
-            ?.filter { it.lower <= FRONT_SELFIE_MIN_FPS && it.upper >= it.lower }
+            ?.filter { it.lower <= minFps && it.upper >= it.lower }
             // Plancher le plus haut ; à plancher égal, la cadence max la plus basse (30 plutôt que 60).
             ?.maxWithOrNull(compareBy<android.util.Range<Int>> { it.lower }.thenByDescending { it.upper })
             ?: return

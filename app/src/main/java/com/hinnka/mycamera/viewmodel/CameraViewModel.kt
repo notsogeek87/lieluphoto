@@ -310,7 +310,8 @@ internal fun resolveEffectiveUseJpgMax(
 // (empilement, pose longue) ; le style (LUT) choisi est conservé.
 // Diagnostic réel (Z Fold, escalier) : à +0,2 EV / ombres +0,35 la photo restait 2,3× plus
 // sombre que Samsung (luminance moyenne 0,14 contre 0,33).
-internal const val NIGHT_BASE_EXPOSURE_EV = 0.2f
+// Mesure (salon sombre) : la photo Nuit était plus claire que Samsung ; plus d'éclaircissement fixe.
+internal const val NIGHT_BASE_EXPOSURE_EV = 0f
 internal const val NIGHT_SHADOWS_BOOST = 0.3f
 internal const val NIGHT_HIGHLIGHTS_CUT = 0.15f
 // Photo Nuit à 1/4 s mesurée ~2,7× moins nette que Samsung à pose égale.
