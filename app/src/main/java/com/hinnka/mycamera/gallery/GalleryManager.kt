@@ -4125,25 +4125,61 @@ object GalleryManager {
     // Durée maximum pendant laquelle une photo reste « en traitement » pour l'IA, quoi qu'il arrive
     // (l'inférence native ne peut pas être interrompue ; un résultat plus tardif est ignoré).
     private const val AI_ENHANCE_DEADLINE_MS = 60_000L
+    const val AI_ENHANCE_NOTE_PROPERTY = "lielu_ai_enhance"
+
+    /** Réglages de l'export automatique reporté après l'IA. */
+    data class DeferredExport(
+        val sharpening: Float,
+        val noiseReduction: Float,
+        val chromaNoiseReduction: Float,
+        val photoQuality: Int,
+    )
+
+    private suspend fun recordAiEnhanceNote(context: Context, photoId: String, note: String) {
+        runCatching {
+            updateMetadata(context, photoId) {
+                it.copy(customProperties = it.customProperties + (AI_ENHANCE_NOTE_PROPERTY to note))
+            }
+        }
+    }
 
     fun enhanceSavedPhotoInBackground(
         context: Context,
         photoId: String,
         photoProcessor: PhotoProcessor,
+        deferredExport: DeferredExport? = null,
         onFinished: () -> Unit = {},
     ) {
         val appContext = context.applicationContext
         val finished = java.util.concurrent.atomic.AtomicBoolean(false)
-        suspend fun finish() {
+        var note = "IA[rien]"
+        suspend fun finish(finalNote: String) {
             if (!finished.compareAndSet(false, true)) return
+            recordAiEnhanceNote(appContext, photoId, finalNote)
             // Retire le filigrane « traitement en cours ».
             finishProcessingPhoto(appContext, photoId, true)
+            // Export automatique reporté : avec la version IA si elle est prête, sinon telle quelle.
+            if (deferredExport != null) {
+                runCatching {
+                    val metadata = loadMetadata(appContext, photoId) ?: return@runCatching
+                    exportPhoto(
+                        context = appContext,
+                        id = photoId,
+                        photoProcessor = photoProcessor,
+                        metadata = metadata,
+                        sharpeningValue = deferredExport.sharpening,
+                        noiseReductionValue = deferredExport.noiseReduction,
+                        chromaNoiseReductionValue = deferredExport.chromaNoiseReduction,
+                        photoQuality = deferredExport.photoQuality,
+                    )
+                }.onFailure { PLog.e(TAG, "Deferred export failed for $photoId", it) }
+            }
             onFinished()
         }
         val watchdog = aiEnhanceScope.launch {
             delay(AI_ENHANCE_DEADLINE_MS)
             PLog.w(TAG, "AI enhance deadline reached, photo kept as is: $photoId")
-            finish()
+            finish("IA[délai ${AI_ENHANCE_DEADLINE_MS / 1000} s dépassé]")
         }
         aiEnhanceScope.launch {
             try {
@@ -4154,7 +4190,8 @@ object GalleryManager {
                 val isRawSource = metadata.mimeType == "image/x-adobe-dng" ||
                     getDngFile(appContext, photoId).exists()
                 val enhanced = AiEnhanceModelManager.enhanceIfEnabled(
-                    appContext, source, metadata.iso, denoise = !isRawSource, waitForTurn = true
+                    appContext, source, metadata.iso, denoise = !isRawSource, waitForTurn = true,
+                    onReport = { note = it },
                 )
                 if (enhanced === source) {
                     source.recycle()
@@ -4192,7 +4229,7 @@ object GalleryManager {
                 PLog.e(TAG, "Background AI enhance failed for $photoId", e)
             } finally {
                 watchdog.cancel()
-                finish()
+                finish(note)
             }
         }
     }

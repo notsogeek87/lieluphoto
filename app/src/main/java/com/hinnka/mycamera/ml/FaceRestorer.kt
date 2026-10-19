@@ -63,7 +63,13 @@ internal object FaceRestorer {
 
     private class Face(val points: FloatArray, val eyeDistance: Float)
 
+    /** Nombre de visages restaurés lors du dernier appel (diagnostic EXIF). */
+    @Volatile
+    var lastRestoredFaceCount = 0
+        private set
+
     fun restore(context: Context, modelFile: File, bitmap: Bitmap): Bitmap {
+        lastRestoredFaceCount = 0
         val source = if (bitmap.config == Bitmap.Config.ARGB_8888) bitmap else
             bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: return bitmap
         val faces = detectFaces(context, source)
@@ -87,6 +93,7 @@ internal object FaceRestorer {
             for (face in faces) {
                 val start = System.currentTimeMillis()
                 restoreFace(interpreter.instance, channelsFirst, source, output, face)
+                lastRestoredFaceCount++
                 PLog.d(
                     TAG,
                     "Face restored: eyes=${face.eyeDistance.roundToInt()}px " +

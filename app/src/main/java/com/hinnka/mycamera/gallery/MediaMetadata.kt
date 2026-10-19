@@ -186,7 +186,11 @@ data class MediaMetadata(
             software = if (isImported) {
                 software ?: com.hinnka.mycamera.camera.APP_EXIF_SOFTWARE
             } else {
-                com.hinnka.mycamera.camera.APP_EXIF_SOFTWARE
+                // Diagnostic de l'amélioration IA (ce qui a été fait, durée) quand elle a tourné.
+                listOfNotNull(
+                    com.hinnka.mycamera.camera.APP_EXIF_SOFTWARE,
+                    customProperties[GalleryManager.AI_ENHANCE_NOTE_PROPERTY],
+                ).joinToString(" ")
             },
             latitude = latitude,
             longitude = longitude,

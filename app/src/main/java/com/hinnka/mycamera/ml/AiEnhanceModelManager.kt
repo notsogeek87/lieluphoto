@@ -294,6 +294,8 @@ object AiEnhanceModelManager {
         iso: Int?,
         denoise: Boolean = true,
         waitForTurn: Boolean = false,
+        // Résumé lisible de ce qui a été fait (ajouté à l'EXIF « Software »).
+        onReport: (String) -> Unit = {},
     ): Bitmap {
         val appContext = context.applicationContext
         val preferences = runCatching {
@@ -309,7 +311,17 @@ object AiEnhanceModelManager {
             ?.takeIf { denoise && denoiseUseful && AiModel.DENOISE in choice.models }
         val facesModel = installedModelFileOrNull(appContext, AiModel.FACES)
             ?.takeIf { AiModel.FACES in choice.models }
-        if (denoiseModel == null && facesModel == null) return bitmap
+        val skippedDenoise = when {
+            AiModel.DENOISE !in choice.models -> null
+            !denoise -> "bruit non (RAW)"
+            !denoiseUseful -> "bruit non (ISO $iso)"
+            denoiseModel == null -> "bruit non (modèle absent)"
+            else -> null
+        }
+        if (denoiseModel == null && facesModel == null) {
+            onReport("IA[${skippedDenoise ?: "modèle absent"}]")
+            return bitmap
+        }
         // Jamais d'attente derrière une autre photo : si l'IA est déjà occupée, on enregistre
         // cette photo telle quelle plutôt que de bloquer toute la file de traitement.
         if (waitForTurn) {
@@ -321,22 +333,39 @@ object AiEnhanceModelManager {
         try {
             var current = bitmap
             val started = System.currentTimeMillis()
+            val steps = mutableListOf<String>()
+            skippedDenoise?.let(steps::add)
             if (denoiseModel != null) {
+                val stepStart = System.currentTimeMillis()
                 val denoised = withTimeoutOrNull(DENOISE_TIMEOUT_MS) {
                     denoise(appContext, denoiseModel, current, iso)
                 } ?: run {
                     PLog.w(TAG, "AI denoise timed out, keeping the photo as is")
                     current
                 }
+                val seconds = "%.1f".format((System.currentTimeMillis() - stepStart) / 1000f)
+                steps += if (denoised !== current) "bruit ${seconds}s" else "bruit échec ${seconds}s"
                 if (denoised !== current && current !== bitmap) current.recycle()
                 current = denoised
             }
-            if (facesModel != null && !facesBusy.get()) {
-                val restored = restoreFacesWithTimeout(appContext, facesModel, current)
-                if (restored !== current && current !== bitmap) current.recycle()
-                current = restored
+            if (facesModel != null) {
+                if (facesBusy.get()) {
+                    steps += "visages non (occupé)"
+                } else {
+                    val stepStart = System.currentTimeMillis()
+                    val restored = restoreFacesWithTimeout(appContext, facesModel, current)
+                    val seconds = "%.1f".format((System.currentTimeMillis() - stepStart) / 1000f)
+                    steps += if (restored !== current) {
+                        "visages ${FaceRestorer.lastRestoredFaceCount} ${seconds}s"
+                    } else {
+                        "visages aucun ${seconds}s"
+                    }
+                    if (restored !== current && current !== bitmap) current.recycle()
+                    current = restored
+                }
             }
-            PLog.d(TAG, "AI enhance total ${System.currentTimeMillis() - started}ms ${bitmap.width}x${bitmap.height}")
+            onReport("IA[${steps.joinToString(", ")}]")
+            PLog.d(TAG, "AI enhance total ${System.currentTimeMillis() - started}ms ${bitmap.width}x${bitmap.height} $steps")
             return current
         } finally {
             inferenceMutex.unlock()

@@ -162,6 +162,9 @@ private data class CaptureSettingsSnapshot(
     @Volatile var captureCompleted: Boolean = false,
     @Volatile var processingFinished: Boolean = false,
     @Volatile var savedPhotoId: String? = null,
+    // IA en tâche de fond : l'export vers la galerie attend la version améliorée (une seule fois).
+    @Volatile var deferAutoSaveForAi: Boolean = false,
+    @Volatile var deferredExport: GalleryManager.DeferredExport? = null,
 )
 
 /** The shutter preview remains visible until the matching final thumbnail has loaded. */
@@ -2229,14 +2232,17 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
                 CaptureProcessingQueue.enqueue(photo.frames.map { it.image }) {
+                    // Décidé avant le traitement : si l'IA va passer, l'export automatique attend sa fin.
+                    val aiWillRun = !shotSettings.multipleExposure &&
+                        runCatching { AiEnhanceModelManager.willEnhance(getApplication()) }.getOrDefault(false)
+                    shotSettings.deferAutoSaveForAi = aiWillRun && shotSettings.preferences.autoSaveAfterCapture
                     try {
                         shotSettings.galleryRegistration.await()
                         processCapturedPhoto(photo, shotSettings)
                     } finally {
                         // Si l'IA va améliorer la photo, elle reste « en traitement » (filigrane) jusqu'à
                         // la fin de l'amélioration, qui se fait hors de la file des prises.
-                        val aiPending = shotSettings.savedPhotoId != null &&
-                            runCatching { AiEnhanceModelManager.willEnhance(getApplication()) }.getOrDefault(false)
+                        val aiPending = shotSettings.savedPhotoId != null && aiWillRun
                         if (!aiPending) {
                             GalleryManager.finishProcessingPhoto(
                                 getApplication(), shotSettings.photoId, shotSettings.savedPhotoId != null
@@ -2250,7 +2256,14 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                             // Amélioration IA après coup : n'allonge pas le traitement des photos
                             // suivantes ; la vignette reste « en traitement » jusqu'à la fin.
                             GalleryManager.enhanceSavedPhotoInBackground(
-                                getApplication(), shotSettings.photoId, contentRepository.photoProcessor
+                                getApplication(), shotSettings.photoId, contentRepository.photoProcessor,
+                                // Chemin de traitement sans réglages d'export notés : export quand même
+                                // (les réglages enregistrés dans la photo priment).
+                                deferredExport = shotSettings.deferredExport ?: if (shotSettings.deferAutoSaveForAi) {
+                                    GalleryManager.DeferredExport(0f, 0f, 0f, shotSettings.preferences.photoQuality)
+                                } else {
+                                    null
+                                },
                             ) {
                                 shotSettings.processingFinished = true
                                 publishCapturedThumbnail(shotSettings)
@@ -6260,7 +6273,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             val lutIdToSave = settings.lutId
             val aspectRatio = settings.state.aspectRatio
             val frameIdToSave = settings.frameId
-            val shouldAutoSave = settings.preferences.autoSaveAfterCapture
+            val shouldAutoSave = settings.preferences.autoSaveAfterCapture && !settings.deferAutoSaveForAi
             val userPrefs: UserPreferences? = settings.preferences
             val isRawCapture = isRawCaptureFormat(image.format)
             val sharpeningValue = resolveCaptureSharpening(
@@ -6276,6 +6289,11 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             val noiseReductionValue = denoiseStrengths.editableLuma
             val chromaNoiseReductionValue = denoiseStrengths.editableChroma
             val photoQualityValue = settings.preferences.photoQuality
+            if (settings.deferAutoSaveForAi) {
+                settings.deferredExport = GalleryManager.DeferredExport(
+                    sharpeningValue, noiseReductionValue, chromaNoiseReductionValue, photoQualityValue
+                )
+            }
             val droModeString = settings.preferences.droMode
             val droModeForProcessing =
                 RawProcessingPreferences.DROMode.fromPersistedName(droModeString)
@@ -6666,7 +6684,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             val lutIdToSave = settings.lutId
             val aspectRatio = settings.state.aspectRatio
             val frameIdToSave = settings.frameId
-            val shouldAutoSave = settings.preferences.autoSaveAfterCapture
+            val shouldAutoSave = settings.preferences.autoSaveAfterCapture && !settings.deferAutoSaveForAi
             val isRawStack = images.firstOrNull()?.format?.let(::isRawCaptureFormat) == true
             val userPrefs: UserPreferences? = settings.preferences
             val sharpeningValue = resolveCaptureSharpening(
@@ -6682,6 +6700,11 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             val noiseReductionValue = denoiseStrengths.editableLuma
             val chromaNoiseReductionValue = denoiseStrengths.editableChroma
             val photoQualityValue = settings.preferences.photoQuality
+            if (settings.deferAutoSaveForAi) {
+                settings.deferredExport = GalleryManager.DeferredExport(
+                    sharpeningValue, noiseReductionValue, chromaNoiseReductionValue, photoQualityValue
+                )
+            }
             val droModeString = settings.preferences.droMode
             val currentCameraId = settings.cameraId
 
@@ -6904,11 +6927,16 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         try {
             if (orderedImages.size != expectedFrameCount) return
             val context = getApplication<Application>()
-            val shouldAutoSave = settings.preferences.autoSaveAfterCapture
+            val shouldAutoSave = settings.preferences.autoSaveAfterCapture && !settings.deferAutoSaveForAi
             val sharpeningValue = 0f
             val noiseReductionValue = 0f
             val chromaNoiseReductionValue = 0f
             val photoQualityValue = settings.preferences.photoQuality
+            if (settings.deferAutoSaveForAi) {
+                settings.deferredExport = GalleryManager.DeferredExport(
+                    sharpeningValue, noiseReductionValue, chromaNoiseReductionValue, photoQualityValue
+                )
+            }
             val baseImage = orderedImages[HDR_BRACKET_ZERO_INDEX]
             val useSuperRes = false
             val superResScale = 1.0f
