@@ -112,8 +112,8 @@ object AiEnhanceModelManager {
     private val downloadJobs = mutableMapOf<AiModel, Job>()
     private val inferenceMutex = Mutex()
     private val facesBusy = java.util.concurrent.atomic.AtomicBoolean(false)
-    private const val DENOISE_TIMEOUT_MS = 20_000L
-    private const val FACES_TIMEOUT_MS = 12_000L
+    private const val DENOISE_TIMEOUT_MS = 120_000L
+    private const val FACES_TIMEOUT_MS = 60_000L
 
     fun observe(context: Context, model: AiModel): StateFlow<AiEnhanceModelState> {
         initialize(context.applicationContext)
@@ -231,6 +231,7 @@ object AiEnhanceModelManager {
         bitmap: Bitmap,
         iso: Int?,
         denoise: Boolean = true,
+        waitForTurn: Boolean = false,
     ): Bitmap {
         val appContext = context.applicationContext
         val preferences = runCatching {
@@ -246,7 +247,9 @@ object AiEnhanceModelManager {
         if (denoiseModel == null && facesModel == null) return bitmap
         // Jamais d'attente derrière une autre photo : si l'IA est déjà occupée, on enregistre
         // cette photo telle quelle plutôt que de bloquer toute la file de traitement.
-        if (!inferenceMutex.tryLock()) {
+        if (waitForTurn) {
+            inferenceMutex.lock()
+        } else if (!inferenceMutex.tryLock()) {
             PLog.w(TAG, "AI enhance busy, skipping for this photo")
             return bitmap
         }
@@ -289,7 +292,7 @@ object AiEnhanceModelManager {
             } finally {
                 facesBusy.set(false)
             }
-        }, "face-restorer").apply { isDaemon = true }
+        }, "face-restorer").apply { isDaemon = true; priority = Thread.MIN_PRIORITY }
         worker.start()
         return withTimeoutOrNull(FACES_TIMEOUT_MS) { result.await() } ?: run {
             PLog.w(TAG, "Face restoration timed out after ${FACES_TIMEOUT_MS}ms, photo kept as is")

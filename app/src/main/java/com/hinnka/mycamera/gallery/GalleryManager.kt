@@ -2108,13 +2108,6 @@ object GalleryManager {
                 previewBitmap = mirroredPreview
             }
 
-            val sourcePreview = checkNotNull(previewBitmap)
-            val enhancedPreview = AiEnhanceModelManager.enhanceIfEnabled(context, sourcePreview, metadata.iso)
-            if (enhancedPreview !== sourcePreview) {
-                sourcePreview.recycle()
-                previewBitmap = enhancedPreview
-            }
-
             val originalFile = writeInternalOriginalPhoto(photoDir, checkNotNull(previewBitmap), photoQuality)
                 ?: return@withContext
             PLog.d(TAG, "saveYuvPhoto internal original saved=${originalFile.name}")
@@ -2584,9 +2577,6 @@ object GalleryManager {
             if (updatedMetadata.isMirrored) {
                 bitmap = BitmapUtils.flipHorizontal(bitmap)
             }
-            val aiEnhanced = enhanceRawBaseIfEnabled(context, photoId, bitmap, updatedMetadata)
-            bitmap = aiEnhanced.first
-            updatedMetadata = aiEnhanced.second
             updatedMetadata = updatedMetadata.copy(
                 width = bitmap.width,
                 height = bitmap.height,
@@ -3228,13 +3218,6 @@ object GalleryManager {
 
             if (metadata.isMirrored) {
                 result = BitmapUtils.flipHorizontal(result)
-            }
-
-            val stackedResult = checkNotNull(result)
-            val enhancedResult = AiEnhanceModelManager.enhanceIfEnabled(context, stackedResult, metadata.iso)
-            if (enhancedResult !== stackedResult) {
-                stackedResult.recycle()
-                result = enhancedResult
             }
 
             val previewBitmap = result
@@ -3982,9 +3965,6 @@ object GalleryManager {
             if (updatedMetadata.isMirrored) {
                 bitmap = BitmapUtils.flipHorizontal(bitmap)
             }
-            val aiEnhanced = enhanceRawBaseIfEnabled(context, photoId, bitmap, updatedMetadata)
-            bitmap = aiEnhanced.first
-            updatedMetadata = aiEnhanced.second
             updatedMetadata = updatedMetadata.copy(
                 width = bitmap.width,
                 height = bitmap.height,
@@ -4134,33 +4114,58 @@ object GalleryManager {
         )
     }
 
+    private val aiEnhanceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     /**
-     * Amélioration IA (débruitage / visages) d'une photo RAW tout juste développée. Le résultat est
-     * aussi enregistré comme base « IA » (ai_denoise.jpg) : l'export et les retouches repartent de
-     * cette base au lieu de redévelopper le DNG sans l'IA.
+     * Amélioration IA (bruit / visages) d'une photo déjà enregistrée, en tâche de fond : la photo
+     * est disponible tout de suite, la version améliorée remplace sa base quelques secondes plus
+     * tard (ai_denoise.jpg, déjà utilisée par l'export et les retouches). Ne bloque jamais la file
+     * de traitement des photos suivantes.
      */
-    private suspend fun enhanceRawBaseIfEnabled(
-        context: Context,
-        photoId: String,
-        bitmap: Bitmap,
-        metadata: MediaMetadata,
-    ): Pair<Bitmap, MediaMetadata> {
-        // RAW fusionné : déjà peu bruité, et NAFNet sur ~50 Mpx prend plus d'une minute.
-        // Seuls les visages sont restaurés.
-        val enhanced = AiEnhanceModelManager.enhanceIfEnabled(context, bitmap, metadata.iso, denoise = false)
-        if (enhanced === bitmap) return bitmap to metadata
-        val file = getAiDenoiseFile(context, photoId)
-        val written = runCatching {
-            file.parentFile?.mkdirs()
-            FileOutputStream(file).use { enhanced.compress(Bitmap.CompressFormat.JPEG, 95, it) }
-        }.getOrDefault(false)
-        if (!written) {
-            file.delete()
-            enhanced.recycle()
-            PLog.w(TAG, "AI enhanced RAW base could not be saved, keeping the plain render: $photoId")
-            return bitmap to metadata
+    fun enhanceSavedPhotoInBackground(context: Context, photoId: String, photoProcessor: PhotoProcessor) {
+        val appContext = context.applicationContext
+        aiEnhanceScope.launch {
+            try {
+                val metadata = loadMetadata(appContext, photoId) ?: return@launch
+                if (metadata.hasAiDenoisedBase) return@launch
+                val source = loadOriginalBitmap(appContext, photoId) ?: return@launch
+                // RAW fusionné : déjà peu bruité, seuls les visages sont restaurés.
+                val isRawSource = metadata.mimeType == "image/x-adobe-dng" ||
+                    getDngFile(appContext, photoId).exists()
+                val enhanced = AiEnhanceModelManager.enhanceIfEnabled(
+                    appContext, source, metadata.iso, denoise = !isRawSource, waitForTurn = true
+                )
+                if (enhanced === source) {
+                    source.recycle()
+                    return@launch
+                }
+                source.recycle()
+                val file = getAiDenoiseFile(appContext, photoId)
+                file.parentFile?.mkdirs()
+                val written = FileOutputStream(file).use { enhanced.compress(Bitmap.CompressFormat.JPEG, 95, it) }
+                if (!written) {
+                    file.delete()
+                    enhanced.recycle()
+                    return@launch
+                }
+                val aperture = metadata.computationalAperture ?: 0f
+                if (aperture > 0f) {
+                    val bokeh = ContentRepository.getInstance(appContext).depthBokehProcessor.applyHighQualityBokeh(
+                        appContext, photoId, enhanced,
+                        metadata.focusPointX, metadata.focusPointY, aperture,
+                        BokehStyle.fromPersistedName(metadata.computationalBokehStyle),
+                    )
+                    saveBokehPhoto(appContext, photoId, bokeh)
+                    if (bokeh !== enhanced && !bokeh.isRecycled) bokeh.recycle()
+                }
+                enhanced.recycle()
+                val updated = updateMetadata(appContext, photoId) { it.copy(hasAiDenoisedBase = true) }
+                updateThumbnail(appContext, photoId, photoProcessor, updated)
+                PLog.d(TAG, "AI enhance finished in background: $photoId")
+            } catch (e: Throwable) {
+                PLog.e(TAG, "Background AI enhance failed for $photoId", e)
+            }
         }
-        return enhanced to metadata.copy(hasAiDenoisedBase = true)
     }
 
     private suspend fun renderRawDngPhotoOutputs(

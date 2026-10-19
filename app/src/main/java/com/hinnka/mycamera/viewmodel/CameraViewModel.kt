@@ -2241,6 +2241,12 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                         }
                         shotSettings.processingFinished = true
                         publishCapturedThumbnail(shotSettings)
+                        // Amélioration IA après coup : n'allonge pas le traitement des photos suivantes.
+                        if (shotSettings.savedPhotoId != null) {
+                            GalleryManager.enhanceSavedPhotoInBackground(
+                                getApplication(), shotSettings.photoId, contentRepository.photoProcessor
+                            )
+                        }
                     }
                 }
             }
