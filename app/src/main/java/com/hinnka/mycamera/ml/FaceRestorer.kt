@@ -42,7 +42,7 @@ internal object FaceRestorer {
     private const val DETECTION_MAX_DIMENSION = 1280
     private const val MIN_DETECTION_CONFIDENCE = 0.6f
     private const val MIN_EYE_DISTANCE_PX = 24f
-    private const val MAX_FACES = 4
+    private const val MAX_FACES = 2
     private const val BLEND_STRENGTH = 0.7f
 
     // Gabarit FFHQ 512 : œil gauche, œil droit, nez, centre de la bouche (moyenne des commissures).
@@ -172,21 +172,6 @@ internal object FaceRestorer {
     private fun createInterpreter(modelFile: File): LoadedInterpreter? {
         val model = RandomAccessFile(modelFile, "r").use { file ->
             file.channel.map(FileChannel.MapMode.READ_ONLY, 0, file.length())
-        }
-        try {
-            val compatList = CompatibilityList()
-            if (compatList.isDelegateSupportedOnThisDevice) {
-                val delegate = GpuDelegate(compatList.bestOptionsForThisDevice)
-                try {
-                    val interpreter = Interpreter(model, Interpreter.Options().addDelegate(delegate))
-                    return LoadedInterpreter(interpreter, "GPU", delegate)
-                } catch (e: Exception) {
-                    PLog.w(TAG, "GPU delegate unavailable for GFPGAN, falling back to CPU", e)
-                    delegate.close()
-                }
-            }
-        } catch (e: Throwable) {
-            PLog.w(TAG, "GPU check failed for GFPGAN", e)
         }
         return try {
             val options = Interpreter.Options().apply {

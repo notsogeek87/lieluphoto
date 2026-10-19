@@ -9,7 +9,9 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -19,7 +21,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlin.math.ln
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -110,6 +111,9 @@ object AiEnhanceModelManager {
     private var initialized = false
     private val downloadJobs = mutableMapOf<AiModel, Job>()
     private val inferenceMutex = Mutex()
+    private val facesBusy = java.util.concurrent.atomic.AtomicBoolean(false)
+    private const val DENOISE_TIMEOUT_MS = 60_000L
+    private const val FACES_TIMEOUT_MS = 40_000L
 
     fun observe(context: Context, model: AiModel): StateFlow<AiEnhanceModelState> {
         initialize(context.applicationContext)
@@ -240,26 +244,58 @@ object AiEnhanceModelManager {
         val facesModel = installedModelFileOrNull(appContext, AiModel.FACES)
             ?.takeIf { AiModel.FACES in choice.models }
         if (denoiseModel == null && facesModel == null) return bitmap
-        return inferenceMutex.withLock {
+        // Jamais d'attente derrière une autre photo : si l'IA est déjà occupée, on enregistre
+        // cette photo telle quelle plutôt que de bloquer toute la file de traitement.
+        if (!inferenceMutex.tryLock()) {
+            PLog.w(TAG, "AI enhance busy, skipping for this photo")
+            return bitmap
+        }
+        try {
             var current = bitmap
             val started = System.currentTimeMillis()
             if (denoiseModel != null) {
-                val denoised = denoise(appContext, denoiseModel, current, iso)
+                val denoised = withTimeoutOrNull(DENOISE_TIMEOUT_MS) {
+                    denoise(appContext, denoiseModel, current, iso)
+                } ?: run {
+                    PLog.w(TAG, "AI denoise timed out, keeping the photo as is")
+                    current
+                }
                 if (denoised !== current && current !== bitmap) current.recycle()
                 current = denoised
             }
-            if (facesModel != null) {
-                val restored = try {
-                    FaceRestorer.restore(appContext, facesModel, current)
-                } catch (e: Throwable) {
-                    PLog.e(TAG, "Face restoration failed, keeping the photo as is", e)
-                    current
-                }
+            if (facesModel != null && !facesBusy.get()) {
+                val restored = restoreFacesWithTimeout(appContext, facesModel, current)
                 if (restored !== current && current !== bitmap) current.recycle()
                 current = restored
             }
             PLog.d(TAG, "AI enhance total ${System.currentTimeMillis() - started}ms ${bitmap.width}x${bitmap.height}")
-            current
+            return current
+        } finally {
+            inferenceMutex.unlock()
+        }
+    }
+
+    // L'inférence TFLite est un appel natif non interruptible : on la lance sur un fil dédié et on
+    // l'abandonne après le délai. Tant qu'elle tourne encore, les visages sont ignorés (facesBusy).
+    private suspend fun restoreFacesWithTimeout(context: Context, modelFile: File, bitmap: Bitmap): Bitmap {
+        facesBusy.set(true)
+        val result = CompletableDeferred<Bitmap>()
+        val worker = Thread({
+            try {
+                result.complete(FaceRestorer.restore(context, modelFile, bitmap))
+            } catch (e: Throwable) {
+                PLog.e(TAG, "Face restoration failed, keeping the photo as is", e)
+                result.complete(bitmap)
+            } finally {
+                facesBusy.set(false)
+            }
+        }, "face-restorer").apply { isDaemon = true }
+        worker.start()
+        return withTimeoutOrNull(FACES_TIMEOUT_MS) { result.await() } ?: run {
+            PLog.w(TAG, "Face restoration timed out after ${FACES_TIMEOUT_MS}ms, photo kept as is")
+            // La photo est enregistrée sans attendre ; ce résultat tardif est ignoré.
+            result.invokeOnCompletion { runCatching { result.getCompleted().takeIf { it !== bitmap }?.recycle() } }
+            bitmap
         }
     }
 
