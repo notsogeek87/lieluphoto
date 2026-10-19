@@ -4164,6 +4164,9 @@ object GalleryManager {
                 PLog.d(TAG, "AI enhance finished in background: $photoId")
             } catch (e: Throwable) {
                 PLog.e(TAG, "Background AI enhance failed for $photoId", e)
+            } finally {
+                // Retire le filigrane « traitement en cours », quoi qu'il arrive.
+                finishProcessingPhoto(appContext, photoId, true)
             }
         }
     }

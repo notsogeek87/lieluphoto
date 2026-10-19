@@ -39,6 +39,7 @@ import com.hinnka.mycamera.frame.FrameInfo
 import com.hinnka.mycamera.frame.FramePreviewFactory
 import com.hinnka.mycamera.frame.FramePreviewSelection
 import com.hinnka.mycamera.gallery.GalleryManager
+import com.hinnka.mycamera.ml.AiEnhanceModelManager
 import com.hinnka.mycamera.gallery.MediaMetadata
 import com.hinnka.mycamera.gallery.PhotoSavePath
 import com.hinnka.mycamera.lut.BaselineColorCorrectionTarget
@@ -2232,9 +2233,15 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                         shotSettings.galleryRegistration.await()
                         processCapturedPhoto(photo, shotSettings)
                     } finally {
-                        GalleryManager.finishProcessingPhoto(
-                            getApplication(), shotSettings.photoId, shotSettings.savedPhotoId != null
-                        )
+                        // Si l'IA va améliorer la photo, elle reste « en traitement » (filigrane) jusqu'à
+                        // la fin de l'amélioration, qui se fait hors de la file des prises.
+                        val aiPending = shotSettings.savedPhotoId != null &&
+                            runCatching { AiEnhanceModelManager.willEnhance(getApplication()) }.getOrDefault(false)
+                        if (!aiPending) {
+                            GalleryManager.finishProcessingPhoto(
+                                getApplication(), shotSettings.photoId, shotSettings.savedPhotoId != null
+                            )
+                        }
                         // A failed photo preparation must not orphan its already-recorded video.
                         withContext(Dispatchers.IO) {
                             shotSettings.livePhotoVideo?.await()?.first?.delete()
@@ -2242,7 +2249,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                         shotSettings.processingFinished = true
                         publishCapturedThumbnail(shotSettings)
                         // Amélioration IA après coup : n'allonge pas le traitement des photos suivantes.
-                        if (shotSettings.savedPhotoId != null) {
+                        if (aiPending) {
                             GalleryManager.enhanceSavedPhotoInBackground(
                                 getApplication(), shotSettings.photoId, contentRepository.photoProcessor
                             )

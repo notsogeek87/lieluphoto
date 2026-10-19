@@ -220,6 +220,16 @@ object AiEnhanceModelManager {
         }
     }
 
+    /** Vrai si une photo prise maintenant sera améliorée (réglage actif et modèle choisi installé). */
+    suspend fun willEnhance(context: Context): Boolean {
+        val appContext = context.applicationContext
+        val preferences = ContentRepository.getInstance(appContext).userPreferencesRepository
+            .userPreferences.firstOrNull() ?: return false
+        if (!preferences.aiEnhanceEnabled) return false
+        return AiEnhanceChoice.fromPersisted(preferences.aiEnhanceModel).models
+            .any { installedModelFileOrNull(appContext, it) != null }
+    }
+
     /**
      * Améliore [bitmap] si le réglage est activé et le(s) modèle(s) choisi(s) installé(s) ; la force
      * du débruitage suit [iso]. Renvoie le bitmap d'origine sinon, ou en cas d'échec (la photo n'est
