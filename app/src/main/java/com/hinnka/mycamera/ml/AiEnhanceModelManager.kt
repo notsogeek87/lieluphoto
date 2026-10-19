@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlin.math.ln
+import kotlin.math.min
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -456,8 +457,14 @@ object AiEnhanceModelManager {
                         "${estimator.backendName} ${tileMs}ms/tuile$gpuNote)"
                 }
                 val enhanced = estimator.denoisePatchwise(input, strength = aiEnhanceBlendStrength(iso))
-                PLog.d(TAG, "AI denoise applied: iso=$iso ${bitmap.width}x${bitmap.height} ok=${enhanced != null}")
-                (enhanced ?: bitmap) to (if (enhanced != null) "bruit ${estimator.backendName}" else "bruit échec")
+                    ?: return bitmap to "bruit échec"
+                // Le GPU calcule en précision réduite : quelques tuiles peuvent sortir en damier
+                // (constaté sur zone claire unie, build 191). Un vrai débruitage ne bouge les pixels
+                // que de quelques niveaux ; les blocs aberrants reprennent l'original.
+                val repaired = repairAberrantBlocks(input, enhanced)
+                PLog.d(TAG, "AI denoise applied: iso=$iso ${bitmap.width}x${bitmap.height} repairedBlocks=$repaired")
+                val note = "bruit ${estimator.backendName}" + if (repaired > 0) " ($repaired blocs corriges)" else ""
+                enhanced to note
             } finally {
                 if (input !== bitmap) input.recycle()
             }
@@ -492,4 +499,69 @@ object AiEnhanceModelManager {
     }
 
     private fun ceilDiv(value: Int, divisor: Int) = (value + divisor - 1) / divisor
+
+    private const val CHECK_BLOCK = 32
+    private const val MAX_BLOCK_MEAN_DIFF = 16f
+
+    /**
+     * Remet l'original dans les blocs 32×32 où le débruitage s'écarte trop de l'entrée (écart
+     * moyen > 16 niveaux), ainsi que leurs voisins immédiats. Renvoie le nombre de blocs fautifs.
+     */
+    internal fun repairAberrantBlocks(original: Bitmap, denoised: Bitmap): Int {
+        val width = min(original.width, denoised.width)
+        val height = min(original.height, denoised.height)
+        val blocksX = ceilDiv(width, CHECK_BLOCK)
+        val blocksY = ceilDiv(height, CHECK_BLOCK)
+        val bad = BooleanArray(blocksX * blocksY)
+        val rowA = IntArray(width * CHECK_BLOCK)
+        val rowB = IntArray(width * CHECK_BLOCK)
+        var badCount = 0
+        for (by in 0 until blocksY) {
+            val y0 = by * CHECK_BLOCK
+            val rows = min(CHECK_BLOCK, height - y0)
+            original.getPixels(rowA, 0, width, 0, y0, width, rows)
+            denoised.getPixels(rowB, 0, width, 0, y0, width, rows)
+            for (bx in 0 until blocksX) {
+                val x0 = bx * CHECK_BLOCK
+                val cols = min(CHECK_BLOCK, width - x0)
+                var sum = 0L
+                for (r in 0 until rows) {
+                    val base = r * width + x0
+                    for (c in 0 until cols) {
+                        val a = rowA[base + c]
+                        val b = rowB[base + c]
+                        sum += kotlin.math.abs(((a shr 16) and 0xFF) - ((b shr 16) and 0xFF)) +
+                            kotlin.math.abs(((a shr 8) and 0xFF) - ((b shr 8) and 0xFF)) +
+                            kotlin.math.abs((a and 0xFF) - (b and 0xFF))
+                    }
+                }
+                val mean = sum.toFloat() / (3f * rows * cols)
+                if (mean > MAX_BLOCK_MEAN_DIFF) {
+                    bad[by * blocksX + bx] = true
+                    badCount++
+                }
+            }
+        }
+        if (badCount == 0) return 0
+        val patch = IntArray(CHECK_BLOCK * CHECK_BLOCK)
+        for (by in 0 until blocksY) {
+            for (bx in 0 until blocksX) {
+                // Bloc fautif ou voisin d'un bloc fautif.
+                var restore = false
+                for (dy in -1..1) for (dx in -1..1) {
+                    val nx = bx + dx
+                    val ny = by + dy
+                    if (nx in 0 until blocksX && ny in 0 until blocksY && bad[ny * blocksX + nx]) restore = true
+                }
+                if (!restore) continue
+                val x0 = bx * CHECK_BLOCK
+                val y0 = by * CHECK_BLOCK
+                val cols = min(CHECK_BLOCK, width - x0)
+                val rows = min(CHECK_BLOCK, height - y0)
+                original.getPixels(patch, 0, cols, x0, y0, cols, rows)
+                denoised.setPixels(patch, 0, cols, x0, y0, cols, rows)
+            }
+        }
+        return badCount
+    }
 }

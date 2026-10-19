@@ -4124,7 +4124,9 @@ object GalleryManager {
      */
     // Durée maximum pendant laquelle une photo reste « en traitement » pour l'IA, quoi qu'il arrive
     // (l'inférence native ne peut pas être interrompue ; un résultat plus tardif est ignoré).
-    private const val AI_ENHANCE_DEADLINE_MS = 60_000L
+    // 90 s : laisse finir deux photos IA prises coup sur coup (la 2e attend la 1re, ~40 s chacune
+    // avec débruitage GPU + visages, mesuré build 191).
+    private const val AI_ENHANCE_DEADLINE_MS = 90_000L
     const val AI_ENHANCE_NOTE_PROPERTY = "lielu_ai_enhance"
 
     /** Réglages de l'export automatique reporté après l'IA. */
