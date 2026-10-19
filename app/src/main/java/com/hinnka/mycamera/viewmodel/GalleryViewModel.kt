@@ -1082,10 +1082,36 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         checkGalleryPermission()
         if (!hasGalleryPermission) return
         lastExportPruneAt = now
-        val removed = GalleryManager.pruneDeletedExports(getApplication())
+        val scan = GalleryManager.scanDeletedExports(getApplication())
+        when {
+            scan.photoIds.isEmpty() -> Unit
+            scan.needsConfirmation -> pendingExportPruneIds = scan.photoIds
+            else -> removePrunedPhotos(scan.photoIds)
+        }
+    }
+
+    private suspend fun removePrunedPhotos(photoIds: List<String>) {
+        val removed = GalleryManager.deletePhotosOnly(getApplication(), photoIds)
         if (removed.isNotEmpty()) {
             removePhotonPhotosFromState(removed.toSet())
         }
+    }
+
+    /** 大量导出文件同时消失时，等待用户确认后才同步删除。 */
+    var pendingExportPruneIds by mutableStateOf<List<String>>(emptyList())
+        private set
+
+    fun confirmExportPrune() {
+        val ids = pendingExportPruneIds
+        pendingExportPruneIds = emptyList()
+        viewModelScope.launch {
+            removePrunedPhotos(ids)
+            loadPhotosInternal()
+        }
+    }
+
+    fun dismissExportPrune() {
+        pendingExportPruneIds = emptyList()
     }
 
     private fun mergeProcessingPhotos(currentId: String? = getCurrentPhoto()?.id) {

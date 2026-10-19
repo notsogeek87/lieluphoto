@@ -706,6 +706,28 @@ fun GalleryScreen(
             textContentColor = Color.White
         )
     }
+
+    val pendingPruneCount = viewModel.pendingExportPruneIds.size
+    if (pendingPruneCount > 0) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissExportPrune() },
+            title = { Text(stringResource(R.string.export_prune_title)) },
+            text = { Text(stringResource(R.string.export_prune_message, pendingPruneCount)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmExportPrune() }) {
+                    Text(stringResource(R.string.delete), color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissExportPrune() }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+            containerColor = Color(0xFF2D2D2D),
+            titleContentColor = Color.White,
+            textContentColor = Color.White
+        )
+    }
 }
 
 @Composable

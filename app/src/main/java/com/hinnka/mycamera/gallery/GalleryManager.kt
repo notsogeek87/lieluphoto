@@ -5351,11 +5351,12 @@ object GalleryManager {
     /**
      * 删除“所有导出文件都已从系统相册消失”的应用内照片（含 RAW 负片）。
      * 只在能明确确认文件不存在时才删除；未导出过、状态未知、刚导出的照片一律保留。
-     * 若 5 张以上的候选照片全部缺失，视为系统相册不可读（权限/存储卷异常），整体放弃。
-     *
-     * @return 被删除的照片 ID
+     * 若 5 张以上的候选照片全部缺失，可能是系统相册不可读（权限/存储卷异常），
+     * 此时不直接删除，而是标记为 [ExportPruneScan.needsConfirmation] 交由用户确认。
      */
-    suspend fun pruneDeletedExports(context: Context): List<String> = withContext(Dispatchers.IO) {
+    data class ExportPruneScan(val photoIds: List<String>, val needsConfirmation: Boolean)
+
+    suspend fun scanDeletedExports(context: Context): ExportPruneScan = withContext(Dispatchers.IO) {
         val recentThreshold = System.currentTimeMillis() - PRUNE_MIN_AGE_MS
         val processingIds = processingPhotos.value.keys
         val missing = mutableListOf<String>()
@@ -5373,16 +5374,17 @@ object GalleryManager {
             if (states.all { it == ExportUriState.MISSING }) missing.add(photoId)
         }
 
-        if (missing.isEmpty()) return@withContext emptyList()
-        if (checked >= PRUNE_MASS_GUARD_MIN && missing.size == checked) {
-            PLog.w(TAG, "pruneDeletedExports: all $checked exported photos look missing, skipping")
-            return@withContext emptyList()
-        }
-
-        missing.filter { deletePhoto(context, it) }.also {
-            PLog.d(TAG, "pruneDeletedExports: removed ${it.size} photos whose exports were deleted")
-        }
+        ExportPruneScan(
+            photoIds = missing,
+            needsConfirmation = checked >= PRUNE_MASS_GUARD_MIN && missing.size == checked
+        )
     }
+
+    /** 删除应用内照片（不触碰系统相册），返回实际删除的 ID。 */
+    suspend fun deletePhotosOnly(context: Context, photoIds: List<String>): List<String> =
+        photoIds.filter { deletePhoto(context, it) }.also {
+            PLog.d(TAG, "deletePhotosOnly: removed ${it.size}/${photoIds.size} photos")
+        }
 
     /**
      * 仅删除应用内部的照片，不删除系统相册中的导出照片
