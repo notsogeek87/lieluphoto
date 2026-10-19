@@ -114,6 +114,47 @@ object AiEnhanceModelManager {
     private val facesBusy = java.util.concurrent.atomic.AtomicBoolean(false)
     private const val DENOISE_TIMEOUT_MS = 45_000L
     private const val FACES_TIMEOUT_MS = 30_000L
+    private const val SKIP_DENOISE_MAX_ISO = 200
+    private const val DENOISER_IDLE_RELEASE_MS = 90_000L
+
+    // NAFNet gardé chargé entre deux photos proches (chargement + délégué GPU ≈ 1 à 2 s).
+    // Utilisé uniquement sous inferenceMutex.
+    private var cachedDenoiser: DnCNNDenoiseEstimator? = null
+    private var cachedDenoiserPath: String? = null
+    private var denoiserReleaseJob: Job? = null
+
+    private fun acquireDenoiser(context: Context, modelFile: File): DnCNNDenoiseEstimator {
+        denoiserReleaseJob?.cancel()
+        cachedDenoiser?.takeIf { cachedDenoiserPath == modelFile.absolutePath }?.let { return it }
+        cachedDenoiser?.close()
+        return DnCNNDenoiseEstimator(
+            context = context,
+            modelFile = modelFile,
+            tileOverlap = TILE_OVERLAP,
+        ).also {
+            cachedDenoiser = it
+            cachedDenoiserPath = modelFile.absolutePath
+        }
+    }
+
+    private fun releaseDenoiserLater() {
+        denoiserReleaseJob?.cancel()
+        denoiserReleaseJob = scope.launch {
+            kotlinx.coroutines.delay(DENOISER_IDLE_RELEASE_MS)
+            inferenceMutex.lock()
+            try {
+                releaseDenoiser()
+            } finally {
+                inferenceMutex.unlock()
+            }
+        }
+    }
+
+    private fun releaseDenoiser() {
+        cachedDenoiser?.close()
+        cachedDenoiser = null
+        cachedDenoiserPath = null
+    }
 
     fun observe(context: Context, model: AiModel): StateFlow<AiEnhanceModelState> {
         initialize(context.applicationContext)
@@ -169,6 +210,17 @@ object AiEnhanceModelManager {
         val appContext = context.applicationContext
         synchronized(lock) {
             if (downloadJobs[model]?.isActive == true) return
+            if (model == AiModel.FACES) FaceRestorer.releaseNow()
+            if (model == AiModel.DENOISE) {
+                scope.launch {
+                    inferenceMutex.lock()
+                    try {
+                        releaseDenoiser()
+                    } finally {
+                        inferenceMutex.unlock()
+                    }
+                }
+            }
             modelDirectory(appContext, model).deleteRecursively()
             states.getValue(model).value = AiEnhanceModelState.Missing
         }
@@ -250,8 +302,11 @@ object AiEnhanceModelManager {
         }.getOrNull() ?: return bitmap
         if (!preferences.aiEnhanceEnabled) return bitmap
         val choice = AiEnhanceChoice.fromPersisted(preferences.aiEnhanceModel)
+        // Scène lumineuse (ISO ≤ 200) : presque pas de bruit, le débruitage n'y apporte presque
+        // rien et coûte le plus de temps ; seuls les visages sont traités.
+        val denoiseUseful = iso == null || iso > SKIP_DENOISE_MAX_ISO
         val denoiseModel = installedModelFileOrNull(appContext, AiModel.DENOISE)
-            ?.takeIf { denoise && AiModel.DENOISE in choice.models }
+            ?.takeIf { denoise && denoiseUseful && AiModel.DENOISE in choice.models }
         val facesModel = installedModelFileOrNull(appContext, AiModel.FACES)
             ?.takeIf { AiModel.FACES in choice.models }
         if (denoiseModel == null && facesModel == null) return bitmap
@@ -302,7 +357,7 @@ object AiEnhanceModelManager {
             } finally {
                 facesBusy.set(false)
             }
-        }, "face-restorer").apply { isDaemon = true; priority = Thread.MIN_PRIORITY }
+        }, "face-restorer").apply { isDaemon = true }
         worker.start()
         return withTimeoutOrNull(FACES_TIMEOUT_MS) { result.await() } ?: run {
             PLog.w(TAG, "Face restoration timed out after ${FACES_TIMEOUT_MS}ms, photo kept as is")
@@ -313,12 +368,8 @@ object AiEnhanceModelManager {
     }
 
     private suspend fun denoise(context: Context, modelFile: File, bitmap: Bitmap, iso: Int?): Bitmap {
-        val estimator = DnCNNDenoiseEstimator(
-            context = context,
-            modelFile = modelFile,
-            tileOverlap = TILE_OVERLAP,
-        )
         return try {
+            val estimator = acquireDenoiser(context, modelFile)
             val input = if (bitmap.config == Bitmap.Config.ARGB_8888) {
                 bitmap
             } else {
@@ -330,9 +381,10 @@ object AiEnhanceModelManager {
             enhanced ?: bitmap
         } catch (e: Throwable) {
             PLog.e(TAG, "AI denoise failed, keeping the original photo", e)
+            releaseDenoiser()
             bitmap
         } finally {
-            estimator.close()
+            releaseDenoiserLater()
         }
     }
 }

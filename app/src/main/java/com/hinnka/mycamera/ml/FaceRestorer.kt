@@ -72,12 +72,12 @@ internal object FaceRestorer {
             PLog.d(TAG, "No face to restore")
             return bitmap
         }
-        val interpreter = createInterpreter(modelFile) ?: run {
+        val interpreter = acquireInterpreter(modelFile) ?: run {
             if (source !== bitmap) source.recycle()
             return bitmap
         }
         val output = source.copy(Bitmap.Config.ARGB_8888, true) ?: run {
-            interpreter.close()
+            releaseInterpreterLater()
             if (source !== bitmap) source.recycle()
             return bitmap
         }
@@ -94,7 +94,7 @@ internal object FaceRestorer {
                 )
             }
         } finally {
-            interpreter.close()
+            releaseInterpreterLater()
             if (source !== bitmap) source.recycle()
         }
         return output
@@ -169,13 +169,69 @@ internal object FaceRestorer {
         }
     }
 
+    // Charger GFPGAN (431 Mo) coûte plusieurs secondes : on le garde entre deux photos proches,
+    // puis on libère la mémoire après IDLE_RELEASE_MS sans photo.
+    private const val IDLE_RELEASE_MS = 90_000L
+    private val cacheLock = Any()
+    private var cachedInterpreter: LoadedInterpreter? = null
+    private var cachedModelPath: String? = null
+    private var releaseTimer: java.util.Timer? = null
+    private var interpreterInUse = false
+    private var closeAfterUse = false
+
+    private fun acquireInterpreter(modelFile: File): LoadedInterpreter? = synchronized(cacheLock) {
+        releaseTimer?.cancel()
+        releaseTimer = null
+        if (interpreterInUse) return@synchronized null
+        val reused = cachedInterpreter?.takeIf { cachedModelPath == modelFile.absolutePath }
+        val interpreter = reused ?: run {
+            cachedInterpreter?.close()
+            createInterpreter(modelFile).also {
+                cachedInterpreter = it
+                cachedModelPath = modelFile.absolutePath.takeIf { _ -> it != null }
+            }
+        }
+        interpreterInUse = interpreter != null
+        closeAfterUse = false
+        interpreter
+    }
+
+    private fun releaseInterpreterLater(): Unit = synchronized(cacheLock) {
+        interpreterInUse = false
+        if (closeAfterUse) {
+            releaseNow()
+            return@synchronized
+        }
+        releaseTimer?.cancel()
+        releaseTimer = java.util.Timer("gfpgan-release", true).apply {
+            schedule(object : java.util.TimerTask() {
+                override fun run() = releaseNow()
+            }, IDLE_RELEASE_MS)
+        }
+    }
+
+    /** Libère GFPGAN tout de suite (modèle supprimé, ou délai d'inactivité écoulé). */
+    fun releaseNow(): Unit = synchronized(cacheLock) {
+        releaseTimer?.cancel()
+        releaseTimer = null
+        if (interpreterInUse) {
+            // Inférence en cours : fermeture dès qu'elle se termine.
+            closeAfterUse = true
+            return@synchronized
+        }
+        cachedInterpreter?.close()
+        cachedInterpreter = null
+        cachedModelPath = null
+    }
+
     private fun createInterpreter(modelFile: File): LoadedInterpreter? {
         val model = RandomAccessFile(modelFile, "r").use { file ->
             file.channel.map(FileChannel.MapMode.READ_ONLY, 0, file.length())
         }
         return try {
             val options = Interpreter.Options().apply {
-                setNumThreads(Runtime.getRuntime().availableProcessors().coerceIn(1, 8))
+                // 4 fils : les cœurs rapides ; au-delà, les cœurs lents ralentissent l'ensemble.
+                setNumThreads(Runtime.getRuntime().availableProcessors().coerceIn(1, 4))
                 setUseXNNPACK(true)
             }
             LoadedInterpreter(Interpreter(model, options), "CPU", null)
