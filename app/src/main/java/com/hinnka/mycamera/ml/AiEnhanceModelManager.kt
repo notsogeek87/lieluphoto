@@ -318,8 +318,13 @@ object AiEnhanceModelManager {
             denoiseModel == null -> "bruit non (modèle absent)"
             else -> null
         }
+        val skippedFaces = when {
+            AiModel.FACES !in choice.models -> "visages non choisis"
+            facesModel == null -> "visages modèle absent"
+            else -> null
+        }
         if (denoiseModel == null && facesModel == null) {
-            onReport("IA[${skippedDenoise ?: "modèle absent"}]")
+            onReport("IA[${listOfNotNull(skippedDenoise, skippedFaces).joinToString(", ").ifEmpty { "rien" }}]")
             return bitmap
         }
         // Jamais d'attente derrière une autre photo : si l'IA est déjà occupée, on enregistre
@@ -335,6 +340,7 @@ object AiEnhanceModelManager {
             val started = System.currentTimeMillis()
             val steps = mutableListOf<String>()
             skippedDenoise?.let(steps::add)
+            skippedFaces?.let(steps::add)
             if (denoiseModel != null) {
                 val stepStart = System.currentTimeMillis()
                 val denoised = withTimeoutOrNull(DENOISE_TIMEOUT_MS) {
