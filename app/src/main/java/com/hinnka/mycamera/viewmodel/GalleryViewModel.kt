@@ -3887,6 +3887,23 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                         metadata = success
                     )
                     photoRefreshKeys[targetPhotoId] = System.currentTimeMillis()
+
+                    if (!photo.isVideo && !wasSystemPhoto &&
+                        contentRepository.userPreferencesRepository.userPreferences
+                            .firstOrNull()?.updateExportAfterEdit != false
+                    ) {
+                        GalleryManager.updateExportedPhoto(
+                            context = context,
+                            id = targetPhotoId,
+                            photoProcessor = contentRepository.photoProcessor,
+                            metadata = success,
+                            photoQuality = photoQuality.firstOrNull() ?: 95,
+                        )
+                        // exportedUris a changé : recharger les métadonnées en mémoire
+                        GalleryManager.loadMetadata(context, targetPhotoId)?.let { refreshed ->
+                            applyPhotoMetadataUpdateToMemory(targetPhotoId, refreshed)
+                        }
+                    }
                 }
                 onComplete(success != null)
             } catch (e: Exception) {

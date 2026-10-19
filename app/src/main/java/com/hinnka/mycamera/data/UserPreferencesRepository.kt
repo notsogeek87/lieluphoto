@@ -180,6 +180,7 @@ data class UserPreferences(
     val windowScreenBrightness: Float? = null,  // Activity 窗口屏幕亮度，null 表示使用系统默认
     val volumeKeyAction: VolumeKeyAction = VolumeKeyAction.CAPTURE,  // 音量键操作
     val autoSaveAfterCapture: Boolean = true,  // 自动保存
+    val updateExportAfterEdit: Boolean = true,  // 编辑后更新已导出到系统相册的照片
     // Amélioration IA (NAFNet) des photos en faible lumière, si le modèle est téléchargé.
     val aiEnhanceEnabled: Boolean = false,
     val aiEnhanceModel: String = "DENOISE",
@@ -447,6 +448,7 @@ class UserPreferencesRepository(private val context: Context) {
         private val WINDOW_SCREEN_BRIGHTNESS = floatPreferencesKey("window_screen_brightness")
         private val VOLUME_KEY_ACTION = stringPreferencesKey("volume_key_action")
         private val AUTO_SAVE_AFTER_CAPTURE = booleanPreferencesKey("auto_save_after_capture")
+        private val UPDATE_EXPORT_AFTER_EDIT = booleanPreferencesKey("update_export_after_edit")
         private val AI_ENHANCE_ENABLED = booleanPreferencesKey("ai_enhance_enabled")
         private val AI_ENHANCE_MODEL = stringPreferencesKey("ai_enhance_model")
         private val PHOTO_SAVE_PATH = stringPreferencesKey("photo_save_path")
@@ -769,6 +771,7 @@ class UserPreferencesRepository(private val context: Context) {
                     preferences[VOLUME_KEY_ACTION] ?: VolumeKeyAction.CAPTURE.name
                 ),
                 autoSaveAfterCapture = preferences[AUTO_SAVE_AFTER_CAPTURE] ?: true,
+                updateExportAfterEdit = preferences[UPDATE_EXPORT_AFTER_EDIT] ?: true,
                 aiEnhanceEnabled = preferences[AI_ENHANCE_ENABLED] ?: false,
                 aiEnhanceModel = preferences[AI_ENHANCE_MODEL] ?: "DENOISE",
                 photoSavePath = PhotoSavePath.fromPersistedName(preferences[PHOTO_SAVE_PATH]),
@@ -1767,6 +1770,12 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun saveAutoSaveAfterCapture(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[AUTO_SAVE_AFTER_CAPTURE] = enabled
+        }
+    }
+
+    suspend fun saveUpdateExportAfterEdit(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[UPDATE_EXPORT_AFTER_EDIT] = enabled
         }
     }
 

@@ -1673,6 +1673,66 @@ object GalleryManager {
         }
     }
 
+    private fun isExportedImageUri(context: Context, uriString: String): Boolean {
+        return runCatching {
+            val type = context.contentResolver.getType(Uri.parse(uriString))
+            type == "image/jpeg" || type == "image/heic" || type == "image/heif"
+        }.getOrDefault(false)
+    }
+
+    private fun deleteExportedUri(context: Context, uri: Uri): Boolean {
+        return runCatching {
+            if (DocumentsContract.isDocumentUri(context, uri)) {
+                DocumentsContract.deleteDocument(context.contentResolver, uri)
+            } else {
+                context.contentResolver.delete(uri, null, null) > 0
+            }
+        }.onFailure {
+            PLog.w(TAG, "Failed to delete previous export URI $uri: ${it.message}")
+        }.getOrDefault(false)
+    }
+
+    /**
+     * 编辑保存后，用最新效果替换此前已导出到系统相册的图片（JPEG/HEIC）。
+     * DNG 与实况视频等其他导出文件保持不变。若从未导出过（或已被用户从相册删除）则不做任何事。
+     */
+    suspend fun updateExportedPhoto(
+        context: Context,
+        id: String,
+        photoProcessor: PhotoProcessor,
+        metadata: MediaMetadata,
+        photoQuality: Int = 95,
+    ): Boolean {
+        return withContext(Dispatchers.IO) {
+            val previousImageUris = loadMetadata(context, id)
+                ?.exportedUris
+                .orEmpty()
+                .filter { isExportedImageUri(context, it) }
+            if (previousImageUris.isEmpty()) return@withContext false
+
+            val exported = exportPhoto(
+                context = context,
+                id = id,
+                photoProcessor = photoProcessor,
+                metadata = metadata,
+                sharpeningValue = 0f,
+                noiseReductionValue = 0f,
+                chromaNoiseReductionValue = 0f,
+                photoQuality = photoQuality,
+            )
+            if (!exported) return@withContext false
+
+            val deleted = previousImageUris.filter { deleteExportedUri(context, Uri.parse(it)) }
+            if (deleted.isNotEmpty()) {
+                updateMetadata(context, id) { current ->
+                    current.copy(exportedUris = current.exportedUris - deleted.toSet())
+                }
+            }
+            PLog.d(TAG, "Updated exported photo for $id, replaced ${deleted.size}/${previousImageUris.size} files")
+            true
+        }
+    }
+
     private suspend fun exportBitmapToMediaStore(
         context: Context,
         id: String,

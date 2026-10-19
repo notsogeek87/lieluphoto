@@ -121,6 +121,8 @@
     <string name="settings_volume_key_action_zoom">Changement de focus</string>
     <string name="settings_auto_save">Enregistrement automatique</string>
     <string name="settings_auto_save_description">Enregistrer automatiquement les photos après la capture</string>
+    <string name="settings_update_export_after_edit">Mettre à jour la galerie du téléphone après modification</string>
+    <string name="settings_update_export_after_edit_description">À l\'enregistrement d\'une modification, remplace la photo déjà exportée dans la galerie du téléphone par la version modifiée</string>
     <string name="settings_nr_level">Niveau de réduction de bruit</string>
     <string name="settings_nr_level_description">Ajuster le mode de réduction de bruit matériel. \"Désactivé\" peut être utilisé avec des algorithmes de réduction de bruit multi-images pour obtenir davantage de détails.</string>
     <string name="settings_nr_level_off">Désactivé</string>

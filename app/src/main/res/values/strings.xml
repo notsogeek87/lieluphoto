@@ -389,6 +389,8 @@
     <string name="settings_storage_path_permission_failed">Failed to save folder permission</string>
     <string name="settings_auto_save">Auto Save</string>
     <string name="settings_auto_save_description">Automatically save photos after capture</string>
+    <string name="settings_update_export_after_edit">Update phone gallery after edit</string>
+    <string name="settings_update_export_after_edit_description">When you save an edit, replace the photo already exported to the phone gallery with the edited version</string>
     <string name="settings_save_location">Save Location</string>
     <string name="settings_save_location_description">Save location info (GPS) in photo metadata</string>
     <string name="settings_nr_level">Noise Reduction Level</string>

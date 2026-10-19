@@ -340,6 +340,7 @@ fun SettingsScreen(
     val customAspectRatios by viewModel.customAspectRatios.collectAsState()
     val availablePhotoAspectRatios by viewModel.availablePhotoAspectRatios.collectAsState()
     val autoSaveAfterCapture by viewModel.autoSaveAfterCapture.collectAsState(initial = true)
+    val updateExportAfterEdit by viewModel.updateExportAfterEdit.collectAsState(initial = true)
     val nrLevel by viewModel.nrLevel.collectAsState(initial = NoiseReductionLevel.DEFAULT)
     val edgeLevel by viewModel.edgeLevel.collectAsState(initial = 1)
     val vendorCaptureSettingsByLens by viewModel.vendorCaptureSettingsByLens.collectAsState()
@@ -1627,6 +1628,18 @@ fun SettingsScreen(
                             description = stringResource(R.string.settings_auto_save_description),
                             checked = autoSaveAfterCapture,
                             onCheckedChange = { viewModel.setAutoSaveAfterCapture(it) }
+                        )
+
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+
+                        SwitchSettingItem(
+                            title = stringResource(R.string.settings_update_export_after_edit),
+                            description = stringResource(R.string.settings_update_export_after_edit_description),
+                            checked = updateExportAfterEdit,
+                            onCheckedChange = { viewModel.setUpdateExportAfterEdit(it) }
                         )
 
                         HorizontalDivider(
