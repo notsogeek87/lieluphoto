@@ -387,7 +387,9 @@ data class CameraState(
     val hdrPlusShortFrameExposureEv: Float = MultiFrameConfig.DEFAULT_SHORT_FRAME_EXPOSURE_EV,
     val useRaw: Boolean = false,
     // RAW automatique et invisible (pas de mode Pro) : objectif arrière en Photo/Portrait.
-    val autoRawCapture: Boolean = true,
+    // Coupé : la fusion RAW donnait des photos floues à main levée (visage compris, IA ou non) ;
+    // l'arrière repasse par le JPG Max YUV, mesuré net (build 155).
+    val autoRawCapture: Boolean = false,
     // Mode Nuit : pose allongée + éclaircissement quand la scène est sombre (non persistant).
     val nightMode: Boolean = false,
     // Dernier réglage appliqué par le mode Nuit (texte d'info affiché après la prise) et compteur.
