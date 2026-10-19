@@ -308,8 +308,8 @@ internal fun resolveEffectiveUseJpgMax(
     useMultipleExposure: Boolean,
 ): Boolean = (userJpgMax || nightMode || !useLivePhoto) && !useMultipleExposure
 
-/** RAW Max automatique : au moins 6 images RAW fusionnées (réglage « HDR+ » s'il est plus haut). */
-internal const val AUTO_RAW_FRAME_COUNT = 6
+/** RAW Max automatique : au moins 4 images RAW fusionnées (réglage « HDR+ » s'il est plus haut). */
+internal const val AUTO_RAW_FRAME_COUNT = 4
 
 internal fun resolveAutoRawFrameCount(userFrameCount: Int): Int =
     maxOf(userFrameCount, AUTO_RAW_FRAME_COUNT)
