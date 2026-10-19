@@ -18,7 +18,9 @@ import kotlin.math.roundToInt
  */
 internal object AiSharpener {
     private const val SIGMA = 1.2f
-    private const val AMOUNT = 0.8f
+    // 1,3 (au lieu de 0,8) : build 202, visage 97 contre 148 chez Samsung ; 1,3 vise ~160, sans halo
+    // ni grain visible sur la peau (vérifié sur le selfie à lunettes).
+    private const val AMOUNT = 1.3f
     private const val THRESHOLD_LOW = 2f
     private const val THRESHOLD_HIGH = 6f
     private const val MAX_DELTA = 24f

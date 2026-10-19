@@ -116,6 +116,7 @@ object AiEnhanceModelManager {
     private const val DENOISE_TIMEOUT_MS = 45_000L
     private const val FACES_TIMEOUT_MS = 30_000L
     private const val SKIP_DENOISE_MAX_ISO = 200
+    private const val DENOISE_ENABLED = false
     private const val DENOISER_IDLE_RELEASE_MS = 90_000L
 
     // NAFNet en pleine résolution : ~220 tuiles pour 10 Mpx (0,2 s par tuile sur un PC à 4 cœurs,
@@ -321,12 +322,16 @@ object AiEnhanceModelManager {
         // Scène très lumineuse (ISO ≤ 200) : presque pas de bruit, débruitage inutile.
         // Au-delà, il ne tourne que si le téléphone le fait dans le budget (voir denoise()).
         val denoiseUseful = iso == null || iso > SKIP_DENOISE_MAX_ISO
+        // Débruitage NAFNet désactivé : sur le GPU du Fold il laisse des tuiles en damier (38 blocs
+        // aberrants sur un selfie, build 202, et d'autres trop discrets pour être détectés) et il
+        // ramollit le visage (netteté 49 contre 97 sans lui). Le rendu de l'app débruite déjà.
         val denoiseModel = installedModelFileOrNull(appContext, AiModel.DENOISE)
-            ?.takeIf { denoise && denoiseUseful && AiModel.DENOISE in choice.models }
+            ?.takeIf { DENOISE_ENABLED && denoise && denoiseUseful && AiModel.DENOISE in choice.models }
         val facesModel = installedModelFileOrNull(appContext, AiModel.FACES)
             ?.takeIf { AiModel.FACES in choice.models }
         val skippedDenoise = when {
             AiModel.DENOISE !in choice.models -> null
+            !DENOISE_ENABLED -> "bruit desactive"
             !denoise -> "bruit non (RAW)"
             !denoiseUseful -> "bruit non (ISO $iso)"
             denoiseModel == null -> "bruit non (modèle absent)"
