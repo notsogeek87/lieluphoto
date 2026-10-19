@@ -2246,13 +2246,18 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                         withContext(Dispatchers.IO) {
                             shotSettings.livePhotoVideo?.await()?.first?.delete()
                         }
-                        shotSettings.processingFinished = true
-                        publishCapturedThumbnail(shotSettings)
-                        // Amélioration IA après coup : n'allonge pas le traitement des photos suivantes.
                         if (aiPending) {
+                            // Amélioration IA après coup : n'allonge pas le traitement des photos
+                            // suivantes ; la vignette reste « en traitement » jusqu'à la fin.
                             GalleryManager.enhanceSavedPhotoInBackground(
                                 getApplication(), shotSettings.photoId, contentRepository.photoProcessor
-                            )
+                            ) {
+                                shotSettings.processingFinished = true
+                                publishCapturedThumbnail(shotSettings)
+                            }
+                        } else {
+                            shotSettings.processingFinished = true
+                            publishCapturedThumbnail(shotSettings)
                         }
                     }
                 }

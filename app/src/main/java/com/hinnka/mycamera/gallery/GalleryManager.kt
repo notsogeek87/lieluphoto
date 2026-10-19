@@ -4122,7 +4122,12 @@ object GalleryManager {
      * tard (ai_denoise.jpg, déjà utilisée par l'export et les retouches). Ne bloque jamais la file
      * de traitement des photos suivantes.
      */
-    fun enhanceSavedPhotoInBackground(context: Context, photoId: String, photoProcessor: PhotoProcessor) {
+    fun enhanceSavedPhotoInBackground(
+        context: Context,
+        photoId: String,
+        photoProcessor: PhotoProcessor,
+        onFinished: () -> Unit = {},
+    ) {
         val appContext = context.applicationContext
         aiEnhanceScope.launch {
             try {
@@ -4167,6 +4172,7 @@ object GalleryManager {
             } finally {
                 // Retire le filigrane « traitement en cours », quoi qu'il arrive.
                 finishProcessingPhoto(appContext, photoId, true)
+                onFinished()
             }
         }
     }

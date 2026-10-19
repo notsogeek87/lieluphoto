@@ -637,6 +637,7 @@ fun GalleryDetailScreen(
                     if (photo != null) {
                         val processingPhoto = processingPhotos[photo.id]
                         val waitingForImage = processingPhoto != null && !processingPhoto.isDisplayReady
+                    Box(modifier = Modifier.fillMaxSize()) {
                         key(photo.id, waitingForImage) {
                             if (processingPhoto != null && waitingForImage) {
                                 ProcessingPhotoPreview(processingPhoto, Modifier.fillMaxSize())
@@ -739,6 +740,16 @@ fun GalleryDetailScreen(
                                 }
                             }
                         }
+                        if (processingPhoto != null && !waitingForImage) {
+                            Text(
+                                text = stringResource(R.string.gallery_photo_processing),
+                                color = Color.White.copy(alpha = 0.86f),
+                                modifier = Modifier.align(Alignment.BottomCenter).padding(24.dp)
+                                    .background(Color.Black.copy(alpha = 0.58f), RoundedCornerShape(50))
+                                    .padding(horizontal = 16.dp, vertical = 9.dp)
+                            )
+                        }
+                    }
                     }
                 }
             }
