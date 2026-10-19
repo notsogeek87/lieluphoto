@@ -4122,6 +4122,10 @@ object GalleryManager {
      * tard (ai_denoise.jpg, déjà utilisée par l'export et les retouches). Ne bloque jamais la file
      * de traitement des photos suivantes.
      */
+    // Durée maximum pendant laquelle une photo reste « en traitement » pour l'IA, quoi qu'il arrive
+    // (l'inférence native ne peut pas être interrompue ; un résultat plus tardif est ignoré).
+    private const val AI_ENHANCE_DEADLINE_MS = 60_000L
+
     fun enhanceSavedPhotoInBackground(
         context: Context,
         photoId: String,
@@ -4129,6 +4133,18 @@ object GalleryManager {
         onFinished: () -> Unit = {},
     ) {
         val appContext = context.applicationContext
+        val finished = java.util.concurrent.atomic.AtomicBoolean(false)
+        suspend fun finish() {
+            if (!finished.compareAndSet(false, true)) return
+            // Retire le filigrane « traitement en cours ».
+            finishProcessingPhoto(appContext, photoId, true)
+            onFinished()
+        }
+        val watchdog = aiEnhanceScope.launch {
+            delay(AI_ENHANCE_DEADLINE_MS)
+            PLog.w(TAG, "AI enhance deadline reached, photo kept as is: $photoId")
+            finish()
+        }
         aiEnhanceScope.launch {
             try {
                 val metadata = loadMetadata(appContext, photoId) ?: return@launch
@@ -4145,6 +4161,11 @@ object GalleryManager {
                     return@launch
                 }
                 source.recycle()
+                if (finished.get()) {
+                    // Trop tard : la photo a déjà été rendue à l'utilisateur telle quelle.
+                    enhanced.recycle()
+                    return@launch
+                }
                 val file = getAiDenoiseFile(appContext, photoId)
                 file.parentFile?.mkdirs()
                 val written = FileOutputStream(file).use { enhanced.compress(Bitmap.CompressFormat.JPEG, 95, it) }
@@ -4170,9 +4191,8 @@ object GalleryManager {
             } catch (e: Throwable) {
                 PLog.e(TAG, "Background AI enhance failed for $photoId", e)
             } finally {
-                // Retire le filigrane « traitement en cours », quoi qu'il arrive.
-                finishProcessingPhoto(appContext, photoId, true)
-                onFinished()
+                watchdog.cancel()
+                finish()
             }
         }
     }

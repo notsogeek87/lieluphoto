@@ -114,7 +114,7 @@ object AiEnhanceModelManager {
     private val facesBusy = java.util.concurrent.atomic.AtomicBoolean(false)
     private const val DENOISE_TIMEOUT_MS = 45_000L
     private const val FACES_TIMEOUT_MS = 30_000L
-    private const val SKIP_DENOISE_MAX_ISO = 200
+    private const val SKIP_DENOISE_MAX_ISO = 640
     private const val DENOISER_IDLE_RELEASE_MS = 90_000L
 
     // NAFNet gardé chargé entre deux photos proches (chargement + délégué GPU ≈ 1 à 2 s).
@@ -302,8 +302,8 @@ object AiEnhanceModelManager {
         }.getOrNull() ?: return bitmap
         if (!preferences.aiEnhanceEnabled) return bitmap
         val choice = AiEnhanceChoice.fromPersisted(preferences.aiEnhanceModel)
-        // Scène lumineuse (ISO ≤ 200) : presque pas de bruit, le débruitage n'y apporte presque
-        // rien et coûte le plus de temps ; seuls les visages sont traités.
+        // Le débruitage NAFNet est de loin le plus long (plusieurs minutes sur ~10 Mpx sans GPU) :
+        // réservé aux scènes sombres (ISO > 640) où il sert vraiment ; sinon visages seuls.
         val denoiseUseful = iso == null || iso > SKIP_DENOISE_MAX_ISO
         val denoiseModel = installedModelFileOrNull(appContext, AiModel.DENOISE)
             ?.takeIf { denoise && denoiseUseful && AiModel.DENOISE in choice.models }
