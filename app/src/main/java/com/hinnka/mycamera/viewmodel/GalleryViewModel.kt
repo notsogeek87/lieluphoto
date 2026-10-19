@@ -4037,7 +4037,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                 // 生成输出文件名（基于原始文件名加 _edit 后缀）
                 val baseName = photo.displayName
                     .substringBeforeLast(".")
-                    .ifBlank { "PhotonCamera_video" }
+                    .ifBlank { "video" }
                 val lutSuffix = lutId?.let {
                     contentRepository.lutManager.getLutInfo(it)?.getName() ?: ""
                 }?.let { if (it.isNotEmpty()) ".$it" else "" } ?: ""
