@@ -114,8 +114,17 @@ object AiEnhanceModelManager {
     private val facesBusy = java.util.concurrent.atomic.AtomicBoolean(false)
     private const val DENOISE_TIMEOUT_MS = 45_000L
     private const val FACES_TIMEOUT_MS = 30_000L
-    private const val SKIP_DENOISE_MAX_ISO = 640
+    private const val SKIP_DENOISE_MAX_ISO = 200
     private const val DENOISER_IDLE_RELEASE_MS = 90_000L
+
+    // NAFNet en pleine résolution : ~220 tuiles pour 10 Mpx (0,2 s par tuile sur un PC à 4 cœurs,
+    // bien plus sur le processeur d'un téléphone). Une version réduite ne retire pas le grain fin.
+    // On chronomètre donc une tuile et on ne débruite que si le total tient dans ce budget
+    // (délégué GPU rapide) ; sinon la photo garde son rendu et l'EXIF l'indique.
+    private const val DENOISE_BUDGET_MS = 30_000L
+    private const val DENOISE_TILE = 256
+    private const val DENOISE_TILE_STRIDE = DENOISE_TILE - 2 * TILE_OVERLAP
+    private var cachedDenoiserTileMs: Long? = null
 
     // NAFNet gardé chargé entre deux photos proches (chargement + délégué GPU ≈ 1 à 2 s).
     // Utilisé uniquement sous inferenceMutex.
@@ -127,6 +136,7 @@ object AiEnhanceModelManager {
         denoiserReleaseJob?.cancel()
         cachedDenoiser?.takeIf { cachedDenoiserPath == modelFile.absolutePath }?.let { return it }
         cachedDenoiser?.close()
+        cachedDenoiserTileMs = null
         return DnCNNDenoiseEstimator(
             context = context,
             modelFile = modelFile,
@@ -151,6 +161,7 @@ object AiEnhanceModelManager {
     }
 
     private fun releaseDenoiser() {
+        cachedDenoiserTileMs = null
         cachedDenoiser?.close()
         cachedDenoiser = null
         cachedDenoiserPath = null
@@ -304,8 +315,8 @@ object AiEnhanceModelManager {
         }.getOrNull() ?: return bitmap
         if (!preferences.aiEnhanceEnabled) return bitmap
         val choice = AiEnhanceChoice.fromPersisted(preferences.aiEnhanceModel)
-        // Le débruitage NAFNet est de loin le plus long (plusieurs minutes sur ~10 Mpx sans GPU) :
-        // réservé aux scènes sombres (ISO > 640) où il sert vraiment ; sinon visages seuls.
+        // Scène très lumineuse (ISO ≤ 200) : presque pas de bruit, débruitage inutile.
+        // Au-delà, il ne tourne que si le téléphone le fait dans le budget (voir denoise()).
         val denoiseUseful = iso == null || iso > SKIP_DENOISE_MAX_ISO
         val denoiseModel = installedModelFileOrNull(appContext, AiModel.DENOISE)
             ?.takeIf { denoise && denoiseUseful && AiModel.DENOISE in choice.models }
@@ -343,14 +354,15 @@ object AiEnhanceModelManager {
             skippedFaces?.let(steps::add)
             if (denoiseModel != null) {
                 val stepStart = System.currentTimeMillis()
+                var denoiseNote = "bruit délai dépassé"
                 val denoised = withTimeoutOrNull(DENOISE_TIMEOUT_MS) {
-                    denoise(appContext, denoiseModel, current, iso)
+                    denoise(appContext, denoiseModel, current, iso).also { denoiseNote = it.second }.first
                 } ?: run {
                     PLog.w(TAG, "AI denoise timed out, keeping the photo as is")
                     current
                 }
                 val seconds = "%.1f".format((System.currentTimeMillis() - stepStart) / 1000f)
-                steps += if (denoised !== current) "bruit ${seconds}s" else "bruit échec ${seconds}s"
+                steps += if (denoised !== current) "bruit ${seconds}s" else "$denoiseNote ${seconds}s"
                 if (denoised !== current && current !== bitmap) current.recycle()
                 current = denoised
             }
@@ -402,24 +414,67 @@ object AiEnhanceModelManager {
         }
     }
 
-    private suspend fun denoise(context: Context, modelFile: File, bitmap: Bitmap, iso: Int?): Bitmap {
+    /** Renvoie la photo débruitée (ou l'originale) et un court motif pour l'EXIF. */
+    private suspend fun denoise(
+        context: Context,
+        modelFile: File,
+        bitmap: Bitmap,
+        iso: Int?,
+    ): Pair<Bitmap, String> {
+        if (bitmap.width < DENOISE_TILE || bitmap.height < DENOISE_TILE) return bitmap to "bruit non (image trop petite)"
         return try {
             val estimator = acquireDenoiser(context, modelFile)
             val input = if (bitmap.config == Bitmap.Config.ARGB_8888) {
                 bitmap
             } else {
-                bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: return bitmap
+                bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: return bitmap to "bruit échec"
             }
-            val enhanced = estimator.denoisePatchwise(input, strength = aiEnhanceBlendStrength(iso))
-            if (input !== bitmap) input.recycle()
-            PLog.d(TAG, "AI denoise applied: iso=$iso ${bitmap.width}x${bitmap.height} ok=${enhanced != null}")
-            enhanced ?: bitmap
+            try {
+                val tiles = ceilDiv(input.width, DENOISE_TILE_STRIDE).toLong() *
+                    ceilDiv(input.height, DENOISE_TILE_STRIDE)
+                val tileMs = cachedDenoiserTileMs ?: measureDenoiseTileMs(estimator, input)?.also {
+                    cachedDenoiserTileMs = it
+                } ?: return bitmap to "bruit échec"
+                val estimatedMs = tileMs * tiles
+                if (estimatedMs > DENOISE_BUDGET_MS) {
+                    PLog.w(TAG, "AI denoise skipped: $tiles tiles × ${tileMs}ms ≈ ${estimatedMs}ms > budget")
+                    return bitmap to "bruit non (trop lent ~${estimatedMs / 1000}s)"
+                }
+                val enhanced = estimator.denoisePatchwise(input, strength = aiEnhanceBlendStrength(iso))
+                PLog.d(TAG, "AI denoise applied: iso=$iso ${bitmap.width}x${bitmap.height} ok=${enhanced != null}")
+                (enhanced ?: bitmap) to (if (enhanced != null) "bruit" else "bruit échec")
+            } finally {
+                if (input !== bitmap) input.recycle()
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Throwable) {
             PLog.e(TAG, "AI denoise failed, keeping the original photo", e)
             releaseDenoiser()
-            bitmap
+            bitmap to "bruit échec"
         } finally {
             releaseDenoiserLater()
         }
     }
+
+    // Une tuile au centre, deux fois : la première absorbe l'initialisation (compilation GPU).
+    private suspend fun measureDenoiseTileMs(estimator: DnCNNDenoiseEstimator, input: Bitmap): Long? {
+        val probe = Bitmap.createBitmap(
+            input,
+            (input.width - DENOISE_TILE) / 2,
+            (input.height - DENOISE_TILE) / 2,
+            DENOISE_TILE,
+            DENOISE_TILE,
+        )
+        return try {
+            estimator.denoise(probe)?.recycle() ?: return null
+            val start = android.os.SystemClock.elapsedRealtime()
+            estimator.denoise(probe)?.recycle() ?: return null
+            (android.os.SystemClock.elapsedRealtime() - start).coerceAtLeast(1L)
+        } finally {
+            probe.recycle()
+        }
+    }
+
+    private fun ceilDiv(value: Int, divisor: Int) = (value + divisor - 1) / divisor
 }

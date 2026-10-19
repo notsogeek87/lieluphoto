@@ -4222,6 +4222,11 @@ object GalleryManager {
                     if (bokeh !== enhanced && !bokeh.isRecycled) bokeh.recycle()
                 }
                 enhanced.recycle()
+                if (finished.get()) {
+                    // Délai dépassé pendant l'écriture : la photo exportée n'a pas l'IA, on reste cohérent.
+                    file.delete()
+                    return@launch
+                }
                 val updated = updateMetadata(appContext, photoId) { it.copy(hasAiDenoisedBase = true) }
                 updateThumbnail(appContext, photoId, photoProcessor, updated)
                 PLog.d(TAG, "AI enhance finished in background: $photoId")
