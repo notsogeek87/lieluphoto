@@ -30,7 +30,14 @@ class DnCNNDenoiseEstimator(
     private val modelFile: java.io.File? = null,
     // Recouvrement des tuiles en pixels (4 pour DnCNN).
     private val tileOverlap: Int = 4,
+    // Essayer le délégué GPU même si la liste de compatibilité de TFLite ne liste pas l'appareil.
+    private val forceGpuAttempt: Boolean = false,
 ) {
+    /** Moteur réellement utilisé (GPU, NNAPI, CPU) et raison d'un échec GPU, pour le diagnostic. */
+    val backendName: String get() = activeBackend
+    var gpuInitError: String? = null
+        private set
+
     private var interpreter: Interpreter? = null
     private val extraCpuInterpreters = mutableListOf<Interpreter>()
     private var gpuDelegate: GpuDelegate? = null
@@ -71,32 +78,39 @@ class DnCNNDenoiseEstimator(
                 val compatList = StartupTrace.measure("DnCNNDenoiseEstimator.CompatibilityList()") {
                     CompatibilityList()
                 }
-                if (!compatList.isDelegateSupportedOnThisDevice) {
+                val gpuListed = compatList.isDelegateSupportedOnThisDevice
+                if (!gpuListed && !forceGpuAttempt) {
                     PLog.d(TAG, "GPU delegate is not supported on this device")
+                    gpuInitError = "non liste"
                 } else {
                     val gpuOptions = Interpreter.Options()
-                    gpuDelegate = StartupTrace.measure("DnCNNDenoiseEstimator.GpuDelegate()") {
-                        val delegateOptions = compatList.bestOptionsForThisDevice
-                        delegateCache?.let {
-                            delegateOptions.setSerializationParams(
-                                it.directory.absolutePath,
-                                it.modelToken
-                            )
-                        }
-                        GpuDelegate(delegateOptions)
-                    }
-                    StartupTrace.measure("DnCNNDenoiseEstimator.gpuOptions.addDelegate") {
-                        gpuOptions.addDelegate(gpuDelegate)
-                    }
                     try {
+                        gpuDelegate = StartupTrace.measure("DnCNNDenoiseEstimator.GpuDelegate()") {
+                            val delegateOptions = if (gpuListed) {
+                                compatList.bestOptionsForThisDevice
+                            } else {
+                                GpuDelegate.Options()
+                            }
+                            delegateCache?.let {
+                                delegateOptions.setSerializationParams(
+                                    it.directory.absolutePath,
+                                    it.modelToken
+                                )
+                            }
+                            GpuDelegate(delegateOptions)
+                        }
+                        StartupTrace.measure("DnCNNDenoiseEstimator.gpuOptions.addDelegate") {
+                            gpuOptions.addDelegate(gpuDelegate)
+                        }
                         interpreter = StartupTrace.measure("DnCNNDenoiseEstimator.Interpreter(GPU)") {
                             Interpreter(modelFile, gpuOptions)
                         }
                         isInitialized = true
                         activeBackend = "GPU"
                         PLog.d(TAG, "Using GPU Delegate for DnCNN Denoise: $modelAssetName")
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         PLog.w(TAG, "Failed to initialize GPU delegate, falling back to ${if (backend == Backend.AUTO) "NNAPI" else "CPU"}", e)
+                        gpuInitError = (e.message ?: e.javaClass.simpleName).lineSequence().firstOrNull()?.take(80)
                         gpuDelegate?.close()
                         gpuDelegate = null
                     }

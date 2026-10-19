@@ -4138,7 +4138,11 @@ object GalleryManager {
     private suspend fun recordAiEnhanceNote(context: Context, photoId: String, note: String) {
         runCatching {
             updateMetadata(context, photoId) {
-                it.copy(customProperties = it.customProperties + (AI_ENHANCE_NOTE_PROPERTY to note))
+                // Le champ EXIF « Software » est en ASCII : accents retirés (« modèle » → « modele »).
+                val ascii = java.text.Normalizer.normalize(note, java.text.Normalizer.Form.NFD)
+                    .replace(Regex("\\p{M}+"), "")
+                    .replace(Regex("[^\\x20-\\x7E]"), "?")
+                it.copy(customProperties = it.customProperties + (AI_ENHANCE_NOTE_PROPERTY to ascii))
             }
         }
     }

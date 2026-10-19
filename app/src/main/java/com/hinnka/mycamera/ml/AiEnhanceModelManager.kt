@@ -141,6 +141,8 @@ object AiEnhanceModelManager {
             context = context,
             modelFile = modelFile,
             tileOverlap = TILE_OVERLAP,
+            // NAFNet est conçu pour tourner entièrement sur GPU ; le CPU (XNNPACK) refuse ce graphe fp16.
+            forceGpuAttempt = true,
         ).also {
             cachedDenoiser = it
             cachedDenoiserPath = modelFile.absolutePath
@@ -362,7 +364,7 @@ object AiEnhanceModelManager {
                     current
                 }
                 val seconds = "%.1f".format((System.currentTimeMillis() - stepStart) / 1000f)
-                steps += if (denoised !== current) "bruit ${seconds}s" else "$denoiseNote ${seconds}s"
+                steps += "$denoiseNote ${seconds}s"
                 if (denoised !== current && current !== bitmap) current.recycle()
                 current = denoised
             }
@@ -438,11 +440,13 @@ object AiEnhanceModelManager {
                 val estimatedMs = tileMs * tiles
                 if (estimatedMs > DENOISE_BUDGET_MS) {
                     PLog.w(TAG, "AI denoise skipped: $tiles tiles × ${tileMs}ms ≈ ${estimatedMs}ms > budget")
-                    return bitmap to "bruit non (trop lent ~${estimatedMs / 1000}s)"
+                    val gpuNote = estimator.gpuInitError?.let { ", GPU: $it" }.orEmpty()
+                    return bitmap to "bruit non (trop lent ~${estimatedMs / 1000}s, " +
+                        "${estimator.backendName} ${tileMs}ms/tuile$gpuNote)"
                 }
                 val enhanced = estimator.denoisePatchwise(input, strength = aiEnhanceBlendStrength(iso))
                 PLog.d(TAG, "AI denoise applied: iso=$iso ${bitmap.width}x${bitmap.height} ok=${enhanced != null}")
-                (enhanced ?: bitmap) to (if (enhanced != null) "bruit" else "bruit échec")
+                (enhanced ?: bitmap) to (if (enhanced != null) "bruit ${estimator.backendName}" else "bruit échec")
             } finally {
                 if (input !== bitmap) input.recycle()
             }
