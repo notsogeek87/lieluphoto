@@ -1596,6 +1596,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             .stateIn(viewModelScope, SharingStarted.Eagerly, initialValue = VolumeKeyAction.NONE)
     val autoSaveAfterCapture: Flow<Boolean> = userPreferencesRepository.userPreferences.map { it.autoSaveAfterCapture }
     val updateExportAfterEdit: Flow<Boolean> = userPreferencesRepository.userPreferences.map { it.updateExportAfterEdit }
+    val deleteWhenExportRemoved: Flow<Boolean> = userPreferencesRepository.userPreferences.map { it.deleteWhenExportRemoved }
     val photoSavePath: StateFlow<PhotoSavePath> = userPreferencesRepository.userPreferences
         .map { it.photoSavePath }
         .stateIn(viewModelScope, SharingStarted.Eagerly, PhotoSavePath.DCIM_PHOTON)
@@ -5921,6 +5922,12 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     fun setAutoSaveAfterCapture(enabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.saveAutoSaveAfterCapture(enabled)
+        }
+    }
+
+    fun setDeleteWhenExportRemoved(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.saveDeleteWhenExportRemoved(enabled)
         }
     }
 

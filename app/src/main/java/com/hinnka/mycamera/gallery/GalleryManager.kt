@@ -124,6 +124,8 @@ import kotlin.use
  */
 object GalleryManager {
     private const val TAG = "PhotoManager"
+    private const val PRUNE_MIN_AGE_MS = 10 * 60 * 1000L
+    private const val PRUNE_MASS_GUARD_MIN = 5
     private val metadataMutex = Mutex()
     private const val THUMBNAIL_MAX_EDGE = 512
     private const val PHOTOS_DIR = "photos"
@@ -5318,6 +5320,67 @@ object GalleryManager {
                     }
                 }
             }
+        }
+    }
+
+    private enum class ExportUriState { PRESENT, MISSING, UNKNOWN }
+
+    private fun queryExportUriState(context: Context, uri: Uri): ExportUriState {
+        return try {
+            val args = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.os.Bundle().apply {
+                    putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
+                }
+            } else {
+                null
+            }
+            val cursor = context.contentResolver.query(
+                uri,
+                arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                args,
+                null
+            ) ?: return ExportUriState.UNKNOWN
+            cursor.use { if (it.count > 0) ExportUriState.PRESENT else ExportUriState.MISSING }
+        } catch (e: Exception) {
+            // 权限丢失、存储卷未挂载等：无法确认，宁可保留。
+            PLog.w(TAG, "Cannot determine export URI state for $uri: ${e.message}")
+            ExportUriState.UNKNOWN
+        }
+    }
+
+    /**
+     * 删除“所有导出文件都已从系统相册消失”的应用内照片（含 RAW 负片）。
+     * 只在能明确确认文件不存在时才删除；未导出过、状态未知、刚导出的照片一律保留。
+     * 若 5 张以上的候选照片全部缺失，视为系统相册不可读（权限/存储卷异常），整体放弃。
+     *
+     * @return 被删除的照片 ID
+     */
+    suspend fun pruneDeletedExports(context: Context): List<String> = withContext(Dispatchers.IO) {
+        val recentThreshold = System.currentTimeMillis() - PRUNE_MIN_AGE_MS
+        val processingIds = processingPhotos.value.keys
+        val missing = mutableListOf<String>()
+        var checked = 0
+
+        for (photoId in GalleryMediaStore.getPhotoIds(context)) {
+            if (photoId in processingIds) continue
+            val metadata = loadMetadata(context, photoId) ?: continue
+            if (metadata.exportedUris.isEmpty()) continue
+            if ((metadata.dateTaken ?: 0L) > recentThreshold) continue
+
+            val states = metadata.exportedUris.map { queryExportUriState(context, Uri.parse(it)) }
+            if (ExportUriState.UNKNOWN in states) continue
+            checked++
+            if (states.all { it == ExportUriState.MISSING }) missing.add(photoId)
+        }
+
+        if (missing.isEmpty()) return@withContext emptyList()
+        if (checked >= PRUNE_MASS_GUARD_MIN && missing.size == checked) {
+            PLog.w(TAG, "pruneDeletedExports: all $checked exported photos look missing, skipping")
+            return@withContext emptyList()
+        }
+
+        missing.filter { deletePhoto(context, it) }.also {
+            PLog.d(TAG, "pruneDeletedExports: removed ${it.size} photos whose exports were deleted")
         }
     }
 

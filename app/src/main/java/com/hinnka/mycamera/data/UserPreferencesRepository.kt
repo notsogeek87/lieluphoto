@@ -181,6 +181,7 @@ data class UserPreferences(
     val volumeKeyAction: VolumeKeyAction = VolumeKeyAction.CAPTURE,  // 音量键操作
     val autoSaveAfterCapture: Boolean = true,  // 自动保存
     val updateExportAfterEdit: Boolean = true,  // 编辑后更新已导出到系统相册的照片
+    val deleteWhenExportRemoved: Boolean = true,  // 系统相册中的导出文件被删除后，同步删除应用内照片
     // Amélioration IA (NAFNet) des photos en faible lumière, si le modèle est téléchargé.
     val aiEnhanceEnabled: Boolean = false,
     val aiEnhanceModel: String = "DENOISE",
@@ -449,6 +450,7 @@ class UserPreferencesRepository(private val context: Context) {
         private val VOLUME_KEY_ACTION = stringPreferencesKey("volume_key_action")
         private val AUTO_SAVE_AFTER_CAPTURE = booleanPreferencesKey("auto_save_after_capture")
         private val UPDATE_EXPORT_AFTER_EDIT = booleanPreferencesKey("update_export_after_edit")
+        private val DELETE_WHEN_EXPORT_REMOVED = booleanPreferencesKey("delete_when_export_removed")
         private val AI_ENHANCE_ENABLED = booleanPreferencesKey("ai_enhance_enabled")
         private val AI_ENHANCE_MODEL = stringPreferencesKey("ai_enhance_model")
         private val PHOTO_SAVE_PATH = stringPreferencesKey("photo_save_path")
@@ -772,6 +774,7 @@ class UserPreferencesRepository(private val context: Context) {
                 ),
                 autoSaveAfterCapture = preferences[AUTO_SAVE_AFTER_CAPTURE] ?: true,
                 updateExportAfterEdit = preferences[UPDATE_EXPORT_AFTER_EDIT] ?: true,
+                deleteWhenExportRemoved = preferences[DELETE_WHEN_EXPORT_REMOVED] ?: true,
                 aiEnhanceEnabled = preferences[AI_ENHANCE_ENABLED] ?: false,
                 aiEnhanceModel = preferences[AI_ENHANCE_MODEL] ?: "DENOISE",
                 photoSavePath = PhotoSavePath.fromPersistedName(preferences[PHOTO_SAVE_PATH]),
@@ -1770,6 +1773,12 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun saveAutoSaveAfterCapture(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[AUTO_SAVE_AFTER_CAPTURE] = enabled
+        }
+    }
+
+    suspend fun saveDeleteWhenExportRemoved(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[DELETE_WHEN_EXPORT_REMOVED] = enabled
         }
     }
 

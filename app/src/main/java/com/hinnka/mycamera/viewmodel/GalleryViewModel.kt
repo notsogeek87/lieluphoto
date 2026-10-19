@@ -1023,6 +1023,8 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             photonOffset = 0
             hasMorePhotonPhotos = false
 
+            pruneDeletedExportsIfNeeded()
+
             val newList = repository.getPhotosSync()
             val currentMap = _photos.value.associateBy { it.id }
 
@@ -1061,6 +1063,28 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         } finally {
             _isLoading.value = false
             _isPhotonLoadingMore.value = false
+        }
+    }
+
+    private var lastExportPruneAt = 0L
+
+    /**
+     * 系统相册里删掉了导出文件的照片，同步删除应用内副本。
+     * 无相册读取权限、正在导出/处理、或 5 分钟内已检查过时跳过。
+     */
+    private suspend fun pruneDeletedExportsIfNeeded() {
+        val now = System.currentTimeMillis()
+        if (now - lastExportPruneAt < 5 * 60 * 1000L) return
+        if (_isExporting.value || _isPastingSettings.value) return
+        if (contentRepository.userPreferencesRepository.userPreferences
+                .firstOrNull()?.deleteWhenExportRemoved == false
+        ) return
+        checkGalleryPermission()
+        if (!hasGalleryPermission) return
+        lastExportPruneAt = now
+        val removed = GalleryManager.pruneDeletedExports(getApplication())
+        if (removed.isNotEmpty()) {
+            removePhotonPhotosFromState(removed.toSet())
         }
     }
 

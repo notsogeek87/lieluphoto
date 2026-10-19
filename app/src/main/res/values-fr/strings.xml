@@ -121,6 +121,8 @@
     <string name="settings_volume_key_action_zoom">Changement de focus</string>
     <string name="settings_auto_save">Enregistrement automatique</string>
     <string name="settings_auto_save_description">Enregistrer automatiquement les photos après la capture</string>
+    <string name="settings_delete_when_export_removed">Synchroniser les suppressions de la galerie</string>
+    <string name="settings_delete_when_export_removed_description">Quand une photo est supprimée de la galerie du téléphone, supprime aussi sa copie (et son RAW) dans l\'app. Les photos jamais exportées sont conservées</string>
     <string name="settings_update_export_after_edit">Mettre à jour la galerie du téléphone après modification</string>
     <string name="settings_update_export_after_edit_description">À l\'enregistrement d\'une modification, remplace la photo déjà exportée dans la galerie du téléphone par la version modifiée</string>
     <string name="settings_nr_level">Niveau de réduction de bruit</string>
