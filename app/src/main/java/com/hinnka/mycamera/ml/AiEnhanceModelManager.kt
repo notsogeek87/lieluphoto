@@ -222,7 +222,12 @@ object AiEnhanceModelManager {
      * jamais perdue). L'appelant reste propriétaire de [bitmap] ; s'il reçoit un nouveau bitmap, il
      * peut recycler l'ancien.
      */
-    suspend fun enhanceIfEnabled(context: Context, bitmap: Bitmap, iso: Int?): Bitmap {
+    suspend fun enhanceIfEnabled(
+        context: Context,
+        bitmap: Bitmap,
+        iso: Int?,
+        denoise: Boolean = true,
+    ): Bitmap {
         val appContext = context.applicationContext
         val preferences = runCatching {
             ContentRepository.getInstance(appContext).userPreferencesRepository
@@ -231,12 +236,13 @@ object AiEnhanceModelManager {
         if (!preferences.aiEnhanceEnabled) return bitmap
         val choice = AiEnhanceChoice.fromPersisted(preferences.aiEnhanceModel)
         val denoiseModel = installedModelFileOrNull(appContext, AiModel.DENOISE)
-            ?.takeIf { AiModel.DENOISE in choice.models }
+            ?.takeIf { denoise && AiModel.DENOISE in choice.models }
         val facesModel = installedModelFileOrNull(appContext, AiModel.FACES)
             ?.takeIf { AiModel.FACES in choice.models }
         if (denoiseModel == null && facesModel == null) return bitmap
         return inferenceMutex.withLock {
             var current = bitmap
+            val started = System.currentTimeMillis()
             if (denoiseModel != null) {
                 val denoised = denoise(appContext, denoiseModel, current, iso)
                 if (denoised !== current && current !== bitmap) current.recycle()
@@ -252,6 +258,7 @@ object AiEnhanceModelManager {
                 if (restored !== current && current !== bitmap) current.recycle()
                 current = restored
             }
+            PLog.d(TAG, "AI enhance total ${System.currentTimeMillis() - started}ms ${bitmap.width}x${bitmap.height}")
             current
         }
     }

@@ -4145,7 +4145,9 @@ object GalleryManager {
         bitmap: Bitmap,
         metadata: MediaMetadata,
     ): Pair<Bitmap, MediaMetadata> {
-        val enhanced = AiEnhanceModelManager.enhanceIfEnabled(context, bitmap, metadata.iso)
+        // RAW fusionné : déjà peu bruité, et NAFNet sur ~50 Mpx prend plus d'une minute.
+        // Seuls les visages sont restaurés.
+        val enhanced = AiEnhanceModelManager.enhanceIfEnabled(context, bitmap, metadata.iso, denoise = false)
         if (enhanced === bitmap) return bitmap to metadata
         val file = getAiDenoiseFile(context, photoId)
         val written = runCatching {
