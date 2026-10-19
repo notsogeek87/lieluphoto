@@ -5374,6 +5374,7 @@ object GalleryManager {
             if (states.all { it == ExportUriState.MISSING }) missing.add(photoId)
         }
 
+        PLog.d(TAG, "scanDeletedExports: checked=$checked, missing=${missing.size}")
         ExportPruneScan(
             photoIds = missing,
             needsConfirmation = checked >= PRUNE_MASS_GUARD_MIN && missing.size == checked

@@ -1070,17 +1070,17 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * 系统相册里删掉了导出文件的照片，同步删除应用内副本。
-     * 无相册读取权限、正在导出/处理、或 5 分钟内已检查过时跳过。
+     * 正在导出/处理、或 30 秒内已检查过时跳过。
+     * 不要求相册读取权限：应用自己导出的文件无需权限即可查询；
+     * 若因此误判为“全部缺失”，由 [GalleryManager.scanDeletedExports] 的大批量确认兜底。
      */
     private suspend fun pruneDeletedExportsIfNeeded() {
         val now = System.currentTimeMillis()
-        if (now - lastExportPruneAt < 5 * 60 * 1000L) return
+        if (now - lastExportPruneAt < 30 * 1000L) return
         if (_isExporting.value || _isPastingSettings.value) return
         if (contentRepository.userPreferencesRepository.userPreferences
                 .firstOrNull()?.deleteWhenExportRemoved == false
         ) return
-        checkGalleryPermission()
-        if (!hasGalleryPermission) return
         lastExportPruneAt = now
         val scan = GalleryManager.scanDeletedExports(getApplication())
         when {
