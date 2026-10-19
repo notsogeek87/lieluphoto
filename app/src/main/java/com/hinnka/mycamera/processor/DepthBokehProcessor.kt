@@ -130,7 +130,20 @@ class DepthBokehProcessor(context: Context) {
                 bokehStyle,
                 protectSubject = focusMask >= 0.5f,
             )
-            result = bokehResult
+            // Le visage reste toujours net, même si la profondeur ou le masque l'ont placé derrière.
+            result = bokehResult?.let { blurred ->
+                if (blurred === originalImage ||
+                    blurred.config != Bitmap.Config.ARGB_8888 ||
+                    originalImage.config != Bitmap.Config.ARGB_8888
+                ) {
+                    return@let blurred
+                }
+                val target = if (blurred.isMutable) blurred else blurred.copy(Bitmap.Config.ARGB_8888, true)?.also {
+                    blurred.recycle()
+                } ?: return@let blurred
+                PortraitFaceGuard.restoreFaces(appContext, originalImage, target)
+                target
+            }
         }
 
         return result ?: originalImage
