@@ -2703,8 +2703,7 @@ class Camera2Controller(private val context: Context) {
                 availableColorCorrectionModes = loadAvailableColorCorrectionModes(openCharacteristics)
                 awbColorTemperatureRange = loadAwbColorTemperatureRange(openCharacteristics)
                 lastWhiteBalanceResult = null
-                // RAW retiré de LieluPhoto : jamais de sortie RAW.
-                isRawSupported = false
+                isRawSupported = resolveRawCaptureOutput(capabilityCharacteristics, outputPhysicalCameraId) != null
                 if (_state.value.nightMode) nightMotionMonitor.start()
 
                 availableAeModes =
@@ -2815,7 +2814,7 @@ class Camera2Controller(private val context: Context) {
 
             if (captureMode == CaptureMode.PHOTO) {
                 val aspectRatio = state.value.aspectRatio
-                val effectivelyUseRaw = requestedRawCaptureEnabled && isRawSupported
+                val effectivelyUseRaw = _state.value.wantsRawCapture && isRawSupported
                 val openCharacteristics = getCameraCharacteristicsCached(openCameraId)
                 var outputCameraIdForStreams = outputPhysicalCameraId ?: openCameraId
                 var outputCharacteristicsForStreams = if (outputCameraIdForStreams == openCameraId) {
@@ -3795,7 +3794,8 @@ class Camera2Controller(private val context: Context) {
 
         when (key.readerFormat) {
             ImageFormat.RAW_SENSOR, ImageFormat.RAW10 -> {
-                isRawSupported = false
+                isRawSupported = getCameraCharacteristicsOrNull(key.physicalCameraId, "RAW output support")
+                    ?.let { resolveRawCaptureOutput(it, key.physicalCameraId) } != null
                 _state.value = _state.value.copy(isRawSupported = isRawSupported)
             }
 
@@ -3903,7 +3903,7 @@ class Camera2Controller(private val context: Context) {
         if (currentState.captureMode != CaptureMode.PHOTO) return false
 
         val currentReader = imageReader ?: return false
-        val expectsRawOutput = requestedRawCaptureEnabled && isRawSupported
+        val expectsRawOutput = _state.value.wantsRawCapture && isRawSupported
         val hasRawOutput = isRawCaptureReader(currentReader)
         if (expectsRawOutput == hasRawOutput) return false
 
@@ -5453,6 +5453,25 @@ class Camera2Controller(private val context: Context) {
             return
         }
         restartCameraForRawCaptureOutputMismatch("RAW setting changed")
+    }
+
+    /** RAW automatique (objectif arrière en Photo/Portrait), sans interface Pro. */
+    fun setAutoRawCapture(enabled: Boolean) {
+        if (_state.value.autoRawCapture == enabled) return
+        _state.update { it.copy(autoRawCapture = enabled) }
+        PLog.d(TAG, "RAW automatique: $enabled")
+        syncRawCaptureOutput("auto RAW changed")
+    }
+
+    // Le choix RAW / YUV dépend du mode (Nuit, multi-exposition, Live Photo, objectif) :
+    // rouvre la caméra si la sortie active ne correspond plus.
+    private fun syncRawCaptureOutput(reason: String) {
+        val handler = cameraHandler
+        if (handler != null && Looper.myLooper() != handler.looper) {
+            handler.post { restartCameraForRawCaptureOutputMismatch(reason) }
+            return
+        }
+        restartCameraForRawCaptureOutputMismatch(reason)
     }
 
     fun setRawMinShutterSpeedNs(value: Long) {
@@ -7595,6 +7614,8 @@ class Camera2Controller(private val context: Context) {
             nightPreviewSceneLog2Ema = photoScene
         }
         if (enabled) nightMotionMonitor.start() else nightMotionMonitor.stop()
+        // Nuit = YUV (empilement réglé), Photo arrière = RAW automatique.
+        syncRawCaptureOutput("night mode changed")
         previewRequestBuilder?.apply {
             if (!enabled) {
                 (nightPreviewSavedFpsRange ?: defaultPhotoPreviewFpsRange())
@@ -7861,7 +7882,9 @@ class Camera2Controller(private val context: Context) {
     }
 
     fun setUseMultipleExposure(useMultipleExposure: Boolean) {
+        val changed = _state.value.useMultipleExposure != useMultipleExposure
         _state.value = _state.value.copy(useMultipleExposure = useMultipleExposure)
+        if (changed) syncRawCaptureOutput("multiple exposure changed")
     }
 
     fun onHdrBracketFramesCollected() {
@@ -9439,7 +9462,9 @@ class Camera2Controller(private val context: Context) {
      * 设置是否启用 Live Photo
      */
     fun setUseLivePhoto(enabled: Boolean) {
+        val changed = _state.value.useLivePhoto != enabled
         _state.value = _state.value.copy(useLivePhoto = enabled)
+        if (changed) syncRawCaptureOutput("live photo changed")
         if (enabled && _state.value.captureMode == CaptureMode.PHOTO) {
             livePhotoRecorder.startRecording()
         } else {

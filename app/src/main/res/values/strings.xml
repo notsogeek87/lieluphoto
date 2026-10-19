@@ -1439,9 +1439,26 @@
     <string name="ai_enhance_model_ready">Model installed. Tap to delete it and free 62 MB.</string>
     <string name="ai_enhance_model_failed">Download failed. Tap to try again.</string>
     <string name="ai_enhance_enable_title">Enhance every photo with AI</string>
-    <string name="ai_enhance_enable_description">Automatically cleans up noise on all your photos (Photo, Night, Portrait). Also available as the AI button above the modes in the viewfinder. Saving takes a few more seconds.</string>
+    <string name="ai_enhance_enable_description">Applies the chosen model (noise, faces or both) to all your photos (Photo, Night, Portrait). Also available as the AI button above the modes in the viewfinder; long-press it to choose the model. Saving takes a few more seconds.</string>
     <string name="ai_enhance_chip">AI</string>
     <string name="ai_enhance_dialog_title">Download the AI model?</string>
     <string name="ai_enhance_dialog_message">The AI model cleans up noise on your photos (Photo, Night and Portrait). It is about 62 MB and runs entirely on the phone. Once downloaded, the AI button turns on or off the enhancement for every photo; saving takes a few more seconds.</string>
     <string name="ai_enhance_dialog_download">Download</string>
+    <string name="ai_enhance_chip_faces">AI faces</string>
+    <string name="ai_enhance_chip_both">AI+</string>
+    <string name="ai_enhance_dialog_message_models">To download: %1$s. Models run entirely on the phone. Long-press the AI button to choose between noise cleanup, face restoration, or both. Saving takes a few more seconds.</string>
+    <string name="ai_enhance_model_denoise_name">Noise (NAFNet)</string>
+    <string name="ai_enhance_model_faces_name">Faces (GFPGAN)</string>
+    <string name="ai_enhance_picker_title">AI enhancement</string>
+    <string name="ai_enhance_choice_denoise">Clean up noise</string>
+    <string name="ai_enhance_choice_faces">Restore faces</string>
+    <string name="ai_enhance_choice_both">Noise + faces</string>
+    <string name="ai_enhance_model_installed">Installed</string>
+    <string name="ai_enhance_model_failed_short">Download failed</string>
+    <string name="ai_enhance_model_denoise_size">Not downloaded · 62 MB</string>
+    <string name="ai_enhance_model_faces_size">Not downloaded · 431 MB</string>
+    <string name="ai_enhance_model_delete">Delete</string>
+    <string name="ai_enhance_faces_model_title">Face model (GFPGAN)</string>
+    <string name="ai_enhance_faces_model_description">Tap to download the GFPGAN face restoration model (about 431 MB, Apache 2.0 license). It sharpens eyes, skin and hair on faces. Runs entirely on the phone.</string>
+    <string name="ai_enhance_faces_model_ready">Model installed. Tap to delete it and free 431 MB.</string>
 </resources>

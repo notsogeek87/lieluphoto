@@ -296,8 +296,9 @@ internal fun Float.withAutoSharpnessBoost(boost: Float): Float =
     withAutoBoost(boost, AUTO_SHARPNESS_CEILING)
 
 /**
- * Fusion multi-images active : choix de l'utilisateur, mode Nuit, ou selfie (forcée d'office,
- * sauf si Live Photo est actif, incompatible avec la rafale).
+ * Fusion multi-images active : toujours, sauf Live Photo (incompatible avec la rafale) ou
+ * multi-exposition. Sur l'objectif arrière en Photo/Portrait elle passe par le RAW automatique
+ * (RAW Max, type HDR+), ailleurs (Nuit, selfie, RAW indisponible) par le JPG Max.
  */
 internal fun resolveEffectiveUseJpgMax(
     userJpgMax: Boolean,
@@ -305,7 +306,13 @@ internal fun resolveEffectiveUseJpgMax(
     frontCamera: Boolean,
     useLivePhoto: Boolean,
     useMultipleExposure: Boolean,
-): Boolean = (userJpgMax || nightMode || (frontCamera && !useLivePhoto)) && !useMultipleExposure
+): Boolean = (userJpgMax || nightMode || !useLivePhoto) && !useMultipleExposure
+
+/** RAW Max automatique : au moins 6 images RAW fusionnées (réglage « HDR+ » s'il est plus haut). */
+internal const val AUTO_RAW_FRAME_COUNT = 6
+
+internal fun resolveAutoRawFrameCount(userFrameCount: Int): Int =
+    maxOf(userFrameCount, AUTO_RAW_FRAME_COUNT)
 
 // Rendu prudent : un relevé fort des ombres (0,8) sur une image encore bruitée a amplifié le
 // bruit et viré au violet (noirs bruités du capteur). Le gros du gain doit venir de la prise
@@ -2355,8 +2362,9 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 if (currentCameraState.hdrPlusMergeMode != it.hdrPlusMergeMode) {
                     cameraController.setHdrPlusMergeMode(it.hdrPlusMergeMode)
                 }
-                if (currentCameraState.hdrPlusFrameCount != it.hdrPlusFrameCount) {
-                    cameraController.setHdrPlusFrameCount(it.hdrPlusFrameCount)
+                val effectiveHdrPlusFrameCount = resolveAutoRawFrameCount(it.hdrPlusFrameCount)
+                if (currentCameraState.hdrPlusFrameCount != effectiveHdrPlusFrameCount) {
+                    cameraController.setHdrPlusFrameCount(effectiveHdrPlusFrameCount)
                 }
                 if (currentCameraState.useJpgMaxHdrComposition != it.useJpgMaxHdrComposition) {
                     cameraController.setUseJpgMaxHdrComposition(it.useJpgMaxHdrComposition)
@@ -2642,7 +2650,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                     prefs.jpgMultiFrameDenoiseFrameCount
                 )
                 cameraController.setHdrPlusMergeMode(prefs.hdrPlusMergeMode)
-                cameraController.setHdrPlusFrameCount(prefs.hdrPlusFrameCount)
+                cameraController.setHdrPlusFrameCount(resolveAutoRawFrameCount(prefs.hdrPlusFrameCount))
                 cameraController.setUseJpgMaxHdrComposition(prefs.useJpgMaxHdrComposition)
                 cameraController.setHdrPlusBracketExposureEnabled(
                     prefs.hdrPlusBracketExposureEnabled
@@ -3893,7 +3901,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
      * 开始连拍
      */
     fun startContinuousCapture() {
-        if (state.value.useRaw && state.value.isRawSupported) return
+        if (state.value.captureRaw) return
         val settings = snapshotCaptureSettings()
         cameraController.startBurstCapture {
             burstImageCount = 0
@@ -3910,7 +3918,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
      * 停止连拍
      */
     fun stopContinuousCapture() {
-        if (state.value.useRaw && state.value.isRawSupported) return
+        if (state.value.captureRaw) return
         cameraController.stopBurstCapture()
         shutterSoundPlayer.stopBurst()
         viewModelScope.launch {
@@ -5059,8 +5067,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     fun handleEyeFocusInputUpdate(frame: EyeFocusPreviewFrame) {
         val cameraState = state.value
         val acceptsPortraitMask = cameraState.captureMode == CaptureMode.PHOTO &&
-            cameraState.useRaw &&
-            cameraState.isRawSupported &&
+            cameraState.captureRaw &&
             cameraState.isPreviewActive &&
             !cameraState.isCapturing
         val acceptsEyeFocus = eyeFocusEnabled.value &&
@@ -5433,6 +5440,12 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     fun setAiEnhanceEnabled(enabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.saveAiEnhanceEnabled(enabled)
+        }
+    }
+
+    fun setAiEnhanceModel(choice: com.hinnka.mycamera.ml.AiEnhanceChoice) {
+        viewModelScope.launch {
+            userPreferencesRepository.saveAiEnhanceModel(choice.name)
         }
     }
 

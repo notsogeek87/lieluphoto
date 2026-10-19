@@ -2584,6 +2584,9 @@ object GalleryManager {
             if (updatedMetadata.isMirrored) {
                 bitmap = BitmapUtils.flipHorizontal(bitmap)
             }
+            val aiEnhanced = enhanceRawBaseIfEnabled(context, photoId, bitmap, updatedMetadata)
+            bitmap = aiEnhanced.first
+            updatedMetadata = aiEnhanced.second
             updatedMetadata = updatedMetadata.copy(
                 width = bitmap.width,
                 height = bitmap.height,
@@ -3979,6 +3982,9 @@ object GalleryManager {
             if (updatedMetadata.isMirrored) {
                 bitmap = BitmapUtils.flipHorizontal(bitmap)
             }
+            val aiEnhanced = enhanceRawBaseIfEnabled(context, photoId, bitmap, updatedMetadata)
+            bitmap = aiEnhanced.first
+            updatedMetadata = aiEnhanced.second
             updatedMetadata = updatedMetadata.copy(
                 width = bitmap.width,
                 height = bitmap.height,
@@ -4126,6 +4132,33 @@ object GalleryManager {
             rawWhiteLevelMode = null,
             rawCustomWhiteLevel = null
         )
+    }
+
+    /**
+     * Amélioration IA (débruitage / visages) d'une photo RAW tout juste développée. Le résultat est
+     * aussi enregistré comme base « IA » (ai_denoise.jpg) : l'export et les retouches repartent de
+     * cette base au lieu de redévelopper le DNG sans l'IA.
+     */
+    private suspend fun enhanceRawBaseIfEnabled(
+        context: Context,
+        photoId: String,
+        bitmap: Bitmap,
+        metadata: MediaMetadata,
+    ): Pair<Bitmap, MediaMetadata> {
+        val enhanced = AiEnhanceModelManager.enhanceIfEnabled(context, bitmap, metadata.iso)
+        if (enhanced === bitmap) return bitmap to metadata
+        val file = getAiDenoiseFile(context, photoId)
+        val written = runCatching {
+            file.parentFile?.mkdirs()
+            FileOutputStream(file).use { enhanced.compress(Bitmap.CompressFormat.JPEG, 95, it) }
+        }.getOrDefault(false)
+        if (!written) {
+            file.delete()
+            enhanced.recycle()
+            PLog.w(TAG, "AI enhanced RAW base could not be saved, keeping the plain render: $photoId")
+            return bitmap to metadata
+        }
+        return enhanced to metadata.copy(hasAiDenoisedBase = true)
     }
 
     private suspend fun renderRawDngPhotoOutputs(

@@ -83,7 +83,9 @@ import com.hinnka.mycamera.utils.OrientationObserver
 import com.hinnka.mycamera.viewmodel.CameraViewModel
 import com.hinnka.mycamera.viewmodel.GalleryViewModel
 import com.hinnka.mycamera.viewmodel.withNightBoost
+import com.hinnka.mycamera.ml.AiEnhanceChoice
 import com.hinnka.mycamera.ml.AiEnhanceModelManager
+import com.hinnka.mycamera.ml.AiModel
 import com.hinnka.mycamera.ml.AiEnhanceModelState
 import com.hinnka.mycamera.video.CaptureMode
 import com.hinnka.mycamera.video.VideoAspectRatio
@@ -1313,8 +1315,7 @@ fun CameraScreen(
                         !state.isHyperfocalFocusEnabled &&
                         (state.focusPoint == null || state.focusPointSource == FocusPointSource.EYE)
                     val portraitMaskActive = state.captureMode == CaptureMode.PHOTO &&
-                        state.useRaw &&
-                        state.isRawSupported
+                        state.captureRaw
 
                     // 相机准备完成后再创建 Surface，首次只打开最终选中的镜头。
                     if (isCameraPrepared) {
@@ -1527,7 +1528,7 @@ fun CameraScreen(
                                     )
                                 }
                             }
-                            if (state.captureMode == CaptureMode.PHOTO && !state.useRaw &&
+                            if (state.captureMode == CaptureMode.PHOTO && !state.captureRaw &&
                                 state.availableMegapixels.size > 1
                             ) {
                                 val megapixels = state.availableMegapixels
@@ -1813,7 +1814,7 @@ fun CameraScreen(
                 modeSwitchEnabled = !previewTransitionActive && !lensSwitchTransition.isActive,
                 onCaptureTap = {
                     val shouldDebounceRawCapture =
-                        state.useRaw && state.captureMode == CaptureMode.PHOTO
+                        state.captureRaw && state.captureMode == CaptureMode.PHOTO
                     if (shouldDebounceRawCapture) {
                         if (rawCaptureTapLocked) {
                             return@Controls
@@ -2413,14 +2414,25 @@ private fun Controls(
                 }
             }
 
-            // Petit bouton « IA » (amélioration par le modèle NAFNet) au-dessus des modes photo ;
-            // masqué en vidéo. Tout le temps actif une fois allumé.
+            // Petit bouton « IA » au-dessus des modes photo, masqué en vidéo. Toucher : active ou
+            // coupe l'amélioration (tout le temps une fois allumée). Appui long : choix du modèle
+            // (bruit NAFNet, visages GFPGAN, ou les deux) et téléchargement / suppression.
             val aiContext = androidx.compose.ui.platform.LocalContext.current
             val aiPreferences by viewModel.userPreferences.collectAsState()
-            val aiModelState by remember(aiContext.applicationContext) {
-                AiEnhanceModelManager.observe(aiContext)
+            val aiDenoiseState by remember(aiContext.applicationContext) {
+                AiEnhanceModelManager.observe(aiContext, AiModel.DENOISE)
             }.collectAsState()
+            val aiFacesState by remember(aiContext.applicationContext) {
+                AiEnhanceModelManager.observe(aiContext, AiModel.FACES)
+            }.collectAsState()
+            val aiModelStates = mapOf(AiModel.DENOISE to aiDenoiseState, AiModel.FACES to aiFacesState)
+            val aiChoice = AiEnhanceChoice.fromPersisted(aiPreferences.aiEnhanceModel)
+            val aiChoiceStates = aiChoice.models.map { aiModelStates.getValue(it) }
+            val aiChoiceReady = aiChoiceStates.all { it == AiEnhanceModelState.Ready }
+            val aiChoiceDownloading = aiChoiceStates.firstOrNull { it is AiEnhanceModelState.Downloading }
+                as AiEnhanceModelState.Downloading?
             var showAiDownloadDialog by remember { mutableStateOf(false) }
+            var showAiModelPicker by remember { mutableStateOf(false) }
             Box(
                 modifier = Modifier
                     .width(300.dp)
@@ -2429,32 +2441,46 @@ private fun Controls(
             ) {
                 if (state.captureMode != CaptureMode.VIDEO) {
                     AiEnhanceChip(
-                        active = aiPreferences.aiEnhanceEnabled &&
-                            (aiModelState == AiEnhanceModelState.Ready ||
-                                aiModelState is AiEnhanceModelState.Downloading),
-                        modelState = aiModelState,
+                        active = aiPreferences.aiEnhanceEnabled && (aiChoiceReady || aiChoiceDownloading != null),
+                        label = stringResource(
+                            when (aiChoice) {
+                                AiEnhanceChoice.DENOISE -> R.string.ai_enhance_chip
+                                AiEnhanceChoice.FACES -> R.string.ai_enhance_chip_faces
+                                AiEnhanceChoice.BOTH -> R.string.ai_enhance_chip_both
+                            }
+                        ),
+                        downloadProgress = aiChoiceDownloading?.let { it.progress ?: 0f },
                         enabled = !state.videoRecordingState.isRecording,
                         onClick = {
-                            when (aiModelState) {
-                                AiEnhanceModelState.Ready ->
+                            when {
+                                aiChoiceReady ->
                                     viewModel.setAiEnhanceEnabled(!aiPreferences.aiEnhanceEnabled)
-                                is AiEnhanceModelState.Downloading -> Unit
+                                aiChoiceDownloading != null -> Unit
                                 else -> showAiDownloadDialog = true
                             }
-                        }
+                        },
+                        onLongClick = { showAiModelPicker = true }
                     )
                 }
             }
             if (showAiDownloadDialog) {
+                val missingModels = aiChoice.models.filter { aiModelStates.getValue(it) != AiEnhanceModelState.Ready }
                 AlertDialog(
                     onDismissRequest = { showAiDownloadDialog = false },
                     title = { Text(stringResource(R.string.ai_enhance_dialog_title)) },
-                    text = { Text(stringResource(R.string.ai_enhance_dialog_message)) },
+                    text = {
+                        Text(
+                            stringResource(
+                                R.string.ai_enhance_dialog_message_models,
+                                missingModels.joinToString(" + ") { aiModelLabel(aiContext, it) }
+                            )
+                        )
+                    },
                     confirmButton = {
                         TextButton(onClick = {
                             showAiDownloadDialog = false
                             viewModel.setAiEnhanceEnabled(true)
-                            AiEnhanceModelManager.download(aiContext)
+                            missingModels.forEach { AiEnhanceModelManager.download(aiContext, it) }
                         }) { Text(stringResource(R.string.ai_enhance_dialog_download)) }
                     },
                     dismissButton = {
@@ -2462,6 +2488,19 @@ private fun Controls(
                             Text(stringResource(android.R.string.cancel))
                         }
                     }
+                )
+            }
+            if (showAiModelPicker) {
+                AiEnhanceModelPicker(
+                    choice = aiChoice,
+                    modelStates = aiModelStates,
+                    onChoiceSelected = {
+                        viewModel.setAiEnhanceModel(it)
+                        viewModel.setAiEnhanceEnabled(true)
+                    },
+                    onDownload = { AiEnhanceModelManager.download(aiContext, it) },
+                    onDelete = { AiEnhanceModelManager.delete(aiContext, it) },
+                    onDismiss = { showAiModelPicker = false }
                 )
             }
 
@@ -2798,15 +2837,13 @@ private fun rememberPhotoCaptureProgress(progress: PhotoCaptureProgress?): State
 @Composable
 private fun AiEnhanceChip(
     active: Boolean,
-    modelState: AiEnhanceModelState,
+    label: String,
+    downloadProgress: Float?,
     enabled: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
-    val label = when (modelState) {
-        is AiEnhanceModelState.Downloading ->
-            "${stringResource(R.string.ai_enhance_chip)} ${((modelState.progress ?: 0f) * 100f).toInt()} %"
-        else -> stringResource(R.string.ai_enhance_chip)
-    }
+    val text = if (downloadProgress != null) "$label ${(downloadProgress * 100f).toInt()} %" else label
     val shape = RoundedCornerShape(12.dp)
     Box(
         modifier = Modifier
@@ -2814,12 +2851,12 @@ private fun AiEnhanceChip(
             .clip(shape)
             .background(if (active) Color.White else Color.Black.copy(alpha = 0.28f))
             .border(0.5.dp, Color.White.copy(alpha = 0.18f), shape)
-            .clickable(enabled = enabled, onClick = onClick)
+            .combinedClickable(enabled = enabled, onLongClick = onLongClick, onClick = onClick)
             .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = label,
+            text = text,
             color = when {
                 active -> Color.Black.copy(alpha = 0.88f)
                 enabled -> Color.White.copy(alpha = 0.82f)
@@ -2831,6 +2868,98 @@ private fun AiEnhanceChip(
             maxLines = 1
         )
     }
+}
+
+private fun aiModelLabel(context: android.content.Context, model: AiModel): String =
+    context.getString(
+        when (model) {
+            AiModel.DENOISE -> R.string.ai_enhance_model_denoise_name
+            AiModel.FACES -> R.string.ai_enhance_model_faces_name
+        }
+    )
+
+@Composable
+private fun AiEnhanceModelPicker(
+    choice: AiEnhanceChoice,
+    modelStates: Map<AiModel, AiEnhanceModelState>,
+    onChoiceSelected: (AiEnhanceChoice) -> Unit,
+    onDownload: (AiModel) -> Unit,
+    onDelete: (AiModel) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.ai_enhance_picker_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                AiEnhanceChoice.entries.forEach { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onChoiceSelected(option) }
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = option == choice, onClick = { onChoiceSelected(option) })
+                        Text(
+                            text = stringResource(
+                                when (option) {
+                                    AiEnhanceChoice.DENOISE -> R.string.ai_enhance_choice_denoise
+                                    AiEnhanceChoice.FACES -> R.string.ai_enhance_choice_faces
+                                    AiEnhanceChoice.BOTH -> R.string.ai_enhance_choice_both
+                                }
+                            ),
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                AiModel.entries.forEach { model ->
+                    val modelState = modelStates.getValue(model)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(aiModelLabel(context, model), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                text = when (modelState) {
+                                    AiEnhanceModelState.Ready -> stringResource(R.string.ai_enhance_model_installed)
+                                    is AiEnhanceModelState.Downloading -> stringResource(
+                                        R.string.ai_enhance_model_downloading,
+                                        ((modelState.progress ?: 0f) * 100f).toInt()
+                                    )
+                                    AiEnhanceModelState.Failed -> stringResource(R.string.ai_enhance_model_failed_short)
+                                    AiEnhanceModelState.Missing -> stringResource(
+                                        when (model) {
+                                            AiModel.DENOISE -> R.string.ai_enhance_model_denoise_size
+                                            AiModel.FACES -> R.string.ai_enhance_model_faces_size
+                                        }
+                                    )
+                                },
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        when (modelState) {
+                            AiEnhanceModelState.Ready -> TextButton(onClick = { onDelete(model) }) {
+                                Text(stringResource(R.string.ai_enhance_model_delete))
+                            }
+                            is AiEnhanceModelState.Downloading -> Unit
+                            else -> TextButton(onClick = { onDownload(model) }) {
+                                Text(stringResource(R.string.ai_enhance_dialog_download))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.ok)) }
+        }
+    )
 }
 
 @Composable

@@ -386,6 +386,8 @@ data class CameraState(
     val hdrPlusLongFrameExposureEv: Float = MultiFrameConfig.LONG_FRAME_EXPOSURE_EV.toFloat(),
     val hdrPlusShortFrameExposureEv: Float = MultiFrameConfig.DEFAULT_SHORT_FRAME_EXPOSURE_EV,
     val useRaw: Boolean = false,
+    // RAW automatique et invisible (pas de mode Pro) : objectif arrière en Photo/Portrait.
+    val autoRawCapture: Boolean = true,
     // Mode Nuit : pose allongée + éclaircissement quand la scène est sombre (non persistant).
     val nightMode: Boolean = false,
     // Dernier réglage appliqué par le mode Nuit (texte d'info affiché après la prise) et compteur.
@@ -432,9 +434,27 @@ data class CameraState(
     val isAutoExposure: Boolean
         get() = isIsoAuto && isShutterSpeedAuto
 
+    /**
+     * Capture RAW souhaitée : mode Pro (useRaw), ou RAW automatique sur l'objectif arrière en
+     * Photo/Portrait. La Nuit et le selfie restent sur le rendu YUV réglé pour eux.
+     */
+    val wantsRawCapture: Boolean
+        get() = useRaw || (
+            autoRawCapture &&
+                captureMode == CaptureMode.PHOTO &&
+                !nightMode &&
+                !useMultipleExposure &&
+                !useLivePhoto &&
+                currentLensType != LensType.FRONT
+            )
+
+    /** RAW réellement capturé (sinon repli sur JPG / JPG Max). */
+    val captureRaw: Boolean
+        get() = wantsRawCapture && isRawSupported
+
     val isMultiFrameEnabled: Boolean
         get() = multiFrameOutputScale != null &&
-            (!useRaw || (isRawSupported && isRawMultiFrameSupported && normalizedHdrPlusFrameCount > 1))
+            (!captureRaw || (isRawMultiFrameSupported && normalizedHdrPlusFrameCount > 1))
 
     // A single RAW frame uses the ordinary capture and development path.
     // Resolve the configured count without depending on the multi-frame enablement above.
@@ -456,13 +476,13 @@ data class CameraState(
         get() = isMultiFrameEnabled && activeMultiFrameCount > 1
 
     val isJpgMaxEnabled: Boolean
-        get() = isMultiFrameEnabled && !useRaw
+        get() = isMultiFrameEnabled && !captureRaw
 
     val isJpgMaxHdrEnabled: Boolean
         get() = isJpgMaxEnabled && useJpgMaxHdrComposition
 
     val isRawMaxEnabled: Boolean
-        get() = isMultiFrameEnabled && useRaw
+        get() = isMultiFrameEnabled && captureRaw
 
     val isHdrPlusBracketExposureEnabled: Boolean
         get() = isRawMaxEnabled && hdrPlusMergeMode.supportsBracketExposure &&

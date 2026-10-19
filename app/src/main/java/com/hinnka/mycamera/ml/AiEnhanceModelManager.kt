@@ -31,6 +31,47 @@ sealed interface AiEnhanceModelState {
     data object Failed : AiEnhanceModelState
 }
 
+/** Modèles téléchargeables, vérifiés à l'installation (taille et SHA-256). */
+enum class AiModel(
+    val directory: String,
+    val fileName: String,
+    val sizeBytes: Long,
+    val sha256: String,
+    val url: String,
+) {
+    // NAFNet (jeu SIDD, vraies photos de smartphones) : débruitage, licence MIT, ~62 Mo.
+    // Entrée/sortie RGB [0,1] NCHW 256×256, même format que le DnCNN intégré.
+    DENOISE(
+        directory = "ml_models/nafnet_sidd",
+        fileName = "nafnet_sidd_width32_fp16.tflite",
+        sizeBytes = 62_454_048L,
+        sha256 = "f8fbaa422411683c53e802cf7cc7cf9be0a0de00886ad4af057232e26b172a0c",
+        url = "https://huggingface.co/litert-community/NAFNet-SIDD-width32-LiteRT/resolve/main/nafnet_sidd_width32_fp16.tflite",
+    ),
+
+    // GFPGAN v1.4 : restauration des visages, licence Apache-2.0, ~431 Mo.
+    // Entrée/sortie RGB [-1,1] NCHW 512×512, visage aligné sur le gabarit FFHQ.
+    FACES(
+        directory = "ml_models/gfpgan_v14",
+        fileName = "gfpgan_fp16.tflite",
+        sizeBytes = 431_493_712L,
+        sha256 = "6b792e1c33eb93b8115c57086042a440adf4072c60349d85beb266821d2b3dfe",
+        url = "https://huggingface.co/litert-community/GFPGAN-v1.4-LiteRT/resolve/main/gfpgan_fp16.tflite",
+    ),
+}
+
+/** Choix de l'utilisateur (appui long sur le bouton IA) : quel(s) modèle(s) appliquer. */
+enum class AiEnhanceChoice(val models: List<AiModel>) {
+    DENOISE(listOf(AiModel.DENOISE)),
+    FACES(listOf(AiModel.FACES)),
+    BOTH(listOf(AiModel.DENOISE, AiModel.FACES));
+
+    companion object {
+        fun fromPersisted(value: String?): AiEnhanceChoice =
+            entries.firstOrNull { it.name == value } ?: DENOISE
+    }
+}
+
 // Mélange avec l'original (1 = débruitage complet). Le modèle est appliqué à toutes les photos
 // quand l'utilisateur l'active, mais il adoucit un peu la texture : à ISO bas (peu de bruit, constaté
 // sur le salon éclairé) on garde surtout l'original, à ISO 800 et plus on débruite franchement.
@@ -46,25 +87,13 @@ internal fun aiEnhanceBlendStrength(iso: Int?): Float {
 }
 
 /**
- * Modèle facultatif d'amélioration des photos : NAFNet (débruitage appris sur de vraies photos
- * de smartphones, jeu SIDD), licence MIT, ~62 Mo, téléchargé à la demande et vérifié (taille et
- * SHA-256). Entrée/sortie RGB [0,1] NCHW 256×256 : même format que le DnCNN intégré, on réutilise
- * donc DnCNNDenoiseEstimator (tuiles, GPU/NNAPI/CPU).
- *
- * Appliqué automatiquement à toutes les photos (Photo, Nuit, Portrait) quand l'utilisateur l'a
- * activé (bouton « IA » du viseur ou réglages), avant l'enregistrement de l'original et l'export.
+ * Modèles facultatifs d'amélioration des photos, téléchargés à la demande dans le stockage privé.
+ * Tout tourne sur le téléphone. Appliqués automatiquement à toutes les photos (Photo, Nuit,
+ * Portrait) quand l'utilisateur l'a activé (bouton « IA » du viseur ou réglages), avant
+ * l'enregistrement de l'original et l'export : débruitage d'abord, puis visages.
  */
 object AiEnhanceModelManager {
     private const val TAG = "AiEnhanceModelManager"
-    private const val MODEL_DIRECTORY = "ml_models/nafnet_sidd"
-    private const val MODEL_FILE_NAME = "nafnet_sidd_width32_fp16.tflite"
-    private const val MODEL_PART_FILE_NAME = "$MODEL_FILE_NAME.part"
-    private const val EXPECTED_MODEL_SIZE_BYTES = 62_454_048L
-    private const val MODEL_SHA256 =
-        "f8fbaa422411683c53e802cf7cc7cf9be0a0de00886ad4af057232e26b172a0c"
-
-    const val MODEL_DOWNLOAD_URL =
-        "https://huggingface.co/litert-community/NAFNet-SIDD-width32-LiteRT/resolve/main/nafnet_sidd_width32_fp16.tflite"
 
     // Recouvrement des tuiles 256×256 (DnCNN : 4 px) : évite les jointures visibles.
     private const val TILE_OVERLAP = 16
@@ -74,137 +103,180 @@ object AiEnhanceModelManager {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(5, TimeUnit.MINUTES)
         .build()
-    private val _state = MutableStateFlow<AiEnhanceModelState>(AiEnhanceModelState.Missing)
+    private val states = AiModel.entries.associateWith {
+        MutableStateFlow<AiEnhanceModelState>(AiEnhanceModelState.Missing)
+    }
     private val lock = Any()
     private var initialized = false
-    private var downloadJob: Job? = null
+    private val downloadJobs = mutableMapOf<AiModel, Job>()
     private val inferenceMutex = Mutex()
 
-    fun observe(context: Context): StateFlow<AiEnhanceModelState> {
+    fun observe(context: Context, model: AiModel): StateFlow<AiEnhanceModelState> {
         initialize(context.applicationContext)
-        return _state.asStateFlow()
+        return states.getValue(model).asStateFlow()
     }
 
-    fun isInstalled(context: Context): Boolean = installedModelFileOrNull(context.applicationContext) != null
+    fun isInstalled(context: Context, model: AiModel): Boolean =
+        installedModelFileOrNull(context.applicationContext, model) != null
 
-    private fun modelFile(context: Context) = File(File(context.filesDir, MODEL_DIRECTORY), MODEL_FILE_NAME)
+    private fun modelDirectory(context: Context, model: AiModel) = File(context.filesDir, model.directory)
 
-    private fun installedModelFileOrNull(context: Context): File? =
-        modelFile(context).takeIf { it.isFile && it.length() == EXPECTED_MODEL_SIZE_BYTES }
+    private fun modelFile(context: Context, model: AiModel) = File(modelDirectory(context, model), model.fileName)
+
+    private fun installedModelFileOrNull(context: Context, model: AiModel): File? =
+        modelFile(context, model).takeIf { it.isFile && it.length() == model.sizeBytes }
 
     private fun initialize(context: Context) {
         synchronized(lock) {
             if (initialized) return
             initialized = true
-            if (installedModelFileOrNull(context) != null) _state.value = AiEnhanceModelState.Ready
+            AiModel.entries.forEach { model ->
+                if (installedModelFileOrNull(context, model) != null) {
+                    states.getValue(model).value = AiEnhanceModelState.Ready
+                }
+            }
         }
     }
 
-    fun download(context: Context) {
+    fun download(context: Context, model: AiModel) {
         val appContext = context.applicationContext
         initialize(appContext)
+        val state = states.getValue(model)
         synchronized(lock) {
-            if (installedModelFileOrNull(appContext) != null) {
-                _state.value = AiEnhanceModelState.Ready
+            if (installedModelFileOrNull(appContext, model) != null) {
+                state.value = AiEnhanceModelState.Ready
                 return
             }
-            if (downloadJob?.isActive == true) return
-            _state.value = AiEnhanceModelState.Downloading(0f)
-            downloadJob = scope.launch {
-                _state.value = try {
-                    downloadAndInstall(appContext)
+            if (downloadJobs[model]?.isActive == true) return
+            state.value = AiEnhanceModelState.Downloading(0f)
+            downloadJobs[model] = scope.launch {
+                state.value = try {
+                    downloadAndInstall(appContext, model)
                     AiEnhanceModelState.Ready
                 } catch (e: Exception) {
-                    PLog.w(TAG, "Failed to download the AI enhance model", e)
+                    PLog.w(TAG, "Failed to download the AI model $model", e)
                     AiEnhanceModelState.Failed
                 }
             }
         }
     }
 
-    fun delete(context: Context) {
+    fun delete(context: Context, model: AiModel) {
         val appContext = context.applicationContext
         synchronized(lock) {
-            if (downloadJob?.isActive == true) return
-            File(appContext.filesDir, MODEL_DIRECTORY).deleteRecursively()
-            _state.value = AiEnhanceModelState.Missing
+            if (downloadJobs[model]?.isActive == true) return
+            modelDirectory(appContext, model).deleteRecursively()
+            states.getValue(model).value = AiEnhanceModelState.Missing
         }
     }
 
-    private fun downloadAndInstall(context: Context) {
-        val directory = File(context.filesDir, MODEL_DIRECTORY).apply { mkdirs() }
-        val partFile = File(directory, MODEL_PART_FILE_NAME)
+    private fun downloadAndInstall(context: Context, model: AiModel) {
+        val state = states.getValue(model)
+        val directory = modelDirectory(context, model).apply { mkdirs() }
+        val partFile = File(directory, "${model.fileName}.part")
         partFile.delete()
-        val request = Request.Builder().url(MODEL_DOWNLOAD_URL).build()
+        val request = Request.Builder().url(model.url).build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
             val body = response.body ?: throw IOException("Empty response")
-            val total = body.contentLength().takeIf { it > 0 } ?: EXPECTED_MODEL_SIZE_BYTES
+            val total = body.contentLength().takeIf { it > 0 } ?: model.sizeBytes
             val digest = MessageDigest.getInstance("SHA-256")
             body.byteStream().use { input ->
                 FileOutputStream(partFile).use { output ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE * 8)
                     var written = 0L
+                    var lastPercent = -1
                     while (true) {
                         val read = input.read(buffer)
                         if (read < 0) break
                         output.write(buffer, 0, read)
                         digest.update(buffer, 0, read)
                         written += read
-                        if (written > EXPECTED_MODEL_SIZE_BYTES) throw IOException("Model larger than expected")
-                        _state.value = AiEnhanceModelState.Downloading((written.toFloat() / total).coerceIn(0f, 1f))
+                        if (written > model.sizeBytes) throw IOException("Model larger than expected")
+                        val progress = (written.toFloat() / total).coerceIn(0f, 1f)
+                        val percent = (progress * 100f).toInt()
+                        if (percent != lastPercent) {
+                            lastPercent = percent
+                            state.value = AiEnhanceModelState.Downloading(progress)
+                        }
                     }
                 }
             }
             val sha = digest.digest().joinToString("") { "%02x".format(it) }
-            if (partFile.length() != EXPECTED_MODEL_SIZE_BYTES || sha != MODEL_SHA256) {
+            if (partFile.length() != model.sizeBytes || sha != model.sha256) {
                 partFile.delete()
                 throw IOException("Model verification failed: size=${partFile.length()} sha=$sha")
             }
         }
-        val target = modelFile(context)
+        val target = modelFile(context, model)
         target.delete()
         if (!partFile.renameTo(target)) {
             partFile.delete()
-            throw IOException("Failed to install the AI enhance model")
+            throw IOException("Failed to install the AI model $model")
         }
     }
 
     /**
-     * Améliore [bitmap] si le réglage est activé et le modèle installé ; la force du mélange suit
-     * [iso]. Renvoie le bitmap d'origine sinon, ou en cas d'échec (la photo n'est jamais perdue). L'appelant reste propriétaire de [bitmap] ; s'il reçoit un nouveau
-     * bitmap, il peut recycler l'ancien.
+     * Améliore [bitmap] si le réglage est activé et le(s) modèle(s) choisi(s) installé(s) ; la force
+     * du débruitage suit [iso]. Renvoie le bitmap d'origine sinon, ou en cas d'échec (la photo n'est
+     * jamais perdue). L'appelant reste propriétaire de [bitmap] ; s'il reçoit un nouveau bitmap, il
+     * peut recycler l'ancien.
      */
     suspend fun enhanceIfEnabled(context: Context, bitmap: Bitmap, iso: Int?): Bitmap {
         val appContext = context.applicationContext
-        val modelFile = installedModelFileOrNull(appContext) ?: return bitmap
-        val enabled = runCatching {
+        val preferences = runCatching {
             ContentRepository.getInstance(appContext).userPreferencesRepository
-                .userPreferences.firstOrNull()?.aiEnhanceEnabled
-        }.getOrNull() ?: false
-        if (!enabled) return bitmap
+                .userPreferences.firstOrNull()
+        }.getOrNull() ?: return bitmap
+        if (!preferences.aiEnhanceEnabled) return bitmap
+        val choice = AiEnhanceChoice.fromPersisted(preferences.aiEnhanceModel)
+        val denoiseModel = installedModelFileOrNull(appContext, AiModel.DENOISE)
+            ?.takeIf { AiModel.DENOISE in choice.models }
+        val facesModel = installedModelFileOrNull(appContext, AiModel.FACES)
+            ?.takeIf { AiModel.FACES in choice.models }
+        if (denoiseModel == null && facesModel == null) return bitmap
         return inferenceMutex.withLock {
-            val estimator = DnCNNDenoiseEstimator(
-                context = appContext,
-                modelFile = modelFile,
-                tileOverlap = TILE_OVERLAP,
-            )
-            try {
-                val input = if (bitmap.config == Bitmap.Config.ARGB_8888) {
-                    bitmap
-                } else {
-                    bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: return@withLock bitmap
-                }
-                val enhanced = estimator.denoisePatchwise(input, strength = aiEnhanceBlendStrength(iso))
-                if (input !== bitmap) input.recycle()
-                PLog.d(TAG, "AI enhance applied: iso=$iso ${bitmap.width}x${bitmap.height} ok=${enhanced != null}")
-                enhanced ?: bitmap
-            } catch (e: Throwable) {
-                PLog.e(TAG, "AI enhance failed, keeping the original photo", e)
-                bitmap
-            } finally {
-                estimator.close()
+            var current = bitmap
+            if (denoiseModel != null) {
+                val denoised = denoise(appContext, denoiseModel, current, iso)
+                if (denoised !== current && current !== bitmap) current.recycle()
+                current = denoised
             }
+            if (facesModel != null) {
+                val restored = try {
+                    FaceRestorer.restore(appContext, facesModel, current)
+                } catch (e: Throwable) {
+                    PLog.e(TAG, "Face restoration failed, keeping the photo as is", e)
+                    current
+                }
+                if (restored !== current && current !== bitmap) current.recycle()
+                current = restored
+            }
+            current
+        }
+    }
+
+    private suspend fun denoise(context: Context, modelFile: File, bitmap: Bitmap, iso: Int?): Bitmap {
+        val estimator = DnCNNDenoiseEstimator(
+            context = context,
+            modelFile = modelFile,
+            tileOverlap = TILE_OVERLAP,
+        )
+        return try {
+            val input = if (bitmap.config == Bitmap.Config.ARGB_8888) {
+                bitmap
+            } else {
+                bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: return bitmap
+            }
+            val enhanced = estimator.denoisePatchwise(input, strength = aiEnhanceBlendStrength(iso))
+            if (input !== bitmap) input.recycle()
+            PLog.d(TAG, "AI denoise applied: iso=$iso ${bitmap.width}x${bitmap.height} ok=${enhanced != null}")
+            enhanced ?: bitmap
+        } catch (e: Throwable) {
+            PLog.e(TAG, "AI denoise failed, keeping the original photo", e)
+            bitmap
+        } finally {
+            estimator.close()
         }
     }
 }

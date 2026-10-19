@@ -52,7 +52,9 @@ class SelfieAndNightGuardsTest {
 
     @Test
     fun rearCameraFollowsUserAndNightChoices() {
-        assertFalse(resolveEffectiveUseJpgMax(false, false, frontCamera = false, useLivePhoto = false, useMultipleExposure = false))
+        // Arrière : empilement toujours actif (RAW Max automatique), sauf Live Photo.
+        assertTrue(resolveEffectiveUseJpgMax(false, false, frontCamera = false, useLivePhoto = false, useMultipleExposure = false))
+        assertFalse(resolveEffectiveUseJpgMax(false, false, frontCamera = false, useLivePhoto = true, useMultipleExposure = false))
         assertTrue(resolveEffectiveUseJpgMax(true, false, frontCamera = false, useLivePhoto = false, useMultipleExposure = false))
         assertTrue(resolveEffectiveUseJpgMax(false, true, frontCamera = false, useLivePhoto = false, useMultipleExposure = false))
     }

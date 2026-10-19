@@ -1397,9 +1397,26 @@
     <string name="ai_enhance_model_ready">Modèle installé. Touchez pour le supprimer et libérer 62 Mo.</string>
     <string name="ai_enhance_model_failed">Échec du téléchargement. Touchez pour réessayer.</string>
     <string name="ai_enhance_enable_title">Améliorer toutes les photos avec l\'IA</string>
-    <string name="ai_enhance_enable_description">Nettoie automatiquement le bruit de toutes vos photos (Photo, Nuit, Portrait). Aussi disponible avec le bouton IA au-dessus des modes dans le viseur. L\'enregistrement prend quelques secondes de plus.</string>
+    <string name="ai_enhance_enable_description">Applique le modèle choisi (bruit, visages ou les deux) à toutes vos photos (Photo, Nuit, Portrait). Aussi disponible avec le bouton IA au-dessus des modes dans le viseur ; appui long pour choisir le modèle. L\'enregistrement prend quelques secondes de plus.</string>
     <string name="ai_enhance_chip">IA</string>
     <string name="ai_enhance_dialog_title">Télécharger le modèle IA ?</string>
     <string name="ai_enhance_dialog_message">Le modèle IA nettoie le bruit de vos photos (Photo, Nuit et Portrait). Il pèse environ 62 Mo et fonctionne entièrement sur le téléphone. Une fois téléchargé, le bouton IA active ou coupe l\'amélioration pour toutes les photos ; l\'enregistrement prend quelques secondes de plus.</string>
     <string name="ai_enhance_dialog_download">Télécharger</string>
+    <string name="ai_enhance_chip_faces">IA visages</string>
+    <string name="ai_enhance_chip_both">IA+</string>
+    <string name="ai_enhance_dialog_message_models">À télécharger : %1$s. Les modèles fonctionnent entièrement sur le téléphone. Appui long sur le bouton IA pour choisir entre le nettoyage du bruit, la restauration des visages, ou les deux. L\'enregistrement prend quelques secondes de plus.</string>
+    <string name="ai_enhance_model_denoise_name">Bruit (NAFNet)</string>
+    <string name="ai_enhance_model_faces_name">Visages (GFPGAN)</string>
+    <string name="ai_enhance_picker_title">Amélioration IA</string>
+    <string name="ai_enhance_choice_denoise">Nettoyer le bruit</string>
+    <string name="ai_enhance_choice_faces">Restaurer les visages</string>
+    <string name="ai_enhance_choice_both">Bruit + visages</string>
+    <string name="ai_enhance_model_installed">Installé</string>
+    <string name="ai_enhance_model_failed_short">Échec du téléchargement</string>
+    <string name="ai_enhance_model_denoise_size">Non téléchargé · 62 Mo</string>
+    <string name="ai_enhance_model_faces_size">Non téléchargé · 431 Mo</string>
+    <string name="ai_enhance_model_delete">Supprimer</string>
+    <string name="ai_enhance_faces_model_title">Modèle visages (GFPGAN)</string>
+    <string name="ai_enhance_faces_model_description">Touchez pour télécharger le modèle de restauration des visages GFPGAN (environ 431 Mo, licence Apache 2.0). Il rend les yeux, la peau et les cheveux plus nets. Fonctionne entièrement sur le téléphone.</string>
+    <string name="ai_enhance_faces_model_ready">Modèle installé. Touchez pour le supprimer et libérer 431 Mo.</string>
 </resources>
