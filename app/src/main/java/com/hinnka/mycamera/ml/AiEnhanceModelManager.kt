@@ -112,8 +112,8 @@ object AiEnhanceModelManager {
     private val downloadJobs = mutableMapOf<AiModel, Job>()
     private val inferenceMutex = Mutex()
     private val facesBusy = java.util.concurrent.atomic.AtomicBoolean(false)
-    private const val DENOISE_TIMEOUT_MS = 120_000L
-    private const val FACES_TIMEOUT_MS = 60_000L
+    private const val DENOISE_TIMEOUT_MS = 45_000L
+    private const val FACES_TIMEOUT_MS = 30_000L
 
     fun observe(context: Context, model: AiModel): StateFlow<AiEnhanceModelState> {
         initialize(context.applicationContext)
