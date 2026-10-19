@@ -1090,6 +1090,24 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * Synchro manuelle : ignore le délai de 30 s et le réglage, puis recharge la liste.
+     * Retourne le nombre de photos retirées (ou à confirmer).
+     */
+    fun syncWithSystemGallery(onDone: (Int) -> Unit) {
+        viewModelScope.launch {
+            val scan = GalleryManager.scanDeletedExports(getApplication())
+            lastExportPruneAt = System.currentTimeMillis()
+            if (scan.needsConfirmation) {
+                pendingExportPruneIds = scan.photoIds
+            } else if (scan.photoIds.isNotEmpty()) {
+                removePrunedPhotos(scan.photoIds)
+            }
+            loadPhotosInternal()
+            onDone(scan.photoIds.size)
+        }
+    }
+
     private suspend fun removePrunedPhotos(photoIds: List<String>) {
         val removed = GalleryManager.deletePhotosOnly(getApplication(), photoIds)
         if (removed.isNotEmpty()) {

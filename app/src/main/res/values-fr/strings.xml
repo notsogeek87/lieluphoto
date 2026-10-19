@@ -121,6 +121,8 @@
     <string name="settings_volume_key_action_zoom">Changement de focus</string>
     <string name="settings_auto_save">Enregistrement automatique</string>
     <string name="settings_auto_save_description">Enregistrer automatiquement les photos après la capture</string>
+    <string name="sync_gallery">Synchroniser avec la galerie du téléphone</string>
+    <string name="sync_gallery_result">%1$d photo(s) supprimée(s) de la galerie du téléphone</string>
     <string name="export_prune_title">Photos supprimées de la galerie du téléphone</string>
     <string name="export_prune_message">%1$d photos ne sont plus dans la galerie du téléphone. Les supprimer aussi de l\'app (RAW compris) ? Cette action est irréversible.</string>
     <string name="settings_delete_when_export_removed">Synchroniser les suppressions de la galerie</string>

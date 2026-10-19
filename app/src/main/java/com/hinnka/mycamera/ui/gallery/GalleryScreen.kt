@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -291,6 +292,21 @@ fun GalleryScreen(
                                 )
                             }
                         } else {
+                            IconButton(onClick = {
+                                viewModel.syncWithSystemGallery { count ->
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.sync_gallery_result, count),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = stringResource(R.string.sync_gallery),
+                                    tint = Color.White
+                                )
+                            }
                             IconButton(onClick = {
                                 launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
                             }) {

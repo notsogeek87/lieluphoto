@@ -389,6 +389,8 @@
     <string name="settings_storage_path_permission_failed">Failed to save folder permission</string>
     <string name="settings_auto_save">Auto Save</string>
     <string name="settings_auto_save_description">Automatically save photos after capture</string>
+    <string name="sync_gallery">Sync with phone gallery</string>
+    <string name="sync_gallery_result">%1$d photo(s) removed from the phone gallery</string>
     <string name="export_prune_title">Photos removed from the phone gallery</string>
     <string name="export_prune_message">%1$d photos are no longer in the phone gallery. Also delete them (and their RAW) from the app? This cannot be undone.</string>
     <string name="settings_delete_when_export_removed">Sync deletions from phone gallery</string>
