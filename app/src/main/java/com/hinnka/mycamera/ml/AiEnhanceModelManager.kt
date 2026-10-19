@@ -336,10 +336,6 @@ object AiEnhanceModelManager {
             facesModel == null -> "visages modèle absent"
             else -> null
         }
-        if (denoiseModel == null && facesModel == null) {
-            onReport("IA[${listOfNotNull(skippedDenoise, skippedFaces).joinToString(", ").ifEmpty { "rien" }}]")
-            return bitmap
-        }
         // Jamais d'attente derrière une autre photo : si l'IA est déjà occupée, on enregistre
         // cette photo telle quelle plutôt que de bloquer toute la file de traitement.
         if (waitForTurn) {
@@ -383,6 +379,21 @@ object AiEnhanceModelManager {
                     if (restored !== current && current !== bitmap) current.recycle()
                     current = restored
                 }
+            }
+            // Netteté finale, toujours appliquée : accentue les vrais contours (barbe, cils, tissus)
+            // sans faire remonter le bruit des zones unies.
+            run {
+                val stepStart = System.currentTimeMillis()
+                val sharpened = try {
+                    AiSharpener.sharpen(current)
+                } catch (e: Throwable) {
+                    PLog.e(TAG, "AI sharpening failed", e)
+                    current
+                }
+                val seconds = "%.1f".format((System.currentTimeMillis() - stepStart) / 1000f)
+                steps += if (sharpened !== current) "nettete ${seconds}s" else "nettete echec"
+                if (sharpened !== current && current !== bitmap) current.recycle()
+                current = sharpened
             }
             onReport("IA[${steps.joinToString(", ")}]")
             PLog.d(TAG, "AI enhance total ${System.currentTimeMillis() - started}ms ${bitmap.width}x${bitmap.height} $steps")
