@@ -1396,6 +1396,10 @@
     <string name="ai_enhance_model_downloading">Téléchargement… %1$d %%</string>
     <string name="ai_enhance_model_ready">Modèle installé. Touchez pour le supprimer et libérer 62 Mo.</string>
     <string name="ai_enhance_model_failed">Échec du téléchargement. Touchez pour réessayer.</string>
-    <string name="ai_enhance_enable_title">Améliorer les photos en faible lumière</string>
-    <string name="ai_enhance_enable_description">Nettoie automatiquement le bruit des photos prises en faible lumière (ISO 800 et plus). L\'enregistrement prend quelques secondes de plus.</string>
+    <string name="ai_enhance_enable_title">Améliorer toutes les photos avec l\'IA</string>
+    <string name="ai_enhance_enable_description">Nettoie automatiquement le bruit de toutes vos photos (Photo, Nuit, Portrait). Aussi disponible avec le bouton IA au-dessus des modes dans le viseur. L\'enregistrement prend quelques secondes de plus.</string>
+    <string name="ai_enhance_chip">IA</string>
+    <string name="ai_enhance_dialog_title">Télécharger le modèle IA ?</string>
+    <string name="ai_enhance_dialog_message">Le modèle IA nettoie le bruit de vos photos (Photo, Nuit et Portrait). Il pèse environ 62 Mo et fonctionne entièrement sur le téléphone. Une fois téléchargé, le bouton IA active ou coupe l\'amélioration pour toutes les photos ; l\'enregistrement prend quelques secondes de plus.</string>
+    <string name="ai_enhance_dialog_download">Télécharger</string>
 </resources>

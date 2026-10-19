@@ -1438,6 +1438,10 @@
     <string name="ai_enhance_model_downloading">Downloading… %1$d %%</string>
     <string name="ai_enhance_model_ready">Model installed. Tap to delete it and free 62 MB.</string>
     <string name="ai_enhance_model_failed">Download failed. Tap to try again.</string>
-    <string name="ai_enhance_enable_title">Enhance low-light photos</string>
-    <string name="ai_enhance_enable_description">Automatically cleans up noise on photos taken in low light (ISO 800 and above). Saving takes a few more seconds.</string>
+    <string name="ai_enhance_enable_title">Enhance every photo with AI</string>
+    <string name="ai_enhance_enable_description">Automatically cleans up noise on all your photos (Photo, Night, Portrait). Also available as the AI button above the modes in the viewfinder. Saving takes a few more seconds.</string>
+    <string name="ai_enhance_chip">AI</string>
+    <string name="ai_enhance_dialog_title">Download the AI model?</string>
+    <string name="ai_enhance_dialog_message">The AI model cleans up noise on your photos (Photo, Night and Portrait). It is about 62 MB and runs entirely on the phone. Once downloaded, the AI button turns on or off the enhancement for every photo; saving takes a few more seconds.</string>
+    <string name="ai_enhance_dialog_download">Download</string>
 </resources>

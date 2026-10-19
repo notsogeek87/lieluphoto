@@ -83,6 +83,8 @@ import com.hinnka.mycamera.utils.OrientationObserver
 import com.hinnka.mycamera.viewmodel.CameraViewModel
 import com.hinnka.mycamera.viewmodel.GalleryViewModel
 import com.hinnka.mycamera.viewmodel.withNightBoost
+import com.hinnka.mycamera.ml.AiEnhanceModelManager
+import com.hinnka.mycamera.ml.AiEnhanceModelState
 import com.hinnka.mycamera.video.CaptureMode
 import com.hinnka.mycamera.video.VideoAspectRatio
 import com.hinnka.mycamera.video.VideoFpsPreset
@@ -2411,7 +2413,57 @@ private fun Controls(
                 }
             }
 
-            Spacer(modifier = Modifier.height(CameraControlsLayoutDefaults.ModeSwitcherSpacing))
+            // Petit bouton « IA » (amélioration par le modèle NAFNet) au-dessus des modes photo ;
+            // masqué en vidéo. Tout le temps actif une fois allumé.
+            val aiContext = androidx.compose.ui.platform.LocalContext.current
+            val aiPreferences by viewModel.userPreferences.collectAsState()
+            val aiModelState by remember(aiContext.applicationContext) {
+                AiEnhanceModelManager.observe(aiContext)
+            }.collectAsState()
+            var showAiDownloadDialog by remember { mutableStateOf(false) }
+            Box(
+                modifier = Modifier
+                    .width(300.dp)
+                    .height(CameraControlsLayoutDefaults.ModeSwitcherSpacing),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                if (state.captureMode != CaptureMode.VIDEO) {
+                    AiEnhanceChip(
+                        active = aiPreferences.aiEnhanceEnabled &&
+                            (aiModelState == AiEnhanceModelState.Ready ||
+                                aiModelState is AiEnhanceModelState.Downloading),
+                        modelState = aiModelState,
+                        enabled = !state.videoRecordingState.isRecording,
+                        onClick = {
+                            when (aiModelState) {
+                                AiEnhanceModelState.Ready ->
+                                    viewModel.setAiEnhanceEnabled(!aiPreferences.aiEnhanceEnabled)
+                                is AiEnhanceModelState.Downloading -> Unit
+                                else -> showAiDownloadDialog = true
+                            }
+                        }
+                    )
+                }
+            }
+            if (showAiDownloadDialog) {
+                AlertDialog(
+                    onDismissRequest = { showAiDownloadDialog = false },
+                    title = { Text(stringResource(R.string.ai_enhance_dialog_title)) },
+                    text = { Text(stringResource(R.string.ai_enhance_dialog_message)) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showAiDownloadDialog = false
+                            viewModel.setAiEnhanceEnabled(true)
+                            AiEnhanceModelManager.download(aiContext)
+                        }) { Text(stringResource(R.string.ai_enhance_dialog_download)) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showAiDownloadDialog = false }) {
+                            Text(stringResource(android.R.string.cancel))
+                        }
+                    }
+                )
+            }
 
             CaptureModeSwitcher(
                 shootingMode = when {
@@ -2741,6 +2793,44 @@ private fun rememberPhotoCaptureProgress(progress: PhotoCaptureProgress?): State
         }
     }
     return fraction
+}
+
+@Composable
+private fun AiEnhanceChip(
+    active: Boolean,
+    modelState: AiEnhanceModelState,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val label = when (modelState) {
+        is AiEnhanceModelState.Downloading ->
+            "${stringResource(R.string.ai_enhance_chip)} ${((modelState.progress ?: 0f) * 100f).toInt()} %"
+        else -> stringResource(R.string.ai_enhance_chip)
+    }
+    val shape = RoundedCornerShape(12.dp)
+    Box(
+        modifier = Modifier
+            .height(24.dp)
+            .clip(shape)
+            .background(if (active) Color.White else Color.Black.copy(alpha = 0.28f))
+            .border(0.5.dp, Color.White.copy(alpha = 0.18f), shape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = when {
+                active -> Color.Black.copy(alpha = 0.88f)
+                enabled -> Color.White.copy(alpha = 0.82f)
+                else -> Color.White.copy(alpha = 0.3f)
+            },
+            fontSize = 12.sp,
+            lineHeight = 14.sp,
+            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+            maxLines = 1
+        )
+    }
 }
 
 @Composable
