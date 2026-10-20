@@ -1616,17 +1616,9 @@ private fun MediaData.isSystemRawImage(): Boolean {
 }
 
 private fun MediaData.galleryAspectRatio(isLandscape: Boolean): Float {
-    val rawWidth = if (isVideo) {
-        width
-    } else {
-        width
-    }
-    val rawHeight = if (isVideo) {
-        height
-    } else {
-        height
-    }
-    val rotationDegrees = if (isVideo) metadata?.rotationDegrees ?: 0 else 0
+    val rawWidth = width
+    val rawHeight = height
+    val rotationDegrees = metadata?.rotationDegrees ?: 0
     val shouldSwapDimensions = rotationDegrees == 90 || rotationDegrees == 270
     val resolvedWidth = if (shouldSwapDimensions) rawHeight else rawWidth
     val resolvedHeight = if (shouldSwapDimensions) rawWidth else rawHeight
