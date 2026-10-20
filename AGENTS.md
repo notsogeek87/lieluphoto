@@ -1,47 +1,66 @@
-# Camera App
+# LieluPhoto
 
-这是一个 Android 相机 App，模拟现代数码无反相机的操作手感
+## L'application
 
-## 技术框架
+Application Android appareil photo, qui retrouve la prise en main d'un appareil photo numérique sans miroir moderne.
 
-* UI: Jetpack Compose
-* 使用 Camera2 API, 不做向下兼容
+### Cadre technique
+
+* UI : Jetpack Compose
+* API Camera2, pas de compatibilité descendante
 * minSdk 30
 
-## 调试编译
+### Compilation et débogage
 
-编译命令需允许沙箱外执行, 使用全局gradle home不要指定项目.gradle-home
+Les commandes de compilation doivent pouvoir s'exécuter hors du sandbox ; utiliser le HOME Gradle global, ne pas spécifier de `.gradle-home` projet.
 
-* 完整编译(除非必要，一般无需进行完整编译)
+* Compilation complète (sauf nécessité, généralement inutile)
 
     ```
     ./gradlew assembleDefaultDebug
     ```
 
-* 通过性验证（kotlin端）
+* Vérification de compilation (kotlin)
 
     ```
     ./gradlew compileDefaultDebugKotlin
     ```
 
-* 通过性验证（native端）
+* Vérification de compilation (native)
 
     ```
     ./gradlew buildCMakeDebug
     ```
 
+### Règles
 
-## 注意
+* Pour les scripts Python : les exécuter et les gérer hors du sandbox avec `uv`.
+* Ne jamais compenser ni masquer une erreur par des mesures correctives : corriger la cause.
+* Toute modification de code doit garantir une chaîne logique parfaitement fermée.
+* Avant d'ajouter une fonctionnalité ou une nouvelle logique, penser d'abord à l'architecture des fichiers et du code.
+* Ne pas coder les textes en dur : prévoir l'internationalisation.
+* En cas de problème : isoler les variables d'abord, déterminer la direction ensuite, s'appuyer sur les journaux.
+* Pas de « première version » ni de « version simplifiée » dans les solutions techniques : viser une solution complète et mature.
+* Avant d'écrire du code GLES, lire la documentation de compatibilité des drivers GLES et ne la mettre à jour qu'en cas de besoin, avec uniquement du contenu relevant de vrais problèmes de compatibilité : @docs/gles-driver-compatibility.md
+* Pas d'installation incrémentale.
+* Pas de tests unitaires à ajouter.
+* Les sous-tâches peu exigeantes en raisonnement peuvent être confiées à un sous-agent léger.
+* Économiser les tokens : planifier en conséquence.
 
-* 需要使用 python 脚本时请直接在沙箱外使用 uv 运行和管理
-* 不要通过加补偿措施去弥补或掩盖错误来解决问题
-* 代码修改需要确保逻辑链完美闭合
-* 添加新功能/新逻辑时，事先考虑好文件/代码架构
-* 文字内容不要硬编码，需考虑多语言支持
-* 排查问题时先隔离变量，再判断方向，并借助日志辅助排查
-* 设计技术方案时不要有“第一版”，“简化版”等词汇，需要的是完整成熟方案
-* 编写GLES代码时需先阅读GLES驱动兼容性相关文档, 并仅在需要时补充更新此文档，仅包含明确是兼容性问题的内容 @docs/gles-driver-compatibility.md
-* 不要执行增量安装
-* 无需添加单元测试用例
-* 对推理强度要求相对较低的子任务可以交给轻量子代理执行
-* token不够用了，规划好尽量省着点用
+## Fork LieluPhoto : récupérer les nouveautés de bjzhou
+
+Détails : [docs/guides/sync-upstream.md](docs/guides/sync-upstream.md) et [docs/README.md](docs/README.md).
+
+Remotes : `origin` = notsogeek87/lieluphoto, `upstream` = bjzhou/photoncamera. Ne jamais pousser sur `upstream`.
+`main` (et `staging`, `lielu`) portent nos modifications au-dessus de `upstream/main` : bouton bokeh, renommage LieluPhoto (`applicationId = eu.lielu.photo`), Bugly retiré, mises à jour via les releases GitHub (voir [docs/guides/mise-a-jour-app.md](docs/guides/mise-a-jour-app.md)).
+
+```
+git fetch upstream
+git rebase upstream/main        # depuis main
+git push --force-with-lease origin main
+```
+
+- Faire ensuite la même chose pour `staging` et `lielu` si besoin.
+- Conflits probables : `CameraScreen.kt`, `app/build.gradle.kts`, `AppUpdateManager.kt`, `BuglyHelper.kt`, `strings.xml`.
+- Après chaque rebase : `./gradlew compileDefaultDebugKotlin` puis `./gradlew buildCMakeDebug`.
+- Le service IA intégré (`BUILT_IN_API_URL`, camera-api.hinnka.me) est volontairement conservé.
