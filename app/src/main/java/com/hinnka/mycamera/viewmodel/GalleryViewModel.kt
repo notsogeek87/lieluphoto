@@ -19,6 +19,7 @@ import androidx.lifecycle.viewModelScope
 import com.hinnka.mycamera.data.ContentRepository
 import com.hinnka.mycamera.frame.FrameInfo
 import com.hinnka.mycamera.gallery.GalleryManager
+import androidx.exifinterface.media.ExifInterface
 import com.hinnka.mycamera.gallery.ProcessingPhoto
 import com.hinnka.mycamera.gallery.MediaData
 import com.hinnka.mycamera.gallery.MediaMetadata
@@ -1627,7 +1628,23 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                 val inputStream2 = context.contentResolver.openInputStream(photo.thumbnailUri)
                 val bitmap = BitmapFactory.decodeStream(inputStream2, null, options)
                 inputStream2?.close()
-                bitmap
+                
+                // Apply EXIF rotation if needed
+                if (bitmap != null) {
+                    val exifStream = context.contentResolver.openInputStream(photo.thumbnailUri)
+                    val exif = exifStream?.use { ExifInterface(it) }
+                    val orientation = exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+                        ?: ExifInterface.ORIENTATION_NORMAL
+                    
+                    if (orientation != ExifInterface.ORIENTATION_NORMAL &&
+                        orientation != ExifInterface.ORIENTATION_UNDEFINED) {
+                        GalleryManager.rotateImageIfRequired(bitmap, orientation)
+                    } else {
+                        bitmap
+                    }
+                } else {
+                    null
+                }
             }
         } catch (e: Exception) {
             PLog.w(TAG, "Failed to load thumbnail for ${photo.id}", e)

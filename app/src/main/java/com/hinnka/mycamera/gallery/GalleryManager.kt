@@ -5059,6 +5059,9 @@ object GalleryManager {
      */
     private fun generateThumbnail(sourceFile: File, targetFile: File) {
         try {
+            val exif = ExifInterface(sourceFile.absolutePath)
+            val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+            
             val options = BitmapFactory.Options().apply {
                 inJustDecodeBounds = true
             }
@@ -5072,8 +5075,18 @@ object GalleryManager {
             val bitmap = BitmapFactory.decodeFile(sourceFile.absolutePath, options)
 
             if (bitmap != null) {
+                val rotatedBitmap = if (orientation != ExifInterface.ORIENTATION_NORMAL &&
+                    orientation != ExifInterface.ORIENTATION_UNDEFINED) {
+                    rotateImageIfRequired(bitmap, orientation)
+                } else {
+                    bitmap
+                }
+                
                 FileOutputStream(targetFile).use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
+                    rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
+                }
+                if (rotatedBitmap != bitmap) {
+                    rotatedBitmap.recycle()
                 }
                 bitmap.recycle()
             }
