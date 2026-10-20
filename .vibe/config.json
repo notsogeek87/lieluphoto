@@ -109,7 +109,7 @@
         "description": "NE PAS utiliser d'imports wildcard",
         "severity": "medium",
         "enforcement": "soft",
-        "patterns": ["import.*\.*"],
+        "patterns": ["import.*\\.*"],
         "message": "Toujours importer explicitement les classes. Ex: import android.view.View, pas import android.view.*"
       },
       {
