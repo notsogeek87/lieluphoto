@@ -1,0 +1,421 @@
+{
+  "$schema": "https://json.schemastore.org/vibe-config.json",
+  "name": "LieluPhoto",
+  "description": "Configuration Vibe Code pour le projet LieluPhoto - Application Android de caméra professionnelle",
+  "version": "1.0.0",
+  "agent": {
+    "id": "vibe-code",
+    "model": "mistral-medium-3-5",
+    "provider": "Mistral AI"
+  },
+  
+  "project": {
+    "repository": "notsogeek87/lieluphoto",
+    "upstream": "bjzhou/photoncamera",
+    "type": "android-application",
+    "primaryLanguage": "kotlin",
+    "secondaryLanguages": ["cpp", "python", "java"],
+    "minSdk": 30,
+    "targetSdk": 36,
+    "applicationId": "eu.lielu.photo"
+  },
+  
+  "restrictions": {
+    "global": [
+      {
+        "id": "no-upstream-push",
+        "description": "NE JAMAIS pousser sur upstream (bjzhou/photoncamera)",
+        "severity": "critical",
+        "enforcement": "hard",
+        "message": "La branche upstream est en LECTURE SEULE. Utiliser uniquement origin (notsogeek87/lieluphoto)."
+      },
+      {
+        "id": "no-secrets-in-code",
+        "description": "NE JAMAIS committer de secrets (API keys, tokens, mots de passe)",
+        "severity": "critical",
+        "enforcement": "hard",
+        "patterns": [
+          "BUILT_IN_API_KEY",
+          "BUILT_IN_API_KEY_GOOGLE",
+          "RELEASE_STORE_PASSWORD",
+          "RELEASE_KEY_PASSWORD",
+          "password",
+          "secret",
+          "token",
+          "api_key"
+        ],
+        "message": "Utiliser local.properties ou GitHub Secrets pour les configurations sensibles."
+      },
+      {
+        "id": "no-unit-tests",
+        "description": "NE PAS ajouter de tests unitaires",
+        "severity": "high",
+        "enforcement": "hard",
+        "patterns": [
+          "*Test.kt",
+          "*Spec.kt",
+          "*Test.java",
+          "@Test",
+          "junit",
+          "mockito",
+          "espresso"
+        ],
+        "message": "Le projet a décidé de ne pas utiliser de tests unitaires. Voir AGENTS.md pour détails."
+      },
+      {
+        "id": "no-python-in-sandbox",
+        "description": "NE PAS modifier les scripts Python dans le sandbox",
+        "severity": "high",
+        "enforcement": "hard",
+        "paths": ["scripts/*.py"],
+        "message": "Les scripts Python doivent être exécutés avec uv hors du sandbox. Voir AGENTS.md."
+      },
+      {
+        "id": "no-hardcoded-strings",
+        "description": "NE PAS coder les textes en dur (internationalisation obligatoire)",
+        "severity": "high",
+        "enforcement": "soft",
+        "patterns": [
+          "Text(\"",
+          "R.string.",
+          "getString(\""
+        ],
+        "message": "Tous les textes doivent être dans les ressources strings.xml pour l'internationalisation."
+      },
+      {
+        "id": "no-incremental-dependencies",
+        "description": "NE PAS ajouter de dépendances sans validation",
+        "severity": "high",
+        "enforcement": "soft",
+        "files": [
+          "app/build.gradle.kts",
+          "gradle/libs.versions.toml"
+        ],
+        "message": "Toute nouvelle dépendance doit être validée et justifiée. Ajouter dans le version catalog."
+      }
+    ],
+    
+    "kotlin": [
+      {
+        "id": "no-null-assertions",
+        "description": "Éviter les assertions null non sûres",
+        "severity": "medium",
+        "enforcement": "soft",
+        "patterns": ["!!"],
+        "message": "Préférer le null safety avec ? et let/also. Utiliser requireNotNull() ou checkNotNull() avec message clair."
+      },
+      {
+        "id": "no-wildcard-imports",
+        "description": "NE PAS utiliser d'imports wildcard",
+        "severity": "medium",
+        "enforcement": "soft",
+        "patterns": ["import.*\\.*"],
+        "message": "Toujours importer explicitement les classes. Ex: import android.view.View, pas import android.view.*"
+      },
+      {
+        "id": "prefer-immutable-collections",
+        "description": "Préférer les collections immuables",
+        "severity": "low",
+        "enforcement": "soft",
+        "patterns": ["mutableListOf", "mutableSetOf", "mutableMapOf"],
+        "message": "Utiliser listOf(), setOf(), mapOf() quand l'immuabilité est possible."
+      }
+    ],
+    
+    "cpp": [
+      {
+        "id": "no-raw-pointers",
+        "description": "Éviter les pointeurs bruts en C++",
+        "severity": "medium",
+        "enforcement": "soft",
+        "patterns": ["new ", "delete "],
+        "message": "Préférer std::unique_ptr, std::shared_ptr, ou std::make_unique()."
+      },
+      {
+        "id": "check-gles-compatibility",
+        "description": "Vérifier la compatibilité GLES avant toute modification OpenGL",
+        "severity": "high",
+        "enforcement": "hard",
+        "paths": ["**/*.cpp", "**/*.h"],
+        "patterns": ["gl", "GL_", "GLES"],
+        "message": "Lire docs/gles-driver-compatibility.md avant toute modification GLES/OpenGL."
+      }
+    ],
+    
+    "gradle": [
+      {
+        "id": "verify-compilation",
+        "description": "Toujours vérifier la compilation avant commit",
+        "severity": "critical",
+        "enforcement": "hard",
+        "commands": [
+          "./gradlew compileDefaultDebugKotlin",
+          "./gradlew buildCMakeDebug"
+        ],
+        "message": "Exécuter ./gradlew compileDefaultDebugKotlin et ./gradlew buildCMakeDebug avant tout commit."
+      }
+    ],
+    
+    "git": [
+      {
+        "id": "no-force-push-main",
+        "description": "NE PAS faire de force push sur main sans lease",
+        "severity": "critical",
+        "enforcement": "hard",
+        "patterns": ["git push --force"],
+        "message": "Utiliser git push --force-with-lease origin main pour éviter les écrasements."
+      },
+      {
+        "id": "rebase-before-merge",
+        "description": "Toujours rebase sur upstream/main avant merge",
+        "severity": "high",
+        "enforcement": "hard",
+        "message": "Exécuter git fetch upstream && git rebase upstream/main avant de merger."
+      }
+    ]
+  },
+  
+  "conventions": {
+    "naming": {
+      "kotlin": {
+        "variables": "camelCase",
+        "functions": "camelCase",
+        "classes": "PascalCase",
+        "constants": "UPPER_SNAKE_CASE",
+        "packages": "lowercase.with.dots"
+      },
+      "cpp": {
+        "variables": "snake_case",
+        "functions": "PascalCase",
+        "classes": "PascalCase",
+        "constants": "UPPER_SNAKE_CASE",
+        "macros": "UPPER_SNAKE_CASE"
+      },
+      "python": {
+        "variables": "snake_case",
+        "functions": "snake_case",
+        "classes": "PascalCase",
+        "constants": "UPPER_SNAKE_CASE"
+      },
+      "javascript": {
+        "variables": "camelCase",
+        "functions": "camelCase",
+        "classes": "PascalCase",
+        "constants": "UPPER_SNAKE_CASE"
+      }
+    },
+    
+    "formatting": {
+      "kotlin": {
+        "indentation": 4,
+        "maxLineLength": 120,
+        "braces": "kotlin-style",
+        "importOrder": ["androidx", "com.hinnka", "other"]
+      },
+      "cpp": {
+        "indentation": 4,
+        "maxLineLength": 120,
+        "braces": "k&r",
+        "includeOrder": ["system", "local", "project"]
+      }
+    },
+    
+    "fileOrganization": {
+      "kotlin": {
+        "order": [
+          "package",
+          "imports (grouped)",
+          "class definition",
+          "companion object",
+          "properties",
+          "init block",
+          "functions",
+          "nested classes"
+        ]
+      },
+      "cpp": {
+        "order": [
+          "#include",
+          "using",
+          "namespace",
+          "constants",
+          "struct/class definitions",
+          "function implementations"
+        ]
+      }
+    }
+  },
+  
+  "workflows": {
+    "preCommit": [
+      {
+        "name": "Vérifier la compilation Kotlin",
+        "command": "./gradlew compileDefaultDebugKotlin",
+        "required": true
+      },
+      {
+        "name": "Vérifier la compilation native",
+        "command": "./gradlew buildCMakeDebug",
+        "required": true
+      },
+      {
+        "name": "Rechercher des secrets",
+        "command": "git secrets --scan",
+        "required": true,
+        "fallback": "grep -r -E '(password|secret|token|api_key)' --include='*.kt' --include='*.java' --include='*.cpp' --include='*.h' ."
+      },
+      {
+        "name": "Vérifier les fichiers modifiés",
+        "command": "git diff --cached",
+        "required": true
+      }
+    ],
+    
+    "prePush": [
+      {
+        "name": "Rebase sur upstream/main",
+        "command": "git fetch upstream && git rebase upstream/main",
+        "required": true,
+        "branches": ["main", "staging", "lielu"]
+      },
+      {
+        "name": "Vérification finale",
+        "command": "./gradlew compileDefaultDebugKotlin && ./gradlew buildCMakeDebug",
+        "required": true
+      }
+    ],
+    
+    "syncUpstream": [
+      "git fetch upstream",
+      "git checkout main",
+      "git rebase upstream/main",
+      "./gradlew compileDefaultDebugKotlin",
+      "./gradlew buildCMakeDebug",
+      "git push --force-with-lease origin main"
+    ],
+    
+    "newFeature": [
+      "git checkout -b feature/<description>",
+      "# Développement avec vérifications régulières",
+      "./gradlew compileDefaultDebugKotlin",
+      "git commit -m 'feat(scope): description'",
+      "git push -u origin feature/<description>"
+    ]
+  },
+  
+  "quality": {
+    "checklist": {
+      "mandatory": [
+        "Code compile sans erreur",
+        "Code natif compile",
+        "Pas de secrets committés",
+        "Pas de textes en dur (i18n)",
+        "Conventions de nommage respectées",
+        "Documentation mise à jour (si nécessaire)",
+        "Changements testés manuellement"
+      ],
+      "recommended": [
+        "Message de commit suit le format conventionnel",
+        "Pas de TODO/FIXME non documentés",
+        "Pas de code commenté inutilisé",
+        "Performance vérifiée",
+        "Compatibilité Android 11+ vérifiée"
+      ]
+    },
+    
+    "metrics": {
+      "maxFunctionLength": 50,
+      "maxClassLength": 300,
+      "maxCyclomaticComplexity": 10,
+      "maxParameters": 5,
+      "maxNestedDepth": 4
+    }
+  },
+  
+  "documentation": {
+    "requiredFiles": [
+      "README.md",
+      "AGENTS.md",
+      ".vibe/instructions.md",
+      ".github/PULL_REQUEST_TEMPLATE.md"
+    ],
+    "languages": ["fr", "en", "cn", "ja"],
+    "updateTriggers": [
+      "new-feature",
+      "architecture-change",
+      "api-change",
+      "major-bugfix"
+    ]
+  },
+  
+  "dependencies": {
+    "versionCatalog": "gradle/libs.versions.toml",
+    "approvalRequired": true,
+    "validationCommands": [
+      "./gradlew dependencies",
+      "./gradlew :app:dependencies"
+    ]
+  },
+  
+  "environment": {
+    "android": {
+      "minSdk": 30,
+      "targetSdk": 36,
+      "compileSdk": 36,
+      "ndkVersion": "29.0.14206865",
+      "cmakeVersion": "3.22.1",
+      "javaVersion": 17,
+      "kotlinVersion": "1.9.x"
+    },
+    "gradle": {
+      "jvmArgs": "-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+UseParallelGC -Dfile.encoding=UTF-8",
+      "kotlinDaemonJvmArgs": "-Xmx4g",
+      "caching": true
+    },
+    "node": {
+      "version": "20.x",
+      "packageManager": "npm"
+    }
+  },
+  
+  "scripts": {
+    "vibeAnalyze": "node scripts/vibe-analyze.js",
+    "vibeCheck": "node scripts/vibe-check.js",
+    "build": "./gradlew assembleDefaultDebug",
+    "buildRelease": "./gradlew :app:assembleDefaultRelease",
+    "compileKotlin": "./gradlew compileDefaultDebugKotlin",
+    "compileNative": "./gradlew buildCMakeDebug",
+    "syncUpstream": "git fetch upstream && git rebase upstream/main",
+    "clean": "./gradlew clean"
+  },
+  
+  "hooks": {
+    "preCommit": "npm run vibe:check",
+    "prePush": "npm run vibe:analyze",
+    "postMerge": "npm run vibe:analyze"
+  },
+  
+  "references": {
+    "documentation": {
+      "main": "README.md",
+      "agents": "AGENTS.md",
+      "architecture": "docs/architecture/",
+      "guides": "docs/guides/",
+      "research": "docs/research/"
+    },
+    "relatedProjects": [
+      {
+        "name": "Photon Camera",
+        "repository": "bjzhou/photoncamera",
+        "relation": "upstream"
+      }
+    ]
+  },
+  
+  "metadata": {
+    "createdBy": "Vibe Code",
+    "createdAt": "$(date -Iseconds)",
+    "lastUpdated": "$(date -Iseconds)",
+    "generator": "Mistral AI - Vibe Code Agent"
+  }
+}

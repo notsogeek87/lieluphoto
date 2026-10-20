@@ -23,3 +23,12 @@ __pycache__
 /research/*
 /scripts/lut_training/runs
 .kotlin/
+
+# Node.js (Vibe Code scripts)
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Vibe Code
+.vibe/node_modules/
+.vibe/package-lock.json
