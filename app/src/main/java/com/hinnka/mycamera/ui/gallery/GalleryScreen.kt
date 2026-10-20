@@ -1500,7 +1500,8 @@ private class GalleryPhotoItemView(context: Context) : FrameLayout(context) {
             true
         }
 
-        val targetDegrees = if (rotationDegrees != 0f) rotationDegrees - 180f else 0f
+        val photoRotation = photo.metadata?.rotationDegrees ?: 0
+        val targetDegrees = if (rotationDegrees != 0f) rotationDegrees - 180f else 0f + photoRotation
         if (contentLayer.rotation != targetDegrees) {
             contentLayer.animate()
                 .rotation(targetDegrees)
