@@ -1638,9 +1638,9 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                     
                     if (orientation != ExifInterface.ORIENTATION_NORMAL &&
                         orientation != ExifInterface.ORIENTATION_UNDEFINED) {
-                        GalleryManager.rotateImageIfRequired(bitmap, orientation)
+                        return GalleryManager.rotateImageIfRequired(bitmap, orientation)
                     } else {
-                        bitmap
+                        return bitmap
                     }
                 } else {
                     null

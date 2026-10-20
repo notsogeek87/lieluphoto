@@ -1500,13 +1500,8 @@ private class GalleryPhotoItemView(context: Context) : FrameLayout(context) {
             true
         }
 
-        val targetDegrees = if (rotationDegrees != 0f) rotationDegrees - 180f else 0f
-        if (contentLayer.rotation != targetDegrees) {
-            contentLayer.animate()
-                .rotation(targetDegrees)
-                .setDuration(300)
-                .start()
-        }
+        // Remove device orientation rotation - bitmap already has EXIF rotation applied
+        contentLayer.rotation = 0f
         requestLayout()
     }
 
