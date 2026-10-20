@@ -1,0 +1,90 @@
+{
+  "name": "lieluphoto",
+  "version": "1.0.0",
+  "description": "LieluPhoto - Android Camera Application with Vibe Code integration",
+  "main": "scripts/vibe-check.js",
+  "type": "module",
+  "scripts": {
+    "vibe:analyze": "node scripts/vibe-analyze.js",
+    "vibe:check": "node scripts/vibe-check.js",
+    "vibe:check:fix": "node scripts/vibe-check.js && git add -A",
+    "build": "echo 'Android build: use ./gradlew assembleDefaultDebug'",
+    "build:release": "echo 'Android release build: use ./gradlew :app:assembleDefaultRelease'"
+  },
+  "keywords": [
+    "android",
+    "camera",
+    "photon",
+    "lielu",
+    "kotlin",
+    "compose",
+    "vibe-code",
+    "mistral-ai"
+  ],
+  "author": "notsogeek87",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/notsogeek87/lieluphoto.git"
+  },
+  "bugs": {
+    "url": "https://github.com/notsogeek87/lieluphoto/issues"
+  },
+  "homepage": "https://github.com/notsogeek87/lieluphoto#readme",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "chalk": "^5.3.0",
+    "execa": "^8.0.1"
+  },
+  "overrides": {},
+  "workspaces": [],
+  "config": {
+    "vibe": {
+      "enabled": true,
+      "scripts": {
+        "analyze": "vibe:analyze",
+        "check": "vibe:check"
+      }
+    }
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "npm run vibe:check",
+      "pre-push": "npm run vibe:analyze"
+    }
+  },
+  "lint-staged": {
+    "*.{kt,kts,java,cpp,h,hpp,c,py,js,ts,json,md}": [
+      "npm run vibe:check"
+    ]
+  },
+  "vibe": {
+    "projectName": "LieluPhoto",
+    "projectType": "android-application",
+    "primaryLanguage": "kotlin",
+    "configFile": ".vibe/config.json",
+    "instructionsFile": ".vibe/instructions.md",
+    "agentsGuide": "AGENTS.md",
+    "prTemplate": ".github/PULL_REQUEST_TEMPLATE.md",
+    "scripts": {
+      "analyze": "scripts/vibe-analyze.js",
+      "check": "scripts/vibe-check.js"
+    },
+    "restrictions": {
+      "noUpstreamPush": true,
+      "noSecretsInCode": true,
+      "noUnitTests": true,
+      "noHardcodedStrings": true,
+      "verifyCompilation": true
+    },
+    "quality": {
+      "minSdk": 30,
+      "targetSdk": 36,
+      "compileSdk": 36
+    }
+  }
+}
