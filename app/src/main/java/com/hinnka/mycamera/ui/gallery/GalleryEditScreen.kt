@@ -81,6 +81,7 @@ import com.hinnka.mycamera.ui.components.*
 import com.hinnka.mycamera.ui.components.RawEditPanel
 import com.hinnka.mycamera.ui.components.RawBaselineColorCorrectionBottomSheet
 import com.hinnka.mycamera.ui.theme.AccentColor
+import com.hinnka.mycamera.ui.gallery.EditScreenLayout
 import com.hinnka.mycamera.utils.PLog
 import com.hinnka.mycamera.viewmodel.CameraViewModel
 import com.hinnka.mycamera.viewmodel.GalleryViewModel
@@ -368,6 +369,10 @@ fun GalleryEditScreen(
         ?: embeddedDngProfileUiState.defaultProfileId
 
     var showOrigin by remember { mutableStateOf(false) }
+
+    // Samsung-style layout state
+    var isSettingsPanelCollapsed by rememberSaveable { mutableStateOf(false) }
+    var activeToolPanel by rememberSaveable { mutableStateOf<Int?>(null) }
 
     // 编辑标签页状态
     var editTab by remember { mutableIntStateOf(EDIT_TAB_LUT) }
@@ -698,17 +703,193 @@ fun GalleryEditScreen(
         }
     }
 
-    Scaffold(
-        containerColor = Color.Black,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        modifier = modifier
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .onSizeChanged { viewportSize = it }
-                .animateContentSize()
-        ) {
+    SamsungEditLayout(
+        topBar = {
+            AnimatedVisibility(
+                visible = !areEditControlsHidden,
+                enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                modifier = Modifier.align(Alignment.TopCenter),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onSizeChanged { topBarHeightPx = it.height }
+                ) {
+                    Spacer(
+                        modifier = Modifier.windowInsetsTopHeight(
+                            WindowInsets.statusBarsIgnoringVisibility
+                        )
+                    )
+                    TopAppBar(
+                        title = {},
+                        navigationIcon = {
+                            IconButton(onClick = {
+                                viewModel.exitEditMode()
+                                onBack()
+                            }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = stringResource(R.string.back),
+                                    tint = Color.White
+                                )
+                            }
+                        },
+                        actions = {
+                            if (isRaw) {
+                                val infiniteTransition = rememberInfiniteTransition(label = "refresh")
+                                val rotation by infiniteTransition.animateFloat(
+                                    initialValue = 0f,
+                                    targetValue = 360f,
+                                    animationSpec = infiniteRepeatable(
+                                        animation = tween(1000, easing = LinearEasing),
+                                        repeatMode = RepeatMode.Restart
+                                    ),
+                                    label = "rotation"
+                                )
+
+                                IconButton(
+                                    onClick = {
+                                        // Explicit refresh recomputes Photon PGTM; changing an
+                                        // edit setting or enabling HDR reuses the embedded map.
+                                        requestRawPreviewRefresh(
+                                            showResultToast = true,
+                                            forceRegeneratePhotonPgtm = editRawToneMappingParameters.usePhotonHdr,
+                                        )
+                                    },
+                                    enabled = !isRefreshingRawPreview
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = stringResource(R.string.refresh),
+                                        tint = if (isRefreshingRawPreview) Color.White.copy(alpha = 0.5f) else Color.White,
+                                        modifier = Modifier.graphicsLayer {
+                                            if (isRefreshingRawPreview) {
+                                                rotationZ = rotation
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                            if (!currentPhoto.isVideo) {
+                                IconToggleButton(
+                                    checked = showImageHistogram,
+                                    onCheckedChange = { showImageHistogram = it }
+                                ) {
+                                    Icon(
+                                        imageVector = AppIcons.BarChart,
+                                        contentDescription = stringResource(R.string.histogram),
+                                        tint = if (showImageHistogram) AccentColor else Color.White
+                                    )
+                                }
+                            }
+                            // 保存元数据按钮
+                            IconButton(
+                                onClick = {
+                                    val currentLut = availableLuts.find { it.id == editLutId }
+                                    if (currentLut?.isVip == true && !isPurchased) {
+                                        viewModel.showPaymentDialog = true
+                                        return@IconButton
+                                    }
+                                    isSaving = true
+                                    viewModel.saveEditMetadata(currentPhoto) { success ->
+                                        isSaving = false
+                                        if (success) {
+                                            onBack()
+                                        }
+                                    }
+                                },
+                                enabled = !isSaving
+                            ) {
+                                if (isSaving) {
+                                    CircularProgressIndicator(
+                                        color = Color.White,
+                                        modifier = Modifier.size(24.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = stringResource(R.string.save),
+                                        tint = AccentColor
+                                    )
+                                }
+                            }
+                            // 更多始终放在 actions 的最右侧。
+                            Box {
+                                IconButton(onClick = { showMoreMenu = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = stringResource(R.string.more_options),
+                                        tint = Color.White
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showMoreMenu,
+                                    onDismissRequest = { showMoreMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.copy_settings)) },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            viewModel.copyCurrentEditSettings(
+                                                editFrameCustomProperties
+                                            )
+                                            Toast.makeText(
+                                                context,
+                                                R.string.copy_settings_success,
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = AppIcons.ContentCopy,
+                                                contentDescription = null
+                                            )
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.paste_settings)) },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            viewModel
+                                                .pasteCopiedEditSettingsToCurrentEdit()
+                                                ?.let { pastedCustomProperties ->
+                                                    editFrameCustomProperties =
+                                                        pastedCustomProperties
+                                                    Toast.makeText(
+                                                        context,
+                                                        R.string.paste_settings_success,
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                        },
+                                        enabled = hasCopiedEditSettings,
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = AppIcons.ContentCopy,
+                                                contentDescription = null
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent
+                        ),
+                        windowInsets = WindowInsets(0, 0, 0, 0)
+                    )
+                }
+            }
+        },
+        imageArea = {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onSizeChanged { viewportSize = it }
+                    .animateContentSize()
+            ) {
             // Draggable Floating Reference Photo
             val referencePhotoUrl = userPreferences.referencePhotoUrl
             var isMinimized by remember { mutableStateOf(false) }
@@ -843,9 +1024,7 @@ fun GalleryEditScreen(
                         }
                     }
                 }
-            }
-
-            // 预览区域
+            }                
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -1097,187 +1276,79 @@ fun GalleryEditScreen(
                             .aspectRatio(3.15f)
                     )
                 }
-            }
-
-            AnimatedVisibility(
-                visible = !areEditControlsHidden,
-                enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
-                modifier = Modifier.align(Alignment.TopCenter),
+            }            }
+        },
+        toolPanel = {
+            Column(
+                verticalArrangement = Arrangement.Top,
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxSize()
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onSizeChanged { topBarHeightPx = it.height }
-                ) {
-                    Spacer(
-                        modifier = Modifier.windowInsetsTopHeight(
-                            WindowInsets.statusBarsIgnoringVisibility
-                        )
+                EditToolIcon(
+                    icon = AppIcons.Palette,
+                    label = stringResource(R.string.filter),
+                    isSelected = editTab == EDIT_TAB_LUT,
+                    onClick = { editTab = EDIT_TAB_LUT }
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                if (!currentPhoto.isVideo) {
+                    EditToolIcon(
+                        icon = AppIcons.PhotoFrame,
+                        label = stringResource(R.string.frame),
+                        isSelected = editTab == EDIT_TAB_FRAME,
+                        onClick = { editTab = EDIT_TAB_FRAME }
                     )
-                    TopAppBar(
-                        title = {},
-                        navigationIcon = {
-                            IconButton(onClick = {
-                                viewModel.exitEditMode()
-                                onBack()
-                            }) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = stringResource(R.string.back),
-                                    tint = Color.White
-                                )
-                            }
-                        },
-                        actions = {
-                            if (isRaw) {
-                                val infiniteTransition = rememberInfiniteTransition(label = "refresh")
-                                val rotation by infiniteTransition.animateFloat(
-                                    initialValue = 0f,
-                                    targetValue = 360f,
-                                    animationSpec = infiniteRepeatable(
-                                        animation = tween(1000, easing = LinearEasing),
-                                        repeatMode = RepeatMode.Restart
-                                    ),
-                                    label = "rotation"
-                                )
-
-                                IconButton(
-                                    onClick = {
-                                        // Explicit refresh recomputes Photon PGTM; changing an
-                                        // edit setting or enabling HDR reuses the embedded map.
-                                        requestRawPreviewRefresh(
-                                            showResultToast = true,
-                                            forceRegeneratePhotonPgtm = editRawToneMappingParameters.usePhotonHdr,
-                                        )
-                                    },
-                                    enabled = !isRefreshingRawPreview
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Refresh,
-                                        contentDescription = stringResource(R.string.refresh),
-                                        tint = if (isRefreshingRawPreview) Color.White.copy(alpha = 0.5f) else Color.White,
-                                        modifier = Modifier.graphicsLayer {
-                                            if (isRefreshingRawPreview) {
-                                                rotationZ = rotation
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                            if (!currentPhoto.isVideo) {
-                                IconToggleButton(
-                                    checked = showImageHistogram,
-                                    onCheckedChange = { showImageHistogram = it }
-                                ) {
-                                    Icon(
-                                        imageVector = AppIcons.BarChart,
-                                        contentDescription = stringResource(R.string.histogram),
-                                        tint = if (showImageHistogram) AccentColor else Color.White
-                                    )
-                                }
-                            }
-                            // 保存元数据按钮
-                            IconButton(
-                                onClick = {
-                                    val currentLut = availableLuts.find { it.id == editLutId }
-                                    if (currentLut?.isVip == true && !isPurchased) {
-                                        viewModel.showPaymentDialog = true
-                                        return@IconButton
-                                    }
-                                    isSaving = true
-                                    viewModel.saveEditMetadata(currentPhoto) { success ->
-                                        isSaving = false
-                                        if (success) {
-                                            onBack()
-                                        }
-                                    }
-                                },
-                                enabled = !isSaving
-                            ) {
-                                if (isSaving) {
-                                    CircularProgressIndicator(
-                                        color = Color.White,
-                                        modifier = Modifier.size(24.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = stringResource(R.string.save),
-                                        tint = AccentColor
-                                    )
-                                }
-                            }
-                            // 更多始终放在 actions 的最右侧。
-                            Box {
-                                IconButton(onClick = { showMoreMenu = true }) {
-                                    Icon(
-                                        imageVector = Icons.Default.MoreVert,
-                                        contentDescription = stringResource(R.string.more_options),
-                                        tint = Color.White
-                                    )
-                                }
-                                DropdownMenu(
-                                    expanded = showMoreMenu,
-                                    onDismissRequest = { showMoreMenu = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.copy_settings)) },
-                                        onClick = {
-                                            showMoreMenu = false
-                                            viewModel.copyCurrentEditSettings(
-                                                editFrameCustomProperties
-                                            )
-                                            Toast.makeText(
-                                                context,
-                                                R.string.copy_settings_success,
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = AppIcons.ContentCopy,
-                                                contentDescription = null
-                                            )
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.paste_settings)) },
-                                        onClick = {
-                                            showMoreMenu = false
-                                            viewModel
-                                                .pasteCopiedEditSettingsToCurrentEdit()
-                                                ?.let { pastedCustomProperties ->
-                                                    editFrameCustomProperties =
-                                                        pastedCustomProperties
-                                                    Toast.makeText(
-                                                        context,
-                                                        R.string.paste_settings_success,
-                                                        Toast.LENGTH_SHORT
-                                                    ).show()
-                                                }
-                                        },
-                                        enabled = hasCopiedEditSettings,
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = AppIcons.ContentCopy,
-                                                contentDescription = null
-                                            )
-                                        }
-                                    )
-                                }
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent
-                        ),
-                        windowInsets = WindowInsets(0, 0, 0, 0)
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+                EditToolIcon(
+                    icon = AppIcons.Tune,
+                    label = stringResource(R.string.edit),
+                    isSelected = editTab == EDIT_TAB_ADJUSTMENTS,
+                    onClick = { editTab = EDIT_TAB_ADJUSTMENTS }
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                EditToolIcon(
+                    icon = AppIcons.Detail,
+                    label = stringResource(R.string.recipe_tab_post),
+                    isSelected = editTab == EDIT_TAB_DETAIL,
+                    onClick = { editTab = EDIT_TAB_DETAIL }
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                if (isRaw) {
+                    EditToolIcon(
+                        icon = AppIcons.Raw,
+                        label = "RAW",
+                        isSelected = editTab == EDIT_TAB_RAW,
+                        onClick = { editTab = EDIT_TAB_RAW }
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+                if (!currentPhoto.isVideo) {
+                    EditToolIcon(
+                        icon = AppIcons.Crop,
+                        label = stringResource(R.string.crop),
+                        isSelected = editTab == EDIT_TAB_CROP,
+                        onClick = { cropPreviewBitmap = null; editTab = EDIT_TAB_CROP }
                     )
                 }
             }
-
-            // 编辑控制区域
+        },
+        settingsPanel = {
+            Column(modifier = Modifier.fillMaxSize()) {
+                SettingsPanelHeader(
+                    title = when (editTab) {
+                        EDIT_TAB_LUT -> stringResource(R.string.filter)
+                        EDIT_TAB_FRAME -> stringResource(R.string.frame)
+                        EDIT_TAB_ADJUSTMENTS -> stringResource(R.string.edit)
+                        EDIT_TAB_DETAIL -> stringResource(R.string.recipe_tab_post)
+                        EDIT_TAB_RAW -> "RAW"
+                        EDIT_TAB_CROP -> stringResource(R.string.crop)
+                        else -> ""
+                    },
+                    isCollapsed = isSettingsPanelCollapsed,
+                    onToggleCollapse = { isSettingsPanelCollapsed = !isSettingsPanelCollapsed }
+                )
+                if (!isSettingsPanelCollapsed) {
             AnimatedVisibility(
                 visible = shouldShowEditPanel,
                 enter = slideInVertically(initialOffsetY = { it }) + expandVertically(expandFrom = Alignment.Bottom) + fadeIn(),
@@ -1936,10 +2007,58 @@ fun GalleryEditScreen(
                             }
                         }
                     }
+                }                }
+            }
+        },
+        tabBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                SamsungEditTabItem(
+                    title = stringResource(R.string.filter),
+                    isSelected = editTab == EDIT_TAB_LUT,
+                    onClick = { editTab = EDIT_TAB_LUT }
+                )
+                if (!currentPhoto.isVideo) {
+                    SamsungEditTabItem(
+                        title = stringResource(R.string.frame),
+                        isSelected = editTab == EDIT_TAB_FRAME,
+                        onClick = { editTab = EDIT_TAB_FRAME }
+                    )
+                }
+                SamsungEditTabItem(
+                    title = stringResource(R.string.edit),
+                    isSelected = editTab == EDIT_TAB_ADJUSTMENTS,
+                    onClick = { editTab = EDIT_TAB_ADJUSTMENTS }
+                )
+                SamsungEditTabItem(
+                    title = stringResource(R.string.recipe_tab_post),
+                    isSelected = editTab == EDIT_TAB_DETAIL,
+                    onClick = { editTab = EDIT_TAB_DETAIL }
+                )
+                if (isRaw) {
+                    SamsungEditTabItem(
+                        title = "RAW",
+                        isSelected = editTab == EDIT_TAB_RAW,
+                        onClick = { editTab = EDIT_TAB_RAW }
+                    )
+                }
+                if (!currentPhoto.isVideo) {
+                    SamsungEditTabItem(
+                        title = stringResource(R.string.crop),
+                        isSelected = editTab == EDIT_TAB_CROP,
+                        onClick = { cropPreviewBitmap = null; editTab = EDIT_TAB_CROP }
+                    )
                 }
             }
-        }
-    }
+        },
+        isSettingsPanelVisible = editTab != null,
+        isSettingsPanelCollapsed = isSettingsPanelCollapsed
+    )
+
 
     if (isBaselineLutEditSheetVisible) {
         LutEditBottomSheet(
