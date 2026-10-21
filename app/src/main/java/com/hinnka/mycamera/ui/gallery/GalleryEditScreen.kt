@@ -15,7 +15,6 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import kotlin.math.roundToInt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.ui.zIndex
@@ -44,7 +43,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.layoutId
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -370,21 +371,29 @@ fun GalleryEditScreen(
     var showOrigin by remember { mutableStateOf(false) }
 
     // 编辑标签页状态
-    var editTab by remember { mutableIntStateOf(EDIT_TAB_LUT) }
-    var areEditControlsHidden by remember { mutableStateOf(false) }
+    var editTab by rememberSaveable { mutableIntStateOf(EDIT_TAB_LUT) }
+    var isEditPanelOpen by rememberSaveable { mutableStateOf(true) }
     var isZoomed by remember { mutableStateOf(false) }
-    val editTabsScrollState = rememberScrollState()
     val editPanelScrollState = rememberScrollState()
-    var viewportSize by remember { mutableStateOf(IntSize.Zero) }
-    var topBarHeightPx by remember { mutableIntStateOf(0) }
-    var editPanelHeightPx by remember { mutableIntStateOf(0) }
+    val configuration = LocalConfiguration.current
+    val isLandscapeLayout = configuration.screenWidthDp > configuration.screenHeightDp
     val scope = rememberCoroutineScope()
     val isBaselineLutEditSheetVisible = showBaselineLutEditSheet && baselineLutEditId != null
     val shouldShowEditPanel = !isBaselineLutEditSheetVisible &&
         !showRawBaselineLutSelectorSheet
 
-    fun toggleEditControls() {
-        areEditControlsHidden = !areEditControlsHidden
+    fun toggleEditPanel() {
+        isEditPanelOpen = !isEditPanelOpen
+    }
+
+    fun onEditToolClick(tab: Int) {
+        if (tab == editTab) {
+            toggleEditPanel()
+            return
+        }
+        if (tab == EDIT_TAB_CROP) cropPreviewBitmap = null
+        editTab = tab
+        isEditPanelOpen = true
     }
 
     var previewRenderRequestId by remember { mutableLongStateOf(0L) }
@@ -600,49 +609,20 @@ fun GalleryEditScreen(
     val currentEditMetadata = currentEditSourcePhoto.metadata ?: viewModel.currentMediaMetadata
     val isImportedRaw = currentEditMetadata?.isImported == true && isRaw
 
-    val previewSourceWidth = previewBitmap?.width?.takeIf { it > 0 }
-        ?: currentPhoto.width.takeIf { it > 0 }
-    val previewSourceHeight = previewBitmap?.height?.takeIf { it > 0 }
-        ?: currentPhoto.height.takeIf { it > 0 }
-    val visibleEditPanelHeightPx = if (shouldShowEditPanel && !areEditControlsHidden) {
-        editPanelHeightPx
-    } else {
-        0
-    }
-    val visibleTopBarHeightPx = if (areEditControlsHidden) 0 else topBarHeightPx
-    val targetPreviewOffsetYPx = if (
-        viewportSize != IntSize.Zero &&
-        previewSourceWidth != null &&
-        previewSourceHeight != null
-    ) {
-        val viewportWidth = viewportSize.width.toFloat()
-        val viewportHeight = viewportSize.height.toFloat()
-        val sourceAspectRatio = previewSourceWidth.toFloat() / previewSourceHeight.toFloat()
-        val viewportAspectRatio = viewportWidth / viewportHeight
-        val displayedPhotoHeight = if (sourceAspectRatio > viewportAspectRatio) {
-            viewportWidth / sourceAspectRatio
-        } else {
-            viewportHeight
+    val editTools = buildList {
+        add(EditTool(EDIT_TAB_LUT, stringResource(R.string.filter), AppIcons.FilterVintage))
+        if (!currentPhoto.isVideo) {
+            add(EditTool(EDIT_TAB_FRAME, stringResource(R.string.frame), AppIcons.FilterFrames))
         }
-        val remainingTop = visibleTopBarHeightPx.toFloat()
-            .coerceIn(0f, viewportHeight)
-        val remainingBottom = (viewportHeight - visibleEditPanelHeightPx.toFloat())
-            .coerceIn(remainingTop, viewportHeight)
-        val remainingHeight = remainingBottom - remainingTop
-        val targetPhotoTop = if (displayedPhotoHeight <= remainingHeight) {
-            remainingTop + (remainingHeight - displayedPhotoHeight) / 2f
-        } else {
-            (remainingBottom - displayedPhotoHeight).coerceAtLeast(0f)
+        add(EditTool(EDIT_TAB_ADJUSTMENTS, stringResource(R.string.edit), AppIcons.Tune))
+        add(EditTool(EDIT_TAB_DETAIL, stringResource(R.string.recipe_tab_post), AppIcons.AutoAwesome))
+        if (isRaw) {
+            add(EditTool(EDIT_TAB_RAW, "RAW", AppIcons.Iso))
         }
-        val fullScreenCenteredPhotoTop = (viewportHeight - displayedPhotoHeight) / 2f
-        targetPhotoTop - fullScreenCenteredPhotoTop
-    } else {
-        0f
+        if (!currentPhoto.isVideo) {
+            add(EditTool(EDIT_TAB_CROP, stringResource(R.string.crop), AppIcons.Crop169))
+        }
     }
-    val previewOffsetYPx by animateFloatAsState(
-        targetValue = targetPreviewOffsetYPx,
-        label = "editPreviewVerticalPosition"
-    )
 
     var pendingRawPreviewRefresh by remember(currentEditSourcePhoto.id) { mutableStateOf(false) }
     var pendingPhotonPgtmRegeneration by remember(currentEditSourcePhoto.id) { mutableStateOf(false) }
@@ -703,11 +683,9 @@ fun GalleryEditScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         modifier = modifier
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .onSizeChanged { viewportSize = it }
-                .animateContentSize()
+        EditScreenLayout(
+            isLandscape = isLandscapeLayout,
+            modifier = Modifier.fillMaxSize()
         ) {
             // Draggable Floating Reference Photo
             val referencePhotoUrl = userPreferences.referencePhotoUrl
@@ -848,7 +826,7 @@ fun GalleryEditScreen(
             // 预览区域
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .layoutId(EditLayoutSlot.Preview)
                     .pointerInput(isZoomed, currentPhoto.isVideo, editTab) {
                         if (
                             !isZoomed &&
@@ -914,11 +892,9 @@ fun GalleryEditScreen(
                                     // 如果既没有多指操作也没有明显位移，才根据结果执行逻辑
                                     if (!isMultiTouch && !isMoved) {
                                         if (upEvent != null) {
-                                            // 控制区展开时，预览点击始终优先隐藏控制区；
-                                            // 仅在控制区已隐藏时允许点击图像设置景深焦点。
-                                            if (!areEditControlsHidden) {
-                                                toggleEditControls()
-                                            } else if (
+                                            // 图像区不再被控制区遮挡：后期页开启景深时点击图像设置焦点，
+                                            // 其余情况点击图像收起或展开设置面板。
+                                            if (
                                                 editTab == EDIT_TAB_DETAIL &&
                                                 viewModel.editComputationalAperture.value != null &&
                                                 previewBitmap != null
@@ -946,10 +922,10 @@ fun GalleryEditScreen(
                                                 if (relativeX in 0f..1f && relativeY in 0f..1f) {
                                                     viewModel.setFocusPoint(relativeX, relativeY)
                                                 } else {
-                                                    toggleEditControls()
+                                                    toggleEditPanel()
                                                 }
                                             } else {
-                                                toggleEditControls()
+                                                toggleEditPanel()
                                             }
                                         } else {
                                             // 确认为长按：显示原图
@@ -970,14 +946,7 @@ fun GalleryEditScreen(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                val previewMediaModifier = Modifier
-                    .fillMaxSize()
-                    .offset {
-                        IntOffset(
-                            x = 0,
-                            y = previewOffsetYPx.roundToInt()
-                        )
-                    }
+                val previewMediaModifier = Modifier.fillMaxSize()
 
                 // 显示预览
                 if (currentPhoto.isVideo) {
@@ -1078,38 +1047,10 @@ fun GalleryEditScreen(
                     state = lutNameOverlayState,
                     modifier = Modifier.align(Alignment.Center),
                 )
-
-                AnimatedVisibility(
-                    visible = showImageHistogram && !currentPhoto.isVideo,
-                    enter = fadeIn(animationSpec = tween(150)),
-                    exit = fadeOut(animationSpec = tween(150)),
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
-                        .padding(top = 64.dp, start = 20.dp, end = 20.dp)
-                        .widthIn(max = 520.dp)
-                        .fillMaxWidth()
-                ) {
-                    RgbHistogramView(
-                        histogram = imageHistogram,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(3.15f)
-                    )
-                }
             }
 
-            AnimatedVisibility(
-                visible = !areEditControlsHidden,
-                enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
-                modifier = Modifier.align(Alignment.TopCenter),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onSizeChanged { topBarHeightPx = it.height }
-                ) {
+            Box(modifier = Modifier.layoutId(EditLayoutSlot.TopBar)) {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     Spacer(
                         modifier = Modifier.windowInsetsTopHeight(
                             WindowInsets.statusBarsIgnoringVisibility
@@ -1277,32 +1218,73 @@ fun GalleryEditScreen(
                 }
             }
 
-            // 编辑控制区域
+            // 直方图占用独立区域，不覆盖图像
             AnimatedVisibility(
-                visible = shouldShowEditPanel,
-                enter = slideInVertically(initialOffsetY = { it }) + expandVertically(expandFrom = Alignment.Bottom) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(),
-                modifier = Modifier.align(Alignment.BottomCenter)
+                visible = showImageHistogram && !currentPhoto.isVideo,
+                enter = fadeIn(animationSpec = tween(150)) + expandVertically(),
+                exit = fadeOut(animationSpec = tween(150)) + shrinkVertically(),
+                modifier = Modifier
+                    .layoutId(EditLayoutSlot.Histogram)
+                    .padding(horizontal = 20.dp, vertical = 4.dp)
+                    .widthIn(max = 360.dp)
+                    .fillMaxWidth()
             ) {
-                Surface(
-                    color = Color.Black.copy(alpha = 0.9f),
-                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                RgbHistogramView(
+                    histogram = imageHistogram,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .onSizeChanged { editPanelHeightPx = it.height }
+                        .aspectRatio(3.15f)
+                )
+            }
+
+            EditToolRail(
+                tools = editTools,
+                selectedId = editTab,
+                isPanelOpen = isEditPanelOpen && shouldShowEditPanel,
+                onToolClick = ::onEditToolClick,
+                modifier = Modifier.layoutId(EditLayoutSlot.Rail)
+            )
+
+            // 编辑控制区域
+            AnimatedVisibility(
+                visible = shouldShowEditPanel && isEditPanelOpen,
+                enter = if (isLandscapeLayout) {
+                    slideInHorizontally(initialOffsetX = { it }) + expandHorizontally(expandFrom = Alignment.End) + fadeIn()
+                } else {
+                    slideInVertically(initialOffsetY = { it }) + expandVertically(expandFrom = Alignment.Bottom) + fadeIn()
+                },
+                exit = if (isLandscapeLayout) {
+                    slideOutHorizontally(targetOffsetX = { it }) + shrinkHorizontally(shrinkTowards = Alignment.End) + fadeOut()
+                } else {
+                    slideOutVertically(targetOffsetY = { it }) + shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut()
+                },
+                modifier = Modifier.layoutId(EditLayoutSlot.Panel)
+            ) {
+                Surface(
+                    color = EditToolsSurfaceColor,
+                    shape = if (isLandscapeLayout) {
+                        RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp)
+                    } else {
+                        RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (isLandscapeLayout) Modifier.fillMaxHeight() else Modifier)
                 ) {
                     Column(
                         modifier = Modifier
-                            .navigationBarsPadding()
-                            .padding(bottom = if (areEditControlsHidden) 4.dp else 16.dp)
+                            .windowInsetsPadding(
+                                WindowInsets.systemBars.only(
+                                    if (isLandscapeLayout) {
+                                        WindowInsetsSides.Vertical
+                                    } else {
+                                        WindowInsetsSides.Bottom
+                                    }
+                                )
+                            )
+                            .padding(bottom = 16.dp)
                     ) {
-                        val editPanelToggleDescription = stringResource(
-                            if (areEditControlsHidden) {
-                                R.string.edit_panel_expand
-                            } else {
-                                R.string.edit_panel_minimize
-                            }
-                        )
+                        val editPanelToggleDescription = stringResource(R.string.edit_panel_minimize)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1310,23 +1292,13 @@ fun GalleryEditScreen(
                                 .clickable(
                                     onClickLabel = editPanelToggleDescription
                                 ) {
-                                    toggleEditControls()
+                                    toggleEditPanel()
                                 }
                                 .padding(horizontal = 16.dp)
                         ) {
-                            if (areEditControlsHidden) {
-                                Text(
-                                    text = stringResource(R.string.edit_panel_title),
-                                    color = Color.White.copy(alpha = 0.82f),
-                                    fontSize = 14.sp,
-                                    modifier = Modifier
-                                        .align(Alignment.CenterStart)
-                                        .padding(start = 4.dp)
-                                )
-                            }
                             Icon(
-                                imageVector = if (areEditControlsHidden) {
-                                    AppIcons.ExpandLess
+                                imageVector = if (isLandscapeLayout) {
+                                    AppIcons.ChevronRight
                                 } else {
                                     AppIcons.ExpandMore
                                 },
@@ -1339,60 +1311,8 @@ fun GalleryEditScreen(
                             )
                         }
 
-                        AnimatedVisibility(
-                            visible = !areEditControlsHidden,
-                            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
-                        ) {
+                        Box(modifier = Modifier.weight(1f, fill = false)) {
                             Column {
-                                // 标签页切换
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp)
-                                        .horizontalScroll(editTabsScrollState),
-                                    horizontalArrangement = Arrangement.spacedBy(24.dp)
-                                ) {
-                                    TabItem(
-                                        title = stringResource(R.string.filter),
-                                        isSelected = editTab == EDIT_TAB_LUT,
-                                        onClick = { editTab = EDIT_TAB_LUT }
-                                    )
-                                    if (!currentPhoto.isVideo) {
-                                        TabItem(
-                                            title = stringResource(R.string.frame),
-                                            isSelected = editTab == EDIT_TAB_FRAME,
-                                            onClick = { editTab = EDIT_TAB_FRAME }
-                                        )
-                                    }
-                                    TabItem(
-                                        title = stringResource(R.string.edit),
-                                        isSelected = editTab == EDIT_TAB_ADJUSTMENTS,
-                                        onClick = { editTab = EDIT_TAB_ADJUSTMENTS }
-                                    )
-                                    TabItem(
-                                        title = stringResource(R.string.recipe_tab_post),
-                                        isSelected = editTab == EDIT_TAB_DETAIL,
-                                        onClick = { editTab = EDIT_TAB_DETAIL }
-                                    )
-                                    if (isRaw) {
-                                        TabItem(
-                                            title = "RAW",
-                                            isSelected = editTab == EDIT_TAB_RAW,
-                                            onClick = { editTab = EDIT_TAB_RAW }
-                                        )
-                                    }
-                                    if (!currentPhoto.isVideo) {
-                                        TabItem(
-                                        title = stringResource(R.string.crop),
-                                        isSelected = editTab == EDIT_TAB_CROP,
-                                        onClick = {
-                                            cropPreviewBitmap = null
-                                            editTab = EDIT_TAB_CROP
-                                        }
-                                        )
-                                    }
-                                }
                                 Column(
                                     modifier = Modifier
                                         .heightIn(max = 550.dp)
@@ -2148,38 +2068,6 @@ private fun CompactToggleChip(
                     )
             )
         }
-    }
-}
-
-/**
- * 标签页项
- */
-@Composable
-private fun TabItem(
-    title: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = onClick
-        )
-    ) {
-        Text(
-            text = title,
-            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f),
-            fontSize = 14.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Box(
-            modifier = Modifier
-                .size(width = 24.dp, height = 2.dp)
-                .background(if (isSelected) AccentColor else Color.Transparent)
-        )
     }
 }
 
