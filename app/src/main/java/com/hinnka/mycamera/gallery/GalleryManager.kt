@@ -5632,10 +5632,8 @@ object GalleryManager {
             decodedBitmap.recycle()
             return null
         }
-        val isDng = infoMimeType?.contains("dng", ignoreCase = true) == true
-
-        if (!isDng) return decodedBitmap
-
+        // Apply EXIF orientation rotation for ALL image types (not just DNG)
+        // This fixes portrait photos (including front camera selfies) appearing rotated in fullscreen viewer
         return try {
             val orientation = context.contentResolver.openInputStream(uri)?.use { input ->
                 ExifInterface(input).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
