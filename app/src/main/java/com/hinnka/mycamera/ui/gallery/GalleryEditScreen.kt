@@ -290,7 +290,6 @@ fun GalleryEditScreen(
     val editRawHncsFilmCurveMode by viewModel.editRawHncsFilmCurveMode.collectAsState()
     val editRawBaselineLutId by viewModel.editRawBaselineLutId.collectAsState()
     val editRawBaselineRecipeParams by viewModel.editRawBaselineRecipeParams.collectAsState()
-    val editRawColorEngine by viewModel.editRawRenderingEngine.collectAsState()
     val editRawRenderingEngine by viewModel.editRawRenderingEngine.collectAsState()
     val editRawToneMappingParameters by viewModel.editRawToneMappingParameters.collectAsState()
     val editRawSpectralFilmStock by viewModel.editRawSpectralFilmStock.collectAsState()
