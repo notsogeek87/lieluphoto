@@ -1,6 +1,7 @@
 package com.hinnka.mycamera.ui.camera
 
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
@@ -810,6 +811,15 @@ fun CameraScreen(
 
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    // The camera layout is portrait-only; the manifest uses fullUser so the gallery and viewer
+    // can rotate (Galaxy Z Fold cover screen). Keep the camera itself locked to portrait.
+    DisposableEffect(activity) {
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        onDispose {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_USER
         }
     }
 
