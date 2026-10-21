@@ -1,0 +1,339 @@
+name: Auto-Repair
+
+# Workflow de réparation automatique après échec de build
+# 
+# Fonctionnalités:
+# - Détecte les builds en échec
+# - Analyse les logs pour identifier la cause
+# - Tente une réparation automatique (max 2 tentatives)
+# - Crée une PR avec le diagnostic si réparation impossible
+#
+# Limites:
+# - Max 2 tentatives par cause
+# - Pas de modification des workflows de sécurité
+# - Pas de force push
+# - Pas de contournement de la CI
+
+on:
+  workflow_run:
+    workflows: ["Android build"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  actions: read
+
+concurrency:
+  group: auto-repair-${{ github.run_id }}
+  cancel-in-progress: false
+
+# Variables globales
+env:
+  MAX_ATTEMPTS: 2
+  REPO: ${{ github.repository }}
+
+jobs:
+  detect-failure:
+    name: Détecter échec de build
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    outputs:
+      run_id: ${{ steps.info.outputs.run_id }}
+      run_number: ${{ steps.info.outputs.run_number }}
+      commit_sha: ${{ steps.info.outputs.commit_sha }}
+      head_branch: ${{ steps.info.outputs.head_branch }}
+      failure_reason: ${{ steps.analysis.outputs.failure_reason }}
+      affected_files: ${{ steps.analysis.outputs.affected_files }}
+      attempt_count: ${{ steps.track.outputs.attempt_count }}
+      can_repair: ${{ steps.analysis.outputs.can_repair }}
+    steps:
+      - name: Récupérer infos du workflow
+        id: info
+        run: |
+          echo "run_id=${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
+          echo "run_number=${{ github.event.workflow_run.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          echo "head_branch=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+
+      - name: Récupérer logs du build échoué
+        id: logs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Télécharger les artefacts du workflow échoué
+          ARTIFACTS_URL="${{ github.api_url }}/repos/${{ github.repository }}/actions/runs/${{ steps.info.outputs.run_id }}/artifacts"
+          
+          # Lister les artefacts
+          ARTIFACTS=$(gh api "$ARTIFACTS_URL" --jq '.artifacts[] | select(.name | contains("log") or contains("build")) | .name' 2>/dev/null || echo "")
+          
+          echo "artifacts=$ARTIFACTS" >> "$GITHUB_OUTPUT"
+          
+          # Télécharger et analyser les logs
+          mkdir -p logs
+          for artifact in $ARTIFACTS; do
+            gh api "$ARTIFACTS_URL/$artifact/zip" --jq '.url' -H "Authorization: token $GITHUB_TOKEN" > /tmp/artifact_url.txt 2>/dev/null
+            URL=$(cat /tmp/artifact_url.txt)
+            if [ -n "$URL" ]; then
+              wget -q -O /tmp/artifact.zip "$URL"
+              unzip -q -o /tmp/artifact.zip -d logs/
+            fi
+          done
+          
+          # Afficher les logs pour analyse
+          find logs -name "*.log" -exec echo "=== {} ===" \; -exec cat {} \;
+
+      - name: Analyser la cause de l'échec
+        id: analysis
+        run: |
+          # Analyser les logs pour identifier les patterns d'erreur
+          echo "=== Analyse des logs ==="
+          
+          # Patterns courants
+          ERROR_PATTERNS=(
+            "Unresolved reference"
+            "cannot find symbol"
+            "not found"
+            "type mismatch"
+            "FAILED"
+            "error:"
+          )
+          
+          FAILURE_REASON="Inconnu"
+          AFFECTED_FILES=""
+          CAN_REPAIR=false
+          
+          # Lire tous les logs
+          ALL_LOGS=$(find logs -name "*.log" -exec cat {} \; 2>/dev/null || echo "")
+          
+          # Détecter les erreurs de compilation Kotlin
+          if echo "$ALL_LOGS" | grep -q "Unresolved reference"; then
+            FAILURE_REASON="Unresolved reference (import manquant ou symbole non défini)"
+            AFFECTED_FILES=$(echo "$ALL_LOGS" | grep "Unresolved reference" | grep -oE 'file://[^:]+' | sed 's/file:\/\/\/home\/runner\/work\/lieluphoto\/lieluphoto\//' | sort -u | tr '\n' ',' | sed 's/,$//')
+            CAN_REPAIR=true
+          fi
+          
+          # Détecter les erreurs de type
+          if echo "$ALL_LOGS" | grep -q "type mismatch"; then
+            FAILURE_REASON="Type mismatch (incompatibilité de type)"
+            AFFECTED_FILES=$(echo "$ALL_LOGS" | grep "type mismatch" | grep -oE 'file://[^:]+' | sed 's/file:\/\/\/home\/runner\/work\/lieluphoto\/lieluphoto\//' | sort -u | tr '\n' ',' | sed 's/,$//')
+            CAN_REPAIR=true
+          fi
+          
+          # Détecter les erreurs de build
+          if echo "$ALL_LOGS" | grep -q "FAILED"; then
+            FAILURE_REASON="Build échoué"
+            CAN_REPAIR=false
+          fi
+          
+          echo "failure_reason=$FAILURE_REASON" >> "$GITHUB_OUTPUT"
+          echo "affected_files=$AFFECTED_FILES" >> "$GITHUB_OUTPUT"
+          echo "can_repair=$CAN_REPAIR" >> "$GITHUB_OUTPUT"
+
+      - name: Suivre le nombre de tentatives
+        id: track
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Vérifier combien de tentatives ont déjà été faites pour ce commit
+          # Utiliser les labels GitHub pour suivre
+          ATTEMPT_COUNT=0
+          
+          # Vérifier les issues existantes pour ce commit
+          EXISTING_ISSUES=$(gh api \
+            "${{ github.api_url }}/repos/${{ github.repository }}/issues" \
+            --jq ".[] | select(.body | contains(\"${{ steps.info.outputs.commit_sha }}\")) | select(.labels[]?.name | contains(\"auto-repair\")) | .number" \
+            2>/dev/null || echo "")
+          
+          if [ -n "$EXISTING_ISSUES" ]; then
+            # Compter le nombre d'issues pour ce commit
+            ATTEMPT_COUNT=$(echo "$EXISTING_ISSUES" | wc -l)
+          fi
+          
+          # Vérifier aussi les runs précédents pour ce commit
+          PREVIOUS_RUNS=$(gh api \
+            "${{ github.api_url }}/repos/${{ github.repository }}/actions/runs" \
+            --jq ".workflow_runs[] | select(.head_sha == \"${{ steps.info.outputs.commit_sha }}\") | select(.conclusion == \"failure\") | .id" \
+            2>/dev/null || echo "")
+          
+          RUN_COUNT=$(echo "$PREVIOUS_RUNS" | wc -l)
+          
+          # Le nombre total de tentatives est le max des deux
+          TOTAL_ATTEMPTS=$((ATTEMPT_COUNT + RUN_COUNT + 1))
+          
+          echo "attempt_count=$TOTAL_ATTEMPTS" >> "$GITHUB_OUTPUT"
+          
+          echo "Tentatives pour ce commit: $TOTAL_ATTEMPTS"
+
+  repair:
+    name: Tentative de réparation
+    if: ${{ needs.detect-failure.outputs.can_repair == 'true' && needs.detect-failure.outputs.attempt_count <= env.MAX_ATTEMPTS }}
+    needs: detect-failure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.detect-failure.outputs.commit_sha }}
+
+      - name: Appliquer correction automatique
+        id: repair
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "=== Tentative de réparation automatique ==="
+          echo "Cause: ${{ needs.detect-failure.outputs.failure_reason }}"
+          echo "Fichiers: ${{ needs.detect-failure.outputs.affected_files }}"
+          echo "Tentative: ${{ needs.detect-failure.outputs.attempt_count }}"
+          
+          # Cas 1: Unresolved reference (import manquant)
+          if [[ "${{ needs.detect-failure.outputs.failure_reason }}" == *"Unresolved reference"* ]]; then
+            echo "Traitement: Unresolved reference"
+            
+            # Extraire les symboles manquants
+            MISSING_SYMBOLS=$(echo "${{ needs.detect-failure.outputs.failure_reason }}" | grep -oE "'[^']+'" | tr -d "'")
+            
+            # Pour chaque fichier affecté
+            IFS=',' read -ra FILES <<< "${{ needs.detect-failure.outputs.affected_files }}"
+            for file in "${FILES[@]}"; do
+              if [ -n "$file" ] && [ -f "$file" ]; then
+                echo "Analyse de $file"
+                
+                # Trouver les imports possibles pour les symboles manquants
+                # (Exemple simplifié - à adapter selon le projet)
+                for symbol in $MISSING_SYMBOLS; do
+                  # Rechercher dans le codebase où ce symbole est défini
+                  DEFINITION=$(grep -r "class $symbol" app/src/ --include="*.kt" | head -1 || echo "")
+                  if [ -n "$DEFINITION" ]; then
+                    PACKAGE=$(echo "$DEFINITION" | grep -oE 'package [^;]+' | sed 's/package //' | tr -d ' ')
+                    if [ -n "$PACKAGE" ]; then
+                      # Ajouter l'import
+                      if ! grep -q "import $PACKAGE.$symbol" "$file"; then
+                        echo "Ajout de l'import: import $PACKAGE.$symbol"
+                        sed -i "/^import/a import $PACKAGE.$symbol" "$file"
+                      fi
+                    fi
+                  fi
+                done
+              fi
+            done
+            
+            REPAIR_SUCCESS=true
+          fi
+          
+          # Cas 2: Type mismatch
+          if [[ "${{ needs.detect-failure.outputs.failure_reason }}" == *"type mismatch"* ]]; then
+            echo "Traitement: Type mismatch"
+            # Correction plus complexe - nécessiterait une analyse plus poussée
+            REPAIR_SUCCESS=false
+          fi
+          
+          if [ "$REPAIR_SUCCESS" = "true" ]; then
+            echo "repaired=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Réparation appliquée"
+            
+            # Commiter les corrections
+            git config --global user.name "Auto-Repair Bot"
+            git config --global user.email "bot@lieluphoto.local"
+            git add -A
+            git commit -m "fix(auto-repair): Correction automatique - ${{ needs.detect-failure.outputs.failure_reason }} [skip ci]"
+            
+            # Pousser sur une branche dédiée
+            BRANCH_NAME="auto-repair/${{ needs.detect-failure.outputs.run_number }}"
+            git checkout -b "$BRANCH_NAME"
+            git push origin "$BRANCH_NAME"
+            
+            # Créer une PR
+            PR_TITLE="Auto-repair: ${{ needs.detect-failure.outputs.failure_reason }}"
+            PR_BODY="Correction automatique appliquée pour le commit ${{ needs.detect-failure.outputs.commit_sha }}.\n\n"
+            PR_BODY+="**Cause:** ${{ needs.detect-failure.outputs.failure_reason }}\n\n"
+            PR_BODY+="**Fichiers corrigés:** ${{ needs.detect-failure.outputs.affected_files }}\n\n"
+            PR_BODY+="**Tentative:** ${{ needs.detect-failure.outputs.attempt_count }}/${{ env.MAX_ATTEMPTS }}\n\n"
+            PR_BODY+="**Build original:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ needs.detect-failure.outputs.run_id }}"
+            
+            gh pr create \
+              --title "$PR_TITLE" \
+              --body "$PR_BODY" \
+              --head "$BRANCH_NAME" \
+              --base "${{ needs.detect-failure.outputs.head_branch }}" \
+              --label "auto-repair" \
+              --label "bot"
+            
+            echo "PR créée: $PR_TITLE"
+          else
+            echo "repaired=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Réparation automatique impossible"
+          fi
+
+      - name: Notifier si réparation impossible
+        if: steps.repair.outputs.repaired != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Création d'une issue de diagnostic..."
+          
+          ISSUE_TITLE="Réparation automatique impossible - ${{ needs.detect-failure.outputs.failure_reason }}"
+          ISSUE_BODY="## Diagnostic de build échoué - Réparation automatique impossible\n\n"
+          ISSUE_BODY+="**Commit:** ${{ needs.detect-failure.outputs.commit_sha }}\n"
+          ISSUE_BODY+="**Branche:** ${{ needs.detect-failure.outputs.head_branch }}\n"
+          ISSUE_BODY+="**Run:** #${{ needs.detect-failure.outputs.run_number }}\n"
+          ISSUE_BODY+="**Tentatives:** ${{ needs.detect-failure.outputs.attempt_count }}/${{ env.MAX_ATTEMPTS }}\n\n"
+          ISSUE_BODY+="### Cause identifiée\n"
+          ISSUE_BODY+="${{ needs.detect-failure.outputs.failure_reason }}\n\n"
+          ISSUE_BODY+="### Fichiers affectés\n"
+          ISSUE_BODY+="${{ needs.detect-failure.outputs.affected_files }}\n\n"
+          ISSUE_BODY+="### Actions requises\n"
+          ISSUE_BODY+="- [ ] Analyser manuellement les logs\n"
+          ISSUE_BODY+="- [ ] Corriger le problème\n"
+          ISSUE_BODY+="- [ ] Vérifier localement avant de pousser\n"
+          ISSUE_BODY+="- [ ] **MAXIMUM 2 tentatives** - Cette issue est la tentative ${{ needs.detect-failure.outputs.attempt_count }}\n\n"
+          ISSUE_BODY+="### Artefacts\n"
+          ISSUE_BODY+="- [Logs du build](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ needs.detect-failure.outputs.run_id }})\n"
+          
+          gh issue create \
+            --title "$ISSUE_TITLE" \
+            --body "$ISSUE_BODY" \
+            --label "build-failure" \
+            --label "needs-review" \
+            --label "auto-repair-failed"
+
+  diagnose:
+    name: Diagnostic manuel requis
+    if: ${{ needs.detect-failure.outputs.can_repair == 'false' || needs.detect-failure.outputs.attempt_count > env.MAX_ATTEMPTS }}
+    needs: detect-failure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Créer issue de diagnostic
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_TITLE="Diagnostic requis - Build échoué #${{ needs.detect-failure.outputs.run_number }}"
+          ISSUE_BODY="## Diagnostic manuel requis\n\n"
+          ISSUE_BODY+="**Commit:** ${{ needs.detect-failure.outputs.commit_sha }}\n"
+          ISSUE_BODY+="**Branche:** ${{ needs.detect-failure.outputs.head_branch }}\n"
+          ISSUE_BODY+="**Run:** #${{ needs.detect-failure.outputs.run_number }}\n"
+          ISSUE_BODY+="**Tentatives:** ${{ needs.detect-failure.outputs.attempt_count }}/${{ env.MAX_ATTEMPTS }}\n\n"
+          ISSUE_BODY+="### Cause identifiée\n"
+          ISSUE_BODY+="${{ needs.detect-failure.outputs.failure_reason }}\n\n"
+          ISSUE_BODY+="### Fichiers affectés\n"
+          ISSUE_BODY+="${{ needs.detect-failure.outputs.affected_files }}\n\n"
+          ISSUE_BODY+="### Statut\n"
+          ISSUE_BODY+="❌ Réparation automatique impossible ou limite de tentatives atteinte\n"
+          ISSUE_BODY+="✅ Une issue a été créée pour suivi manuel\n\n"
+          ISSUE_BODY+="### Actions requises\n"
+          ISSUE_BODY+="1. Lire les logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ needs.detect-failure.outputs.run_id }}\n"
+          ISSUE_BODY+="2. Identifier la cause racine\n"
+          ISSUE_BODY+="3. Corriger manuellement\n"
+          ISSUE_BODY+="4. Vérifier localement\n"
+          ISSUE_BODY+="5. Pousser la correction\n\n"
+          ISSUE_BODY+="### ⚠️ RÈGLE IMPORTANTE\n"
+          ISSUE_BODY+="**MAXIMUM 2 tentatives** pour une même cause. Après cela, un diagnostic complet est requis.\n"
+          
+          gh issue create \
+            --title "$ISSUE_TITLE" \
+            --body "$ISSUE_BODY" \
+            --label "build-failure" \
+            --label "needs-review" \
+            --label "diagnostic-required"

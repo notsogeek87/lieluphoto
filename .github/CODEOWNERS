@@ -1,0 +1,25 @@
+# CODEOWNERS - Responsables des fichiers
+
+# Les workflows de sécurité et CI sont protégés
+# Seuls les maintainers peuvent les modifier
+.github/workflows/ @notsogeek87
+.github/CODEOWNERS @notsogeek87
+
+# Configuration Vibe Code protégée
+.vibe/ @notsogeek87
+
+# Configuration Gradle protégée
+gradle/ @notsogeek87
+app/build.gradle.kts @notsogeek87
+settings.gradle.kts @notsogeek87
+
+# Fichiers de documentation principaux
+AGENTS.md @notsogeek87
+.vibe/instructions.md @notsogeek87
+.vibe/config.json @notsogeek87
+
+# Clés de signature (NE JAMAIS modifier)
+app/debug.keystore @notsogeek87
+
+# * par défaut : tout le monde peut modifier
+* @notsogeek87

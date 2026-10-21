@@ -1,0 +1,141 @@
+name: CI Security Check
+
+# Workflow de vérification de sécurité des workflows CI
+# S'exécute quand un workflow est modifié pour vérifier qu'il n'est pas malveillant
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/*"
+      - ".github/CODEOWNERS"
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/*"
+      - ".github/CODEOWNERS"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  security-check:
+    name: Vérification de sécurité des workflows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Vérifier les permissions
+        run: |
+          echo "=== Vérification des permissions des workflows ==="
+          
+          # Vérifier que les permissions sont minimales
+          PERMISSIONS_OK=true
+          
+          for workflow in .github/workflows/*.yml .github/workflows/*.yaml; do
+            if [ -f "$workflow" ]; then
+              echo "Vérification de $workflow..."
+              
+              # Vérifier qu'il n'y a pas de permissions: write sur main
+              if grep -q "permissions:" "$workflow"; then
+                # Extraire les permissions
+                PERMS=$(grep -A 10 "permissions:" "$workflow" | grep -E "^\s+\w+:" | sed 's/://' | sed 's/^[[:space:]]*//')
+                
+                # Vérifier chaque permission
+                while IFS= read -r line; do
+                  PERM_NAME=$(echo "$line" | cut -d':' -f1)
+                  PERM_VALUE=$(echo "$line" | cut -d':' -f2 | tr -d ' ')
+                  
+                  if [ "$PERM_VALUE" = "write" ] && [ "$PERM_NAME" != "contents" ]; then
+                    echo "::warning::Permission write sur $PERM_NAME dans $workflow"
+                    PERMISSIONS_OK=false
+                  fi
+                done <<< "$PERMS"
+              fi
+              
+              # Vérifier qu'il n'y a pas de secrets hardcodés
+              if grep -iE "secrets\.[A-Z_]+" "$workflow" | grep -v "secrets\.GITHUB_TOKEN" | grep -v "secrets\.BUILT_IN_API"; then
+                echo "::error::Secrets potentiellement hardcodés dans $workflow"
+                PERMISSIONS_OK=false
+              fi
+              
+              # Vérifier qu'il n'y a pas de force: true (sauf pour --force-with-lease)
+              if grep -q "force: true" "$workflow" && ! grep -q "force-with-lease" "$workflow"; then
+                echo "::error::force: true détecté dans $workflow (utiliser --force-with-lease)"
+                PERMISSIONS_OK=false
+              fi
+            fi
+          done
+          
+          if [ "$PERMISSIONS_OK" = "false" ]; then
+            echo "::error::Problèmes de sécurité détectés dans les workflows"
+            exit 1
+          else
+            echo "✅ Tous les workflows ont des permissions sécurisées"
+          fi
+
+      - name: Vérifier les approbations CODEOWNERS
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "=== Vérification des CODEOWNERS ==="
+          
+          # Récupérer les fichiers modifiés
+          MODIFIED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | tr '\n' ' ')
+          
+          echo "Fichiers modifiés: $MODIFIED_FILES"
+          
+          # Vérifier chaque fichier contre CODEOWNERS
+          for file in $MODIFIED_FILES; do
+            if [ -f ".github/CODEOWNERS" ]; then
+              # Trouver le responsable
+              OWNER=$(grep -E "^[^#]*$file" .github/CODEOWNERS | head -1 | awk '{print $NF}')
+              
+              if [ -n "$OWNER" ]; then
+                echo "$file -> Responsable: $OWNER"
+                
+                # Vérifier si le PR author est dans les owners
+                PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+                if ! echo "$OWNER" | grep -q "$PR_AUTHOR"; then
+                  echo "::warning::$file modifié par $PR_AUTHOR mais responsable est $OWNER"
+                  echo "Review requis par $OWNER"
+                fi
+              fi
+            fi
+          done
+
+      - name: Vérifier les actions utilisées
+        run: |
+          echo "=== Vérification des actions GitHub ==="
+          
+          # Actions autorisées
+          ALLOWED_ACTIONS=(
+            "actions/checkout"
+            "actions/setup-java"
+            "gradle/actions/setup-gradle"
+            "actions/upload-artifact"
+            "actions/download-artifact"
+          )
+          
+          # Vérifier toutes les actions utilisées
+          ALL_ACTIONS=$(grep -rE "uses: [a-zA-Z]" .github/workflows/ | grep -oE "[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+" | sort -u)
+          
+          for action in $ALL_ACTIONS; do
+            FOUND=false
+            for allowed in "${ALLOWED_ACTIONS[@]}"; do
+              if [[ "$action" == *"$allowed"* ]]; then
+                FOUND=true
+                break
+              fi
+            done
+            
+            if [ "$FOUND" = "false" ]; then
+              echo "::warning::Action non validée: $action"
+            else
+              echo "✅ $action - autorisée"
+            fi
+          done

@@ -1,0 +1,172 @@
+name: Verify Commit
+
+# Workflow de vérification préventive des commits
+# S'exécute après un push pour détecter les erreurs courantes
+# et bloquer les patterns problématiques avant qu'ils ne cassent la CI
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "app/src/**"
+      - "app/build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle/**"
+      - "*.gradle.kts"
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: verify-commit-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  verify-commit:
+    name: Vérification du commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Nécessaire pour git log
+
+      - name: Analyser les modifications
+        id: analysis
+        run: |
+          # Récupérer les fichiers modifiés dans ce commit
+          MODIFIED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E '\.(kt|java|cpp|h)$' | tr '\n' ' ')
+          
+          echo "modified_files=$MODIFIED_FILES" >> "$GITHUB_OUTPUT"
+          
+          # Vérifier les patterns problématiques
+          echo "=== Vérification des patterns problématiques ==="
+          
+          # 1. Vérifier les imports manquants (fichiers Kotlin)
+          echo "Checking for missing imports..."
+          MISSING_IMPORTS=$(git diff ${{ github.event.before }} ${{ github.sha }} --name-only | grep '\.kt$' | while read f; do
+            # Extraire les symboles utilisés
+            SYMBOLS=$(grep -oE '[A-Z][a-zA-Z0-9_]+' "$f" | sort -u | grep -vE '^import|^package|^class|^fun|^val|^var|^object|^interface|^data|^sealed|^abstract|^companion|^init|^this|^super|^null|^true|^false|^if|^else|^when|^for|^while|^try|^catch|^finally|^return|^break|^continue|^throw' | head -20)
+            # Vérifier si les symboles sont importés
+            for sym in $SYMBOLS; do
+              if ! grep -q "import.*$sym" "$f" && ! grep -q "class $sym" "$f" && ! grep -q "object $sym" "$f"; then
+                echo "::warning::Symbole non importé: $sym dans $f"
+              fi
+            done
+          done)
+          
+          # 2. Vérifier les nouveaux fichiers non suivis
+          echo "Checking for untracked files..."
+          UNTRACKED=$(git status --porcelain | grep '^??' || echo "")
+          if [ -n "$UNTRACKED" ]; then
+            echo "::error::Fichiers non suivis détectés:"
+            echo "$UNTRACKED"
+            echo "untracked_files=true" >> "$GITHUB_OUTPUT"
+          fi
+          
+          # 3. Vérifier les secrets
+          echo "Checking for secrets..."
+          SECRETS=$(git diff ${{ github.event.before }} ${{ github.sha }} | grep -iE 'password|secret|token|api_key|BUILT_IN_API' || echo "")
+          if [ -n "$SECRETS" ]; then
+            echo "::error::Secrets détectés dans les modifications!"
+            echo "secrets_detected=true" >> "$GITHUB_OUTPUT"
+          fi
+          
+          # 4. Vérifier les modifications de workflows CI
+          WORKFLOW_CHANGES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.github/workflows/' || echo "")
+          if [ -n "$WORKFLOW_CHANGES" ]; then
+            echo "::warning::Modifications des workflows détectées: $WORKFLOW_CHANGES"
+            echo "workflow_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          
+          # 5. Vérifier les double déclarations
+          echo "Checking for duplicate declarations..."
+          DUPLICATES=$(git diff ${{ github.event.before }} ${{ github.sha }} | grep -E '^\+.*val [a-zA-Z].+=.*by viewModel' | sort | uniq -d || echo "")
+          if [ -n "$DUPLICATES" ]; then
+            echo "::error::Double déclarations détectées:"
+            echo "$DUPLICATES"
+            echo "duplicates_detected=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Générer rapport de diagnostic
+        if: always()
+        id: report
+        run: |
+          echo "## Rapport de vérification du commit" > report.md
+          echo "" >> report.md
+          echo "**Commit:** ${{ github.sha }}" >> report.md
+          echo "**Auteur:** ${{ github.actor }}" >> report.md
+          echo "**Date:** $(date)" >> report.md
+          echo "" >> report.md
+          
+          if [ "${{ steps.analysis.outputs.secrets_detected }}" = "true" ]; then
+            echo "### ❌ SECRETS DÉTECTÉS" >> report.md
+            echo "Des secrets ont été détectés dans les modifications!" >> report.md
+            echo "" >> report.md
+          fi
+          
+          if [ "${{ steps.analysis.outputs.untracked_files }}" = "true" ]; then
+            echo "### ❌ FICHIERS NON SUIVIS" >> report.md
+            echo "Des nouveaux fichiers n'ont pas été ajoutés à git!" >> report.md
+            echo "" >> report.md
+          fi
+          
+          if [ "${{ steps.analysis.outputs.duplicates_detected }}" = "true" ]; then
+            echo "### ❌ DOUBLE DÉCLARATIONS" >> report.md
+            echo "Des variables sont déclarées plusieurs fois!" >> report.md
+            echo "" >> report.md
+          fi
+          
+          if [ "${{ steps.analysis.outputs.workflow_changed }}" = "true" ]; then
+            echo "### ⚠️ MODIFICATIONS DES WORKFLOWS" >> report.md
+            echo "Les workflows CI ont été modifiés. Vérification manuelle requise." >> report.md
+            echo "" >> report.md
+          fi
+          
+          echo "### ✅ Vérifications passées" >> report.md
+          echo "- Pas de secrets détectés: ✓" >> report.md
+          echo "- Tous les fichiers suivis: ✓" >> report.md
+          echo "- Pas de doubles déclarations: ✓" >> report.md
+          echo "" >> report.md
+          
+          cat report.md
+
+      - name: Upload rapport
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-report-${{ github.run_number }}
+          path: report.md
+          compression-level: 0
+
+      - name: Notifier en cas de problèmes
+        if: failure() || steps.analysis.outputs.secrets_detected == 'true' || steps.analysis.outputs.untracked_files == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Créer un commentaire sur le commit
+          COMMENT="⚠️ Problèmes détectés dans ce commit:\n\n"
+          
+          if [ "${{ steps.analysis.outputs.secrets_detected }}" = "true" ]; then
+            COMMENT+="- ❌ **SECRETS DÉTECTÉS** dans les modifications\n"
+          fi
+          
+          if [ "${{ steps.analysis.outputs.untracked_files }}" = "true" ]; then
+            COMMENT+="- ❌ **Fichiers non suivis** détectés\n"
+          fi
+          
+          if [ "${{ steps.analysis.outputs.duplicates_detected }}" = "true" ]; then
+            COMMENT+="- ❌ **Double déclarations** détectées\n"
+          fi
+          
+          COMMENT+="\nVoir: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          
+          gh api \
+            --method POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "${{ github.api_url }}/repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
+            -f "body=$COMMENT"

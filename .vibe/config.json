@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/vibe-config.json",
   "name": "LieluPhoto",
-  "description": "Configuration Vibe Code pour le projet LieluPhoto - Application Android de caméra professionnelle",
-  "version": "1.0.0",
+  "description": "Configuration Vibe Code pour le projet LieluPhoto - Application Android de caméra professionnelle avec règles de sécurité strictes",
+  "version": "2.0.0",
   "agent": {
     "id": "vibe-code",
     "model": "mistral-medium-3-5",
@@ -24,14 +24,16 @@
     "global": [
       {
         "id": "no-upstream-push",
-        "description": "NE JAMAIS pousser sur upstream (bjzhou/photoncamera)",
+        "description": "NE JAMAIS pousser sur upstream (bjzhou/photoncamera) - LECTURE SEULE",
         "severity": "critical",
         "enforcement": "hard",
-        "message": "La branche upstream est en LECTURE SEULE. Utiliser uniquement origin (notsogeek87/lieluphoto)."
+        "patterns": ["git push upstream", "git push bjzhou"],
+        "commands": ["git push upstream", "git push bjzhou/photoncamera"],
+        "message": "La branche upstream est en LECTURE SEULE. Utiliser UNIQUEMENT origin (notsogeek87/lieluphoto). Commande autorisée: git push --force-with-lease origin main"
       },
       {
         "id": "no-secrets-in-code",
-        "description": "NE JAMAIS committer de secrets (API keys, tokens, mots de passe)",
+        "description": "NE JAMAIS committer de secrets (API keys, tokens, mots de passe, clés de signature)",
         "severity": "critical",
         "enforcement": "hard",
         "patterns": [
@@ -39,16 +41,20 @@
           "BUILT_IN_API_KEY_GOOGLE",
           "RELEASE_STORE_PASSWORD",
           "RELEASE_KEY_PASSWORD",
+          "debug.keystore",
           "password",
           "secret",
           "token",
-          "api_key"
+          "api_key",
+          "private_key",
+          "androiddebugkey"
         ],
-        "message": "Utiliser local.properties ou GitHub Secrets pour les configurations sensibles."
+        "files": ["**/*.kt", "**/*.java", "**/*.cpp", "**/*.h", "**/*.gradle.kts", "**/*.properties"],
+        "message": "Utiliser local.properties ou GitHub Secrets pour les configurations sensibles. NE JAMAIS committer de secrets."
       },
       {
         "id": "no-unit-tests",
-        "description": "NE PAS ajouter de tests unitaires",
+        "description": "NE PAS ajouter de tests unitaires - Décision architecturale du projet",
         "severity": "high",
         "enforcement": "hard",
         "patterns": [
@@ -58,7 +64,8 @@
           "@Test",
           "junit",
           "mockito",
-          "espresso"
+          "espresso",
+          "robolectric"
         ],
         "message": "Le projet a décidé de ne pas utiliser de tests unitaires. Voir AGENTS.md pour détails."
       },
@@ -67,31 +74,67 @@
         "description": "NE PAS modifier les scripts Python dans le sandbox",
         "severity": "high",
         "enforcement": "hard",
-        "paths": ["scripts/*.py"],
-        "message": "Les scripts Python doivent être exécutés avec uv hors du sandbox. Voir AGENTS.md."
+        "paths": ["scripts/*.py", "scripts/**/*.py"],
+        "message": "Les scripts Python doivent être exécutés avec uv HORS du sandbox. Ne pas modifier sans comprendre le contexte complet."
       },
       {
         "id": "no-hardcoded-strings",
-        "description": "NE PAS coder les textes en dur (internationalisation obligatoire)",
+        "description": "NE PAS coder les textes en dur - Internationalisation obligatoire",
         "severity": "high",
-        "enforcement": "soft",
+        "enforcement": "hard",
         "patterns": [
-          "Text(\"",
-          "R.string.",
-          "getString(\""
+          "Text(\"[^\"]+\"",
+          "text = \"[^\"]+\"",
+          "getString(\"[^\"]+\"")
         ],
-        "message": "Tous les textes doivent être dans les ressources strings.xml pour l'internationalisation."
+        "message": "Tous les textes doivent être dans les ressources strings.xml pour l'internationalisation. Utiliser R.string.* ou stringResource()."
       },
       {
         "id": "no-incremental-dependencies",
-        "description": "NE PAS ajouter de dépendances sans validation",
+        "description": "NE PAS ajouter de dépendances sans validation préalable",
         "severity": "high",
-        "enforcement": "soft",
+        "enforcement": "hard",
         "files": [
           "app/build.gradle.kts",
-          "gradle/libs.versions.toml"
+          "gradle/libs.versions.toml",
+          "settings.gradle.kts"
         ],
-        "message": "Toute nouvelle dépendance doit être validée et justifiée. Ajouter dans le version catalog."
+        "message": "Toute nouvelle dépendance doit être validée et justifiée. Ajouter dans le version catalog (gradle/libs.versions.toml)."
+      },
+      {
+        "id": "verify-compilation-before-commit",
+        "description": "TOUJOURS vérifier la compilation avant tout commit",
+        "severity": "critical",
+        "enforcement": "hard",
+        "commands": [
+          "./gradlew compileDefaultReleaseKotlin",
+          "./gradlew buildCMakeRelease"
+        ],
+        "message": "Exécuter IMPÉRATIVEMENT ./gradlew compileDefaultReleaseKotlin et ./gradlew buildCMakeRelease avant tout commit. Si l'environnement ne le permet pas, NE PAS COMMITTER."
+      },
+      {
+        "id": "no-force-push-without-lease",
+        "description": "NE PAS utiliser git push --force sans --force-with-lease",
+        "severity": "critical",
+        "enforcement": "hard",
+        "patterns": ["git push --force[^\-]"],
+        "message": "Utiliser UNIQUEMENT git push --force-with-lease origin main pour éviter les écrasements de travail."
+      },
+      {
+        "id": "no-ci-disabling",
+        "description": "NE PAS désactiver ou contourner la CI/CD",
+        "severity": "critical",
+        "enforcement": "hard",
+        "paths": [".github/workflows/*"],
+        "patterns": ["#.*disable", "if: false", "continue-on-error: true"],
+        "message": "NE JAMAIS modifier les workflows GitHub Actions pour désactiver la CI. Les échecs doivent être diagnostiqués et corrigés, pas masqués."
+      },
+      {
+        "id": "max-two-attempts-per-error",
+        "description": "MAXIMUM 2 tentatives de correction pour une même cause d'échec",
+        "severity": "critical",
+        "enforcement": "hard",
+        "message": "Après 2 échecs consécutifs sur la même cause, ARRÊTER et produire un diagnostic structuré. Ne pas enchaîner les corrections sans analyse approfondie."
       }
     ],
     
@@ -99,8 +142,8 @@
       {
         "id": "no-null-assertions",
         "description": "Éviter les assertions null non sûres",
-        "severity": "medium",
-        "enforcement": "soft",
+        "severity": "high",
+        "enforcement": "hard",
         "patterns": ["!!"],
         "message": "Préférer le null safety avec ? et let/also. Utiliser requireNotNull() ou checkNotNull() avec message clair."
       },
@@ -119,6 +162,13 @@
         "enforcement": "soft",
         "patterns": ["mutableListOf", "mutableSetOf", "mutableMapOf"],
         "message": "Utiliser listOf(), setOf(), mapOf() quand l'immuabilité est possible."
+      },
+      {
+        "id": "check-all-imports",
+        "description": "Vérifier que tous les symboles utilisés sont importés",
+        "severity": "high",
+        "enforcement": "hard",
+        "message": "Après modification d'un fichier Kotlin, vérifier avec grep que tous les symboles utilisés (classes, fonctions) sont bien importés."
       }
     ],
     
@@ -144,15 +194,23 @@
     
     "gradle": [
       {
-        "id": "verify-compilation",
-        "description": "Toujours vérifier la compilation avant commit",
+        "id": "verify-release-compilation",
+        "description": "Toujours vérifier la compilation Release avant commit",
         "severity": "critical",
         "enforcement": "hard",
         "commands": [
-          "./gradlew compileDefaultDebugKotlin",
-          "./gradlew buildCMakeDebug"
+          "./gradlew compileDefaultReleaseKotlin",
+          "./gradlew buildCMakeRelease"
         ],
-        "message": "Exécuter ./gradlew compileDefaultDebugKotlin et ./gradlew buildCMakeDebug avant tout commit."
+        "message": "La compilation Debug peut réussir alors que Release échoue (ProGuard, optimisations). TOUJOURS tester Release."
+      },
+      {
+        "id": "no-dependency-changes-without-validation",
+        "description": "Ne pas modifier les dépendances sans validation",
+        "severity": "high",
+        "enforcement": "hard",
+        "files": ["app/build.gradle.kts", "gradle/libs.versions.toml"],
+        "message": "Toute modification de dépendance doit être validée. Utiliser le version catalog."
       }
     ],
     
@@ -171,6 +229,22 @@
         "severity": "high",
         "enforcement": "hard",
         "message": "Exécuter git fetch upstream && git rebase upstream/main avant de merger."
+      },
+      {
+        "id": "check-git-status-before-push",
+        "description": "Toujours vérifier git status avant push",
+        "severity": "critical",
+        "enforcement": "hard",
+        "commands": ["git status", "git diff --cached"],
+        "message": "Vérifier TOUS les fichiers modifiés et nouveaux fichiers non suivis avant de pousser."
+      },
+      {
+        "id": "check-all-new-files-added",
+        "description": "Vérifier que tous les nouveaux fichiers sont ajoutés à git",
+        "severity": "critical",
+        "enforcement": "hard",
+        "commands": ["git status | grep 'Untracked files'"],
+        "message": "Exécuter git add pour TOUS les nouveaux fichiers avant commit."
       }
     ]
   },
@@ -249,25 +323,32 @@
   "workflows": {
     "preCommit": [
       {
-        "name": "Vérifier la compilation Kotlin",
-        "command": "./gradlew compileDefaultDebugKotlin",
-        "required": true
+        "name": "Vérifier la compilation Kotlin Release",
+        "command": "./gradlew compileDefaultReleaseKotlin",
+        "required": true,
+        "fallback": "echo 'ERREUR: Impossible de vérifier la compilation. NE PAS COMMITTER.' && exit 1"
       },
       {
-        "name": "Vérifier la compilation native",
-        "command": "./gradlew buildCMakeDebug",
-        "required": true
+        "name": "Vérifier la compilation native Release",
+        "command": "./gradlew buildCMakeRelease",
+        "required": true,
+        "fallback": "echo 'ERREUR: Impossible de vérifier la compilation native. NE PAS COMMITTER.' && exit 1"
       },
       {
         "name": "Rechercher des secrets",
         "command": "git secrets --scan",
         "required": true,
-        "fallback": "grep -r -E '(password|secret|token|api_key)' --include='*.kt' --include='*.java' --include='*.cpp' --include='*.h' ."
+        "fallback": "grep -rE '(password|secret|token|api_key|BUILT_IN_API)' --include='*.kt' --include='*.java' --include='*.cpp' --include='*.h' . && echo 'Aucun secret trouvé' || echo 'SECRETS DÉTECTÉS - NE PAS COMMITTER' && exit 1"
       },
       {
-        "name": "Vérifier les fichiers modifiés",
-        "command": "git diff --cached",
+        "name": "Vérifier les fichiers modifiés et nouveaux",
+        "command": "git status && git diff --cached",
         "required": true
+      },
+      {
+        "name": "Vérifier les imports dans les fichiers Kotlin modifiés",
+        "command": "find app/src/main/java -name '*.kt' -newer /tmp/marker -exec grep -n 'import' {} \; || echo 'Aucun fichier Kotlin modifié détecté'",
+        "required": false
       }
     ],
     
@@ -279,8 +360,13 @@
         "branches": ["main", "staging", "lielu"]
       },
       {
-        "name": "Vérification finale",
-        "command": "./gradlew compileDefaultDebugKotlin && ./gradlew buildCMakeDebug",
+        "name": "Vérification finale compilation Release",
+        "command": "./gradlew compileDefaultReleaseKotlin && ./gradlew buildCMakeRelease",
+        "required": true
+      },
+      {
+        "name": "Vérifier git status",
+        "command": "git status && git diff --cached",
         "required": true
       }
     ],
@@ -289,28 +375,39 @@
       "git fetch upstream",
       "git checkout main",
       "git rebase upstream/main",
-      "./gradlew compileDefaultDebugKotlin",
-      "./gradlew buildCMakeDebug",
+      "./gradlew compileDefaultReleaseKotlin",
+      "./gradlew buildCMakeRelease",
       "git push --force-with-lease origin main"
     ],
     
     "newFeature": [
       "git checkout -b feature/<description>",
       "# Développement avec vérifications régulières",
-      "./gradlew compileDefaultDebugKotlin",
+      "./gradlew compileDefaultReleaseKotlin",
       "git commit -m 'feat(scope): description'",
       "git push -u origin feature/<description>"
+    ],
+    
+    "afterPush": [
+      {
+        "name": "Vérifier statut GitHub Actions",
+        "command": "echo 'Vérifier manuellement https://github.com/notsogeek87/lieluphoto/actions si disponible'",
+        "required": false,
+        "note": "Si échec détecté : 1. Lire logs, 2. Identifier cause, 3. Corriger, 4. MAX 2 tentatives"
+      }
     ]
   },
   
   "quality": {
     "checklist": {
       "mandatory": [
-        "Code compile sans erreur",
-        "Code natif compile",
+        "Code compile sans erreur (Release)",
+        "Code natif compile (Release)",
         "Pas de secrets committés",
         "Pas de textes en dur (i18n)",
         "Conventions de nommage respectées",
+        "Tous les imports nécessaires présents",
+        "Tous les nouveaux fichiers ajoutés à git",
         "Documentation mise à jour (si nécessaire)",
         "Changements testés manuellement"
       ],
@@ -344,7 +441,8 @@
       "new-feature",
       "architecture-change",
       "api-change",
-      "major-bugfix"
+      "major-bugfix",
+      "security-update"
     ]
   },
   
@@ -383,10 +481,11 @@
     "vibeCheck": "node scripts/vibe-check.js",
     "build": "./gradlew assembleDefaultDebug",
     "buildRelease": "./gradlew :app:assembleDefaultRelease",
-    "compileKotlin": "./gradlew compileDefaultDebugKotlin",
-    "compileNative": "./gradlew buildCMakeDebug",
+    "compileKotlin": "./gradlew compileDefaultReleaseKotlin",
+    "compileNative": "./gradlew buildCMakeRelease",
     "syncUpstream": "git fetch upstream && git rebase upstream/main",
-    "clean": "./gradlew clean"
+    "clean": "./gradlew clean",
+    "verifyAll": "./gradlew compileDefaultReleaseKotlin && ./gradlew buildCMakeRelease && echo 'Vérification réussie'"
   },
   
   "hooks": {
@@ -407,15 +506,44 @@
       {
         "name": "Photon Camera",
         "repository": "bjzhou/photoncamera",
-        "relation": "upstream"
+        "relation": "upstream",
+        "access": "read-only"
       }
     ]
+  },
+  
+  "security": {
+    "sensitivePatterns": [
+      "BUILT_IN_API_KEY",
+      "BUILT_IN_API_KEY_GOOGLE",
+      "RELEASE_STORE_PASSWORD",
+      "RELEASE_KEY_PASSWORD",
+      "debug.keystore",
+      "androiddebugkey",
+      "password",
+      "secret",
+      "token",
+      "api_key",
+      "private_key",
+      "signingConfig"
+    ],
+    "forbiddenCommands": [
+      "git push upstream",
+      "git push --force",
+      "git push bjzhou/photoncamera",
+      "rm -rf",
+      ":(){ :|:& };:"
+    ],
+    "maxRetriesPerError": 2,
+    "requireProofOfCompilation": true
   },
   
   "metadata": {
     "createdBy": "Vibe Code",
     "createdAt": "$(date -Iseconds)",
     "lastUpdated": "$(date -Iseconds)",
-    "generator": "Mistral AI - Vibe Code Agent"
+    "generator": "Mistral AI - Vibe Code Agent",
+    "securityVersion": "2.0.0",
+    "notes": "Version avec règles de sécurité strictes et vérifications obligatoires avant commit/push"
   }
 }

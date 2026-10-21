@@ -1,7 +1,7 @@
 name: Android build
 
-# Pas de trigger pull_request : chaque push est déjà buildé, sinon push + PR
-# lançaient deux builds identiques.
+# Workflow amélioré avec vérifications de sécurité et compilation Debug + Release
+# Trigger sur push (sauf docs) et workflow_dispatch
 on:
   push:
     branches: ["**"]
@@ -10,21 +10,99 @@ on:
       - "doc/**"
       - "**.md"
       - "**.MD"
+      - "AGENTS.md"
+      - ".vibe/**"
   workflow_dispatch:
 
+# Permissions minimales - principe du moindre privilège
+# Note: contents: write est nécessaire pour le job build (upload artefacts et releases)
 permissions:
   contents: write
+  actions: read
+  packages: read
 
-# Un seul build à la fois par branche. Sur main on n'annule jamais : chaque push
-# garde sa release versionnée, ils passent l'un après l'autre.
+# Un seul build à la fois par branche. Sur main on n'annule jamais.
 concurrency:
   group: android-build-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 
+# Variables réutilisables
+env:
+  ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT || '/usr/local/android-sdk' }}
+  GRADLE_OPTS: "-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+UseParallelGC -Dfile.encoding=UTF-8"
+
 jobs:
+  # Job de vérification rapide avant build complet
+  pre-check:
+    name: Pre-check (Debug compilation)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Installer NDK et CMake
+        run: |
+          SDK_DIR="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          "${SDK_DIR}/cmdline-tools/latest/bin/sdkmanager" "ndk;29.0.14206865" "cmake;3.22.1" > /dev/null 2>&1
+
+      - name: Écrire local.properties (sans secrets)
+        run: |
+          {
+            printf 'sdk.dir=%s\n' "${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+            printf 'BUILT_IN_API_KEY=\n'
+            printf 'BUILT_IN_API_KEY_GOOGLE=\n'
+          } > local.properties
+
+      - name: Vérification compilation Debug Kotlin
+        run: |
+          chmod +x gradlew
+          ./gradlew compileDefaultDebugKotlin --console=plain --stacktrace 2>&1 | tee debug-kotlin.log
+          if [ $? -ne 0 ]; then
+            echo "::error::Compilation Debug Kotlin échouée"
+            echo "Logs disponibles dans debug-kotlin.log"
+            exit 1
+          fi
+
+      - name: Vérification compilation Debug native
+        run: |
+          ./gradlew buildCMakeDebug --console=plain --stacktrace 2>&1 | tee debug-native.log
+          if [ $? -ne 0 ]; then
+            echo "::error::Compilation Debug native échouée"
+            echo "Logs disponibles dans debug-native.log"
+            exit 1
+          fi
+
+      - name: Upload logs Debug
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-logs-${{ github.run_number }}
+          path: |
+            debug-kotlin.log
+            debug-native.log
+          compression-level: 0
+
+  # Job principal de build Release
   build:
+    name: Build Release
+    needs: pre-check
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: write  # Nécessaire pour upload artefacts et releases
+      packages: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,7 +121,7 @@ jobs:
           SDK_DIR="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
           "${SDK_DIR}/cmdline-tools/latest/bin/sdkmanager" "ndk;29.0.14206865" "cmake;3.22.1"
 
-      # Clés du service IA intégré : facultatives (secrets absents = clé vide).
+      # Clés du service IA intégré : facultatives (secrets absents = clé vide)
       - name: Écrire local.properties
         env:
           BUILT_IN_API_KEY: ${{ secrets.BUILT_IN_API_KEY }}
@@ -55,8 +133,8 @@ jobs:
             printf 'BUILT_IN_API_KEY_GOOGLE=%s\n' "$BUILT_IN_API_KEY_GOOGLE"
           } > local.properties
 
-      # versionCode = 1000 + run_number (strictement croissant), versionName = version de
-      # app/build.gradle.kts, tag de release v<version>.<run_number>.
+      # versionCode = 1000 + run_number (strictement croissant)
+      # versionName = version de app/build.gradle.kts
       - name: Déterminer la version
         id: version
         run: |
@@ -67,8 +145,26 @@ jobs:
       - name: Rendre gradlew exécutable
         run: chmod +x gradlew
 
-      # Clé de debug committée (app/debug.keystore) : même signature à chaque build,
-      # donc chaque APK s'installe par-dessus le précédent sans désinstaller.
+      # Vérification Release avant compilation complète
+      - name: Vérification compilation Release Kotlin
+        run: |
+          ./gradlew compileDefaultReleaseKotlin --console=plain --stacktrace 2>&1 | tee release-kotlin.log
+          if [ $? -ne 0 ]; then
+            echo "::error::Compilation Release Kotlin échouée"
+            echo "::error::Logs: $(tail -20 release-kotlin.log)"
+            exit 1
+          fi
+
+      - name: Vérification compilation Release native
+        run: |
+          ./gradlew buildCMakeRelease --console=plain --stacktrace 2>&1 | tee release-native.log
+          if [ $? -ne 0 ]; then
+            echo "::error::Compilation Release native échouée"
+            echo "::error::Logs: $(tail -20 release-native.log)"
+            exit 1
+          fi
+
+      # Clé de debug committée (app/debug.keystore) : même signature à chaque build
       - name: Compiler l'APK (release)
         env:
           ORG_GRADLE_PROJECT_RELEASE_STORE_FILE: debug.keystore
@@ -76,10 +172,23 @@ jobs:
           ORG_GRADLE_PROJECT_RELEASE_KEY_ALIAS: androiddebugkey
           ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD: android
         run: |
-          ./gradlew :app:assembleDefaultRelease --console=plain \
-            -PversionCodeOverride=$((1000 + ${{ github.run_number }}))
+          ./gradlew :app:assembleDefaultRelease --console=plain --stacktrace \
+            -PversionCodeOverride=$((1000 + ${{ github.run_number }})) \
+            2>&1 | tee full-build.log
+
+      - name: Upload build logs (toujours)
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ github.run_number }}
+          path: |
+            release-kotlin.log
+            release-native.log
+            full-build.log
+          if-no-files-found: ignore
+          compression-level: 0
 
       - name: Renommer l'APK avec sa version
+        if: success()
         id: apk
         run: |
           NAME="LieluPhoto-${{ steps.version.outputs.name }}.apk"
@@ -89,6 +198,7 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: lieluphoto-apk-${{ github.run_number }}
@@ -96,9 +206,9 @@ jobs:
           if-no-files-found: error
           compression-level: 0
 
-      # Vraie release permanente pour chaque push sur main (ou lancement manuel sur main).
+      # Vraie release permanente pour chaque push sur main
       - name: Publier la release GitHub (main)
-        if: github.ref_name == 'main'
+        if: success() && github.ref_name == 'main'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -110,7 +220,7 @@ jobs:
           2. Ouvre-le. Si Android bloque l'installation, autorise la source (navigateur ou gestionnaire de fichiers) à installer des applications inconnues.
           3. Touche « Installer ».
 
-          Tous les APK ont la même clé de signature : une nouvelle version s'installe par-dessus l'ancienne, tes réglages sont conservés. Si Android refuse (« app non installée »), désinstalle l'ancienne version une fois, puis réinstalle.
+          Tous les APK ont la même clé de signature : une nouvelle version s'installe par-dessus l'ancienne, tes réglages sont conservés.
 
           ---
           Run #${{ github.run_number }} (${{ github.sha }}). Signé avec la clé de debug committée.
@@ -121,9 +231,9 @@ jobs:
             --notes-file release-notes.md \
             --target "${{ github.sha }}"
 
-      # Autres branches : un tag de pré-release par branche, remplacé à chaque build.
+      # Autres branches : un tag de pré-release par branche, remplacé à chaque build
       - name: Publier l'APK de test en pré-release
-        if: github.ref_name != 'main'
+        if: success() && github.ref_name != 'main'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -136,3 +246,79 @@ jobs:
             --notes "Build de test de la branche. Run #${{ github.run_number }} (${{ github.sha }})." \
             --prerelease \
             --target "${{ github.sha }}"
+
+  # Job de notification en cas d'échec
+  notify-failure:
+    name: Notify Failure
+    if: failure() && (needs.pre-check.result == 'failure' || needs.build.result == 'failure')
+    needs: [pre-check, build]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Créer issue de diagnostic
+        if: github.ref_name == 'main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Récupérer les logs du job échoué
+          FAILURE_REASON=$(echo "${{ toJSON(needs) }}" | python3 -c "
+            import sys, json
+            needs = json.load(sys.stdin)
+            for job in ['pre-check', 'build']:
+              if needs.get(job, {}).get('result') == 'failure':
+                print(f'Job {job} échoué')
+                break
+          ")
+          
+          # Créer une issue avec le diagnostic
+          ISSUE_TITLE="Build échoué - Run #${{ github.run_number }} - ${FAILURE_REASON}"
+          ISSUE_BODY="## Diagnostic de build échoué
+
+          **Run:** #${{ github.run_number }}  
+          **Commit:** ${{ github.sha }}  
+          **Branche:** ${{ github.ref_name }}  
+          **Workflow:** [Voir le run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})  
+          
+          ### Cause identifiée
+          $FAILURE_REASON
+          
+          ### Actions requises
+          - [ ] Analyser les logs de build
+          - [ ] Identifier la cause racine
+          - [ ] Corriger le problème
+          - [ ] Vérifier localement avant de repusher
+          - [ ] **MAXIMUM 2 tentatives** pour cette cause
+          
+          ### Artefacts disponibles
+          Les logs de compilation sont disponibles dans les artefacts du workflow.
+          "
+          
+          # Vérifier si une issue existe déjà pour ce run
+          EXISTING_ISSUE=$(gh issue list --label "build-failure" --json number,title --jq ".[] | select(.title | contains(\"#${{ github.run_number }}\")) | .number" 2>/dev/null || echo "")
+          
+          if [ -z "$EXISTING_ISSUE" ]; then
+            gh issue create \
+              --title "$ISSUE_TITLE" \
+              --body "$ISSUE_BODY" \
+              --label "build-failure" \
+              --label "bug" \
+              --label "automated"
+          fi
+
+      - name: Commenter sur le commit
+        if: github.ref_name == 'main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT="Build échoué sur ce commit. \
+          Voir: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} \
+          Issue créée pour suivi."
+          
+          gh api \
+            --method POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "${{ github.api_url }}/repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
+            -f "body=$COMMENT"

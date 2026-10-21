@@ -4,9 +4,49 @@
 **L'agent code SEUL, de A à Z.**
 - Il **ne demande JAMAIS** à l'utilisateur de coder.
 - Il **vérifie systématiquement** que :
-  - Le code compile (`./gradlew assembleDebug`, etc.).
+  - Le code compile **EN RELEASE** (`./gradlew compileDefaultReleaseKotlin`, etc.).
   - **TOUS les tests passent** avant tout push.
+  - **Aucun secret** n'est committé.
 - Si un choix d'architecture bloque, il pose **une seule question courte** pour trancher.
+- **MAXIMUM 2 tentatives** de correction pour une même cause d'échec, puis ARRÊT et diagnostic.
+
+---
+
+## 🔒 RÈGLES DE SÉCURITÉ CRITIQUES (À LIRE EN PREMIER)
+
+### ❌ INTERDITIONS ABSOLUES
+
+1. **PAS DE PUSH SUR UPSTREAM** - `upstream = bjzhou/photoncamera` est **LECTURE SEULE**
+2. **PAS DE SECRETS DANS LE CODE** - API keys, tokens, mots de passe, clés de signature
+3. **PAS DE DÉSACTIVATION DE LA CI** - Ne jamais modifier les workflows pour contourner les erreurs
+4. **PAS DE FORCE PUSH SANS --force-with-lease** - Toujours utiliser `--force-with-lease`
+5. **PAS DE MODIFICATION DES SCRIPTS PYTHON DANS LE SANDBOX**
+
+### ✅ VÉRIFICATIONS OBLIGATOIRES AVANT COMMIT
+
+```bash
+# Vérification minimale - TOUJOURS exécuter si l'environnement le permet
+./gradlew compileDefaultReleaseKotlin
+./gradlew buildCMakeRelease
+
+# Vérification des secrets
+git secrets --scan || grep -rE '(password|secret|token|api_key)' --include='*.kt' --include='*.java' .
+
+# Vérification des fichiers
+git status
+git diff --cached
+```
+
+**Si une vérification échoue : NE PAS COMMITTER**
+
+### 🎯 COMMANDES DE COMPILATION À UTILISER
+
+**Toujours utiliser Release pour la vérification finale :**
+- `./gradlew compileDefaultReleaseKotlin` (obligatoire)
+- `./gradlew buildCMakeRelease` (obligatoire)
+- `./gradlew :app:assembleDefaultRelease` (si possible)
+
+**Ne pas se contenter de Debug :** La compilation Debug peut réussir alors que Release échoue (ProGuard, optimisations, etc.).
 
 ---
 
@@ -332,11 +372,13 @@ git push -u origin feature/nouvelle-fonctionnalite
 
 ### Checklist Obligatoire
 
-- [ ] ✅ Code compile sans erreur (`./gradlew compileDefaultDebugKotlin`)
-- [ ] ✅ Code natif compile (`./gradlew buildCMakeDebug`)
+- [ ] ✅ Code compile sans erreur **EN RELEASE** (`./gradlew compileDefaultReleaseKotlin`)
+- [ ] ✅ Code natif compile **EN RELEASE** (`./gradlew buildCMakeRelease`)
 - [ ] ✅ Pas de secrets committés (vérifier avec `git-secrets`)
 - [ ] ✅ Pas de textes en dur (internationalisation)
 - [ ] ✅ Respect des conventions de nommage
+- [ ] ✅ Tous les imports nécessaires sont présents
+- [ ] ✅ Tous les nouveaux fichiers ajoutés à git (`git add`)
 - [ ] ✅ Pas de `TODO` ou `FIXME` non documentés
 - [ ] ✅ Documentation mise à jour si nécessaire
 - [ ] ✅ Changements testés manuellement
@@ -344,10 +386,14 @@ git push -u origin feature/nouvelle-fonctionnalite
 ### Outils de Vérification
 
 ```bash
-# Vérification de compilation Kotlin
-./gradlew compileDefaultDebugKotlin
+# Vérification de compilation Kotlin RELEASE (obligatoire)
+./gradlew compileDefaultReleaseKotlin
 
-# Vérification de compilation native
+# Vérification de compilation native RELEASE (obligatoire)
+./gradlew buildCMakeRelease
+
+# Vérification Debug (pour développement rapide)
+./gradlew compileDefaultDebugKotlin
 ./gradlew buildCMakeDebug
 
 # Recherche de secrets (si git-secrets installé)
@@ -358,6 +404,9 @@ git diff --cached
 
 # Vérification des fichiers non suivis
 git status
+
+# Vérification des imports (après modification de fichiers)
+find app/src/main/java -name '*.kt' -newer /tmp/marker -exec grep -n 'import' {} \;
 ```
 
 ---
