@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.hinnka.mycamera.ui.icons.AppIcons
 import com.hinnka.mycamera.ui.theme.AccentColor
 
-internal object EditLayoutConstants {
+object EditLayoutConstants {
     // Portrait mode: toolbar on the right side
     val PORTRAIT_TOOLBAR_WIDTH = 56.dp
     val PORTRAIT_SETTINGS_PANEL_WIDTH = 300.dp
@@ -61,7 +61,7 @@ internal object EditLayoutConstants {
 }
 
 @Composable
-internal fun EditToolIcon(
+fun EditToolIcon(
     icon: ImageVector, 
     label: String, 
     isSelected: Boolean, 
@@ -93,7 +93,7 @@ internal fun EditToolIcon(
 }
 
 @Composable
-internal fun SamsungEditTabItem(
+fun SamsungEditTabItem(
     title: String, 
     isSelected: Boolean, 
     onClick: () -> Unit, 
@@ -124,7 +124,7 @@ internal fun SamsungEditTabItem(
 }
 
 @Composable
-internal fun SettingsPanelHeader(
+fun SettingsPanelHeader(
     title: String, 
     isCollapsed: Boolean, 
     onToggleCollapse: () -> Unit, 
@@ -163,7 +163,7 @@ internal fun SettingsPanelHeader(
  * 4. Settings panel is collapsible and replaces current panel (no stacking)
  */
 @Composable
-internal fun SamsungEditLayout(
+fun SamsungEditLayout(
     topBar: @Composable () -> Unit,
     imageArea: @Composable () -> Unit,
     toolPanel: @Composable () -> Unit,
@@ -209,7 +209,7 @@ internal fun SamsungEditLayout(
  * - Tab bar at bottom
  */
 @Composable
-internal fun PortraitEditLayout(
+fun PortraitEditLayout(
     topBar: @Composable () -> Unit,
     imageArea: @Composable () -> Unit,
     toolPanel: @Composable () -> Unit,
@@ -312,7 +312,7 @@ internal fun PortraitEditLayout(
  * - Settings panel on the right
  */
 @Composable
-internal fun LandscapeEditLayout(
+fun LandscapeEditLayout(
     topBar: @Composable () -> Unit,
     imageArea: @Composable () -> Unit,
     toolPanel: @Composable () -> Unit,
