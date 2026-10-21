@@ -992,7 +992,24 @@ fun GalleryEditScreen(
                             isCollapsed = isSettingsPanelCollapsed,
                             onToggleCollapse = { isSettingsPanelCollapsed = !isSettingsPanelCollapsed }
                         )
+                        val availablePhotoAspectRatios by cameraViewModel.availablePhotoAspectRatios.collectAsState()
                         CropEditPanel(
+                            selectedOption = editCropAspectOption,
+                            onOptionSelected = { viewModel.setCropAspectOption(it) },
+                            straightenDegrees = editStraightenDegrees,
+                            onStraightenDegreesChanged = { viewModel.setStraightenDegrees(it) },
+                            isHorizontallyMirrored = editMirrorHorizontal,
+                            onRotate = {
+                                cropPreviewBitmap = null
+                                viewModel.rotateEditClockwise()
+                            },
+                            onMirrorHorizontal = {
+                                cropPreviewBitmap = null
+                                viewModel.toggleEditHorizontalMirror()
+                            },
+                            availableRatios = availablePhotoAspectRatios,
+                            imageWidth = cropPreviewBitmap?.width ?: 1,
+                            imageHeight = cropPreviewBitmap?.height ?: 1,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
