@@ -6,6 +6,8 @@ Ce document définit les règles, conventions et bonnes pratiques pour **tous le
 
 > **⚠️ IMPORTANT**: Ce guide **remplace** tout guide existant. En cas de conflit, **ce document fait autorité**.
 
+> **✅ RÈGLE FONDAMENTALE**: Aucune modification ne doit être considérée comme terminée tant que le build CI (`:app:assembleDefaultRelease`) n'a pas réussi sur GitHub Actions.
+
 ---
 
 ## 🏗️ Architecture du Projet
@@ -324,6 +326,7 @@ git push -u origin feature/nouvelle-fonctionnalite
 
 - [ ] ✅ Code compile sans erreur (`./gradlew compileDefaultDebugKotlin`)
 - [ ] ✅ Code natif compile (`./gradlew buildCMakeDebug`)
+- [ ] ✅ **Build release complet** (`./gradlew :app:assembleDefaultRelease`)
 - [ ] ✅ Pas de secrets committés (vérifier avec `git-secrets`)
 - [ ] ✅ Pas de textes en dur (internationalisation)
 - [ ] ✅ Respect des conventions de nommage

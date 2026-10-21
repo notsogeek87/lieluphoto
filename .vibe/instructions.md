@@ -132,6 +132,81 @@ git push --force-with-lease origin main
 - **BUILT_IN_API_KEY**: À définir dans `local.properties`
 - **BUILT_IN_API_KEY_GOOGLE**: À définir dans `local.properties`
 
+## Règles de Build et Validation pour Vibe Code
+
+### Validation Obligatoire
+
+**Aucune tâche n'est considérée comme terminée tant que le build CI n'a pas réussi.**
+
+### Workflow de Développement
+
+1. **Avant toute modification** :
+   - Synchroniser avec upstream: `git fetch upstream && git rebase upstream/main`
+   - Vérifier que le code existant compile: `./gradlew compileDefaultDebugKotlin`
+
+2. **Pendant le développement** :
+   - Vérifier régulièrement la compilation Kotlin: `./gradlew compileDefaultDebugKotlin`
+   - Vérifier la compilation native: `./gradlew buildCMakeDebug`
+   - **Ne pas pousser sans vérification locale**
+
+3. **Avant le push** :
+   - Exécuter le build release complet: `./gradlew :app:assembleDefaultRelease`
+   - Si la compilation locale échoue, **ne pas pousser**
+   - Regrouper toutes les modifications liées dans un seul commit
+
+4. **Après le push** :
+   - Vérifier le résultat de GitHub Actions: `gh run list --workflow android-build.yml --limit 5`
+   - Si le build échoue:
+     - Lire les logs: `gh run view <run-id> --log`
+     - Identifier la cause racine
+     - Corriger et pousser une correction **unique et complète**
+     - Limite: 2 tentatives maximum par cause
+
+5. **Validation finale** :
+   - Le build doit réussir sur GitHub Actions avec `./gradlew :app:assembleDefaultRelease`
+   - Environnement requis: JDK 21, NDK 29.0.14206865, CMake 3.22.1
+
+### Capacités et Limitations
+
+**Disponible depuis Vibe Code mobile:**
+- ✅ Exécution de commandes shell
+- ✅ Accès au wrapper Gradle
+- ✅ Lecture des logs GitHub Actions via `gh` CLI
+- ✅ Vérification de compilation Kotlin
+
+**Non disponible depuis Vibe Code mobile:**
+- ❌ SDK Android complet
+- ❌ NDK (Native Development Kit)
+- ❌ CMake
+- ❌ Exécution de compilation native locale
+- ❌ Exécution de build release complet localement
+
+**Conséquence:** La validation finale DOIT passer par GitHub Actions.
+
+### Règles Spécifiques
+
+1. **Ne jamais déclarer une tâche terminée si le build CI échoue**
+2. **Ne jamais masquer les erreurs de compilation**
+3. **Ne jamais désactiver les contrôles de compilation**
+4. **Toujours corriger la cause racine, pas le symptôme**
+5. **Toujours vérifier GitHub Actions après un push**
+6. **Limite: 2 tentatives de correction par cause**
+
+### Commandes de Vérification
+
+```bash
+# Vérification locale (avant commit)
+./gradlew compileDefaultDebugKotlin
+./gradlew buildCMakeDebug
+
+# Build release (si possible, sinon validation via CI)
+./gradlew :app:assembleDefaultRelease
+
+# Vérification CI (après push)
+gh run list --workflow android-build.yml --limit 5
+gh run view <run-id> --log
+```
+
 ## Règles pour Vibe Code
 
 ### ✅ À FAIRE

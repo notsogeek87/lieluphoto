@@ -76,9 +76,22 @@ jobs:
           ORG_GRADLE_PROJECT_RELEASE_KEY_ALIAS: androiddebugkey
           ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD: android
         run: |
-          ./gradlew :app:assembleDefaultRelease --console=plain \
+          ./gradlew :app:assembleDefaultRelease --console=plain --stacktrace --info \
             -PversionCodeOverride=$((1000 + ${{ github.run_number }}))
 
+
+      - name: Upload logs de build en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ github.run_number }}
+          path: |
+            app/build/reports/
+            app/build/logs/
+            **/build.log
+            **/compile*.log
+          if-no-files-found: ignore
+          compression-level: 9
       - name: Renommer l'APK avec sa version
         id: apk
         run: |
