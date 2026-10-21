@@ -162,8 +162,8 @@ private data class PreviewRenderSignature(
     val editRawEmbeddedDngProfileId: String?,
     val editRawHncsProfileId: String?,
     val editRawHncsRenderIntent: String,
-    val editRawHncsFilmCurveMode: String,
-    val editRawRenderingEngine: String,
+    val editRawHncsFilmCurveMode: HncsFilmCurveMode,
+    val editRawRenderingEngine: RawRenderingEngine,
     val editRawBaselineLutId: String?,
     val editRawBaselineRecipeParams: ColorRecipeParams?,
     val editComputationalAperture: Float?,
@@ -440,8 +440,8 @@ fun GalleryEditScreen(
             editRawHncsRenderIntent =
                 if (fast || rawDevelopIsBaked) "" else editRawHncsRenderIntent.assetValue,
             editRawHncsFilmCurveMode =
-                if (fast || rawDevelopIsBaked) "" else editRawHncsFilmCurveMode.persistedValue,
-            editRawRenderingEngine = if (fast || rawDevelopIsBaked) "" else editRawColorEngine.name,
+                if (fast || rawDevelopIsBaked) HncsFilmCurveMode.Standard else editRawHncsFilmCurveMode,
+            editRawRenderingEngine = if (fast || rawDevelopIsBaked) RawRenderingEngine.AdobeCurve else editRawColorEngine,
             // RAW develop controls above are baked into original.jpg, while baseline color
             // correction is still applied by PhotoProcessor to that bitmap preview.
             editRawBaselineLutId = editRawBaselineLutId,
