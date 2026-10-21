@@ -1046,7 +1046,7 @@ private fun Context.findActivity(): Activity? {
 }
 
 @Composable
-private fun BokehStyleSelector(
+internal fun BokehStyleSelector(
     selectedStyle: BokehStyle,
     onStyleSelected: (BokehStyle) -> Unit,
 ) {
@@ -1078,7 +1078,7 @@ private fun BokehStyleSelector(
 }
 
 @Composable
-private fun BokehStyleButton(
+internal fun BokehStyleButton(
     style: BokehStyle,
     selected: Boolean,
     onClick: () -> Unit,
@@ -1132,7 +1132,7 @@ private fun BokehStyleButton(
 }
 
 @Composable
-private fun CompactToggleChip(
+internal fun CompactToggleChip(
     title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
@@ -1192,7 +1192,7 @@ private fun CompactToggleChip(
  * 标签页项
  */
 @Composable
-private fun TabItem(
+internal fun TabItem(
     title: String,
     isSelected: Boolean,
     onClick: () -> Unit
@@ -1224,7 +1224,7 @@ private fun TabItem(
  * LUT 选项
  */
 @Composable
-private fun FrameOption(
+internal fun FrameOption(
     name: String,
     previewBitmap: Bitmap? = null,
     isSelected: Boolean,
@@ -1353,7 +1353,7 @@ private fun FrameOption(
  * 使用 Telephoto 库支持大尺寸图片查看和缩放
  */
 @Composable
-private fun ZoomableEditImage(
+internal fun ZoomableEditImage(
     previewBitmap: Bitmap?,
     isLutEditing: Boolean,
     contentDescription: String,
@@ -1398,7 +1398,7 @@ private fun ZoomableEditImage(
 
 
 @Composable
-private fun <T> SegmentedControl(
+internal fun <T> SegmentedControl(
     title: String,
     items: List<T>,
     selectedItem: T,
@@ -1444,7 +1444,7 @@ private fun <T> SegmentedControl(
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
-private fun VideoEditPlayer(
+internal fun VideoEditPlayer(
     photo: MediaData,
     lutConfig: LutConfig?,
     recipeParams: ColorRecipeParams?,
