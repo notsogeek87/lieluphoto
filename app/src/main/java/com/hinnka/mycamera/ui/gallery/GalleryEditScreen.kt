@@ -46,6 +46,7 @@ import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -81,6 +82,7 @@ import com.hinnka.mycamera.ui.components.*
 import com.hinnka.mycamera.ui.components.RawEditPanel
 import com.hinnka.mycamera.ui.components.RawBaselineColorCorrectionBottomSheet
 import com.hinnka.mycamera.ui.theme.AccentColor
+import com.hinnka.mycamera.ui.gallery.EditScreenLayout
 import com.hinnka.mycamera.utils.PLog
 import com.hinnka.mycamera.viewmodel.CameraViewModel
 import com.hinnka.mycamera.viewmodel.GalleryViewModel
@@ -368,6 +370,10 @@ fun GalleryEditScreen(
         ?: embeddedDngProfileUiState.defaultProfileId
 
     var showOrigin by remember { mutableStateOf(false) }
+
+    // NEW: Samsung-style layout state
+    var isSettingsPanelCollapsed by rememberSaveable { mutableStateOf(false) }
+    var activeToolPanel by rememberSaveable { mutableStateOf<Int?>(null) }
 
     // 编辑标签页状态
     var editTab by remember { mutableIntStateOf(EDIT_TAB_LUT) }
@@ -698,1306 +704,337 @@ fun GalleryEditScreen(
         }
     }
 
-    Scaffold(
-        containerColor = Color.Black,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        modifier = modifier
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .onSizeChanged { viewportSize = it }
-                .animateContentSize()
-        ) {
-            // Draggable Floating Reference Photo
-            val referencePhotoUrl = userPreferences.referencePhotoUrl
-            var isMinimized by remember { mutableStateOf(false) }
-            var isLarge by remember { mutableStateOf(false) }
-            
-            referencePhotoUrl?.let { url ->
-                val density = androidx.compose.ui.platform.LocalDensity.current
-                val initialOffsetX = remember(density) { with(density) { 20.dp.toPx() } }
-                val initialOffsetY = remember(density) { with(density) { 80.dp.toPx() } }
-                
-                var offsetX by remember { mutableStateOf(initialOffsetX) }
-                var offsetY by remember { mutableStateOf(initialOffsetY) }
-
-                Box(
-                    modifier = Modifier
-                        .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-                        .pointerInput(Unit) {
-                            detectDragGestures { change, dragAmount ->
-                                change.consume()
-                                offsetX += dragAmount.x
-                                offsetY += dragAmount.y
-                            }
-                        }
-                        .zIndex(10f)
-                ) {
-                    if (isMinimized) {
-                        Card(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clickable { isMinimized = false },
-                            shape = CircleShape,
-                            colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.8f)),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                            border = BorderStroke(1.5.dp, Color.White)
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = AppIcons.PushPin,
-                                    contentDescription = "Show Reference",
-                                    tint = AccentColor,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    } else {
-                        val cardSize = if (isLarge) 240.dp else 120.dp
-                        Card(
-                            modifier = Modifier
-                                .width(cardSize),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                            border = BorderStroke(2.dp, Color.White)
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Box(modifier = Modifier.fillMaxWidth()) {
-                                    coil.compose.AsyncImage(
-                                        model = ImageRequest.Builder(LocalContext.current)
-                                            .data(url)
-                                            .placeholder(R.mipmap.ic_launcher)
-                                            .build(),
-                                        contentDescription = "Reference Photo",
-                                        modifier = Modifier
-                                            .fillMaxWidth(),
-                                        contentScale = ContentScale.FillWidth
-                                    )
-                                    
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(4.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .clip(CircleShape)
-                                                .background(Color.Black.copy(alpha = 0.6f))
-                                                .clickable { isMinimized = true },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = AppIcons.PushPin,
-                                                contentDescription = "Minimize",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                        }
-                                        Box(
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .clip(CircleShape)
-                                                .background(Color.Black.copy(alpha = 0.6f))
-                                                .clickable {
-                                                    scope.launch {
-                                                        userPreferencesRepository.saveReferencePhotoUrl(null)
-                                                    }
-                                                },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = "Close",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                                
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(Color.White)
-                                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                                        .clickable { isLarge = !isLarge },
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = if (isLarge) stringResource(R.string.zoom_out) else stringResource(R.string.zoom_in),
-                                        color = Color.Black,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
+    // NEW: Samsung-style layout - Image is ALWAYS visible, NEVER overlain
+    SamsungEditLayout(
+        topBar = {
+            TopAppBar(
+                title = {},
+                navigationIcon = {
+                    IconButton(onClick = {
+                        viewModel.exitEditMode()
+                        onBack()
+                    }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back),
+                            tint = Color.White
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showMoreMenu = !showMoreMenu }) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = stringResource(R.string.more),
+                            tint = Color.White
+                        )
                     }
                 }
-            }
-
-            // 预览区域
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(isZoomed, currentPhoto.isVideo, editTab) {
-                        if (
-                            !isZoomed &&
-                            !currentPhoto.isVideo &&
-                            editTab != EDIT_TAB_CROP
-                        ) {
-                            var totalDrag = 0f
-                            detectHorizontalDragGestures(
-                                onDragEnd = {
-                                    if (kotlin.math.abs(totalDrag) > 100) {
-                                        val selectedLut = if (totalDrag > 0) {
-                                            viewModel.switchToPreviousLut()
-                                        } else {
-                                            viewModel.switchToNextLut()
-                                        }
-                                        selectedLut?.let {
-                                            lutNameOverlayState.show(it.getName())
-                                        }
-                                    }
-                                    totalDrag = 0f
-                                },
-                                onHorizontalDrag = { _, dragAmount ->
-                                    totalDrag += dragAmount
-                                }
-                            )
-                        }
-                    }
-                    .pointerInput(currentPhoto.isVideo) {
-                        if (!currentPhoto.isVideo) awaitPointerEventScope {
-                            while (true) {
-                                // 确认第一个手指按下，且当前只有一个指针
-                                val downEvent = awaitPointerEvent(PointerEventPass.Initial)
-                                if (downEvent.type == PointerEventType.Press && downEvent.changes.size == 1) {
-                                    val touchSlop = viewConfiguration.touchSlop
-                                    val initialPosition = downEvent.changes[0].position
-                                    val longPressTimeout = viewConfiguration.longPressTimeoutMillis
-                                    var upEvent: PointerEvent? = null
-                                    var isMultiTouch = false
-                                    var isMoved = false
-
-                                    // 期间如果出现第二个手指或位移过大，立即标志并退出
-                                    withTimeoutOrNull(longPressTimeout) {
-                                        while (true) {
-                                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                                            if (event.changes.size > 1) {
-                                                isMultiTouch = true
-                                                break
-                                            }
-
-                                            val currentPosition = event.changes[0].position
-                                            if ((currentPosition - initialPosition).getDistance() > touchSlop) {
-                                                isMoved = true
-                                                break
-                                            }
-
-                                            if (event.type == PointerEventType.Release) {
-                                                upEvent = event
-                                                break
-                                            }
-                                        }
-                                    }
-
-                                    // 如果既没有多指操作也没有明显位移，才根据结果执行逻辑
-                                    if (!isMultiTouch && !isMoved) {
-                                        if (upEvent != null) {
-                                            // 控制区展开时，预览点击始终优先隐藏控制区；
-                                            // 仅在控制区已隐藏时允许点击图像设置景深焦点。
-                                            if (!areEditControlsHidden) {
-                                                toggleEditControls()
-                                            } else if (
-                                                editTab == EDIT_TAB_DETAIL &&
-                                                viewModel.editComputationalAperture.value != null &&
-                                                previewBitmap != null
-                                            ) {
-                                                val tapPosition = upEvent.changes[0].position
-                                                val boxWidth = size.width.toFloat()
-                                                val boxHeight = size.height.toFloat()
-                                                val imageRatio = previewBitmap!!.width.toFloat() / previewBitmap!!.height.toFloat()
-                                                val boxRatio = boxWidth / boxHeight
-
-                                                var imageDisplayWidth = boxWidth
-                                                var imageDisplayHeight = boxHeight
-                                                if (imageRatio > boxRatio) {
-                                                    imageDisplayHeight = boxWidth / imageRatio
-                                                } else {
-                                                    imageDisplayWidth = boxHeight * imageRatio
-                                                }
-
-                                                val offsetX = (boxWidth - imageDisplayWidth) / 2f
-                                                val offsetY = (boxHeight - imageDisplayHeight) / 2f
-
-                                                val relativeX = (tapPosition.x - offsetX) / imageDisplayWidth
-                                                val relativeY = (tapPosition.y - offsetY) / imageDisplayHeight
-
-                                                if (relativeX in 0f..1f && relativeY in 0f..1f) {
-                                                    viewModel.setFocusPoint(relativeX, relativeY)
-                                                } else {
-                                                    toggleEditControls()
-                                                }
-                                            } else {
-                                                toggleEditControls()
-                                            }
-                                        } else {
-                                            // 确认为长按：显示原图
-                                            showOrigin = true
-                                            // 继续监控直到手指抬起，或者变成多指（开始缩放）
-                                            while (true) {
-                                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                                if (event.type == PointerEventType.Release || event.changes.size > 1) {
-                                                    break
-                                                }
-                                            }
-                                            showOrigin = false
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                val previewMediaModifier = Modifier
-                    .fillMaxSize()
-                    .offset {
-                        IntOffset(
-                            x = 0,
-                            y = previewOffsetYPx.roundToInt()
-                        )
-                    }
-
-                // 显示预览
-                if (currentPhoto.isVideo) {
-                    if (videoSourceProfile != null) {
-                        VideoEditPlayer(
-                            photo = currentPhoto,
-                            lutConfig = if (showOrigin) null else editLutConfig,
-                            recipeParams = if (showOrigin) null else (editPhotoRecipeParams ?: editLutRecipeParams),
-                            sourceLogProfile = videoSourceProfile,
-                            modifier = previewMediaModifier
-                        )
-                    } else {
-                        CircularProgressIndicator(color = Color.White)
-                    }
-                } else if (editTab == EDIT_TAB_CROP && cropPreviewBitmap != null) {
-                    val geometryBaseWidth = currentEditSourcePhoto.metadata?.width?.takeIf { it > 0 }
-                        ?: currentEditSourcePhoto.width.coerceAtLeast(1)
-                    val geometryBaseHeight = currentEditSourcePhoto.metadata?.height?.takeIf { it > 0 }
-                        ?: currentEditSourcePhoto.height.coerceAtLeast(1)
-                    val (straightenSourceWidth, straightenSourceHeight) =
-                        PostEditGeometry.rotatedDimensions(
-                            geometryBaseWidth,
-                            geometryBaseHeight,
-                            editRotationDegrees
-                        )
-                    val (straightenedWidth, straightenedHeight) =
-                        PostEditGeometry.straightenedDimensions(
-                            straightenSourceWidth,
-                            straightenSourceHeight,
-                            editStraightenDegrees
-                        )
-                    val cropAspectRatio = when (editCropAspectOption) {
-                        CropAspectOption.Free -> null
-                        CropAspectOption.Original ->
-                            straightenSourceWidth.toFloat() / straightenSourceHeight
-                        else -> editCropAspectOption.getAspectRatioValue(
-                            straightenSourceWidth,
-                            straightenSourceHeight
-                        )
-                    }
-                    // Keep the no-black-corner constraint stable while the user drags a free crop
-                    // handle. Recomputing it from editCropRect on every pointer move changes the
-                    // pointerInput key and cancels the active gesture after each small movement.
-                    val effectiveCropAspectRatio = remember(
-                        currentEditSourcePhoto.id,
-                        editRotationDegrees,
-                        editStraightenDegrees,
-                        editCropAspectOption,
-                        straightenSourceWidth,
-                        straightenSourceHeight
-                    ) {
-                        cropAspectRatio
-                            ?: editCropRect?.takeIf { it.width() > 0f && it.height() > 0f }?.let {
-                                it.width() * straightenedWidth /
-                                    (it.height() * straightenedHeight)
-                            }
-                            ?: straightenSourceWidth.toFloat() / straightenSourceHeight
-                    }
-                    val cropBounds = PostEditGeometry.straightenSafeCropRectForAspect(
-                        width = straightenSourceWidth,
-                        height = straightenSourceHeight,
-                        straightenDegrees = editStraightenDegrees,
-                        pixelAspect = effectiveCropAspectRatio
-                    )
-                    CropOverlay(
-                        bitmap = cropPreviewBitmap,
-                        cropRect = editCropRect ?: cropBounds,
-                        cropAspectRatio = cropAspectRatio,
-                        straightenDegrees = editStraightenDegrees,
-                        geometrySourceWidth = straightenSourceWidth,
-                        geometrySourceHeight = straightenSourceHeight,
-                        onCropRectChanged = { rect -> viewModel.setCropRect(rect) },
-                        aspectOption = editCropAspectOption,
-                        contentPadding = 28.dp,
-                        modifier = previewMediaModifier
+            )
+        },
+        imageArea = {
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (currentPhoto?.isVideo == true && videoSourceProfile != null) {
+                    VideoEditPlayer(
+                        photo = currentPhoto,
+                        lutConfig = editLutConfig,
+                        recipeParams = editLutRecipeParams ?: editPhotoRecipeParams,
+                        sourceLogProfile = videoSourceProfile,
+                        modifier = Modifier.fillMaxSize()
                     )
                 } else {
                     ZoomableEditImage(
                         previewBitmap = previewBitmap,
-                        isLutEditing = editTab == EDIT_TAB_ADJUSTMENTS || isBaselineLutEditSheetVisible,
-                        contentDescription = stringResource(R.string.edit),
-                        onZoomChange = {
-                            isZoomed = it
-                        },
-                        modifier = previewMediaModifier
+                        isLutEditing = editTab == EDIT_TAB_LUT,
+                        contentDescription = stringResource(R.string.gallery_edit_preview),
+                        onZoomChange = { isZoomed = it },
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
-
-                // 加载指示器
-                if (isLoadingPreview) {
-                    CircularProgressIndicator(
-                        color = AccentColor,
-                        modifier = Modifier.size(48.dp)
-                    )
-                }
-
-                LutNameOverlay(
-                    state = lutNameOverlayState,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-
-                AnimatedVisibility(
-                    visible = showImageHistogram && !currentPhoto.isVideo,
-                    enter = fadeIn(animationSpec = tween(150)),
-                    exit = fadeOut(animationSpec = tween(150)),
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
-                        .padding(top = 64.dp, start = 20.dp, end = 20.dp)
-                        .widthIn(max = 520.dp)
-                        .fillMaxWidth()
-                ) {
-                    RgbHistogramView(
-                        histogram = imageHistogram,
+                if (showOrigin) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(3.15f)
-                    )
-                }
-            }
-
-            AnimatedVisibility(
-                visible = !areEditControlsHidden,
-                enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
-                modifier = Modifier.align(Alignment.TopCenter),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onSizeChanged { topBarHeightPx = it.height }
-                ) {
-                    Spacer(
-                        modifier = Modifier.windowInsetsTopHeight(
-                            WindowInsets.statusBarsIgnoringVisibility
-                        )
-                    )
-                    TopAppBar(
-                        title = {},
-                        navigationIcon = {
-                            IconButton(onClick = {
-                                viewModel.exitEditMode()
-                                onBack()
-                            }) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = stringResource(R.string.back),
-                                    tint = Color.White
-                                )
-                            }
-                        },
-                        actions = {
-                            if (isRaw) {
-                                val infiniteTransition = rememberInfiniteTransition(label = "refresh")
-                                val rotation by infiniteTransition.animateFloat(
-                                    initialValue = 0f,
-                                    targetValue = 360f,
-                                    animationSpec = infiniteRepeatable(
-                                        animation = tween(1000, easing = LinearEasing),
-                                        repeatMode = RepeatMode.Restart
-                                    ),
-                                    label = "rotation"
-                                )
-
-                                IconButton(
-                                    onClick = {
-                                        // Explicit refresh recomputes Photon PGTM; changing an
-                                        // edit setting or enabling HDR reuses the embedded map.
-                                        requestRawPreviewRefresh(
-                                            showResultToast = true,
-                                            forceRegeneratePhotonPgtm = editRawToneMappingParameters.usePhotonHdr,
-                                        )
-                                    },
-                                    enabled = !isRefreshingRawPreview
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Refresh,
-                                        contentDescription = stringResource(R.string.refresh),
-                                        tint = if (isRefreshingRawPreview) Color.White.copy(alpha = 0.5f) else Color.White,
-                                        modifier = Modifier.graphicsLayer {
-                                            if (isRefreshingRawPreview) {
-                                                rotationZ = rotation
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                            if (!currentPhoto.isVideo) {
-                                IconToggleButton(
-                                    checked = showImageHistogram,
-                                    onCheckedChange = { showImageHistogram = it }
-                                ) {
-                                    Icon(
-                                        imageVector = AppIcons.BarChart,
-                                        contentDescription = stringResource(R.string.histogram),
-                                        tint = if (showImageHistogram) AccentColor else Color.White
-                                    )
-                                }
-                            }
-                            // 保存元数据按钮
-                            IconButton(
-                                onClick = {
-                                    val currentLut = availableLuts.find { it.id == editLutId }
-                                    if (currentLut?.isVip == true && !isPurchased) {
-                                        viewModel.showPaymentDialog = true
-                                        return@IconButton
-                                    }
-                                    isSaving = true
-                                    viewModel.saveEditMetadata(currentPhoto) { success ->
-                                        isSaving = false
-                                        if (success) {
-                                            onBack()
-                                        }
-                                    }
-                                },
-                                enabled = !isSaving
-                            ) {
-                                if (isSaving) {
-                                    CircularProgressIndicator(
-                                        color = Color.White,
-                                        modifier = Modifier.size(24.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = stringResource(R.string.save),
-                                        tint = AccentColor
-                                    )
-                                }
-                            }
-                            // 更多始终放在 actions 的最右侧。
-                            Box {
-                                IconButton(onClick = { showMoreMenu = true }) {
-                                    Icon(
-                                        imageVector = Icons.Default.MoreVert,
-                                        contentDescription = stringResource(R.string.more_options),
-                                        tint = Color.White
-                                    )
-                                }
-                                DropdownMenu(
-                                    expanded = showMoreMenu,
-                                    onDismissRequest = { showMoreMenu = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.copy_settings)) },
-                                        onClick = {
-                                            showMoreMenu = false
-                                            viewModel.copyCurrentEditSettings(
-                                                editFrameCustomProperties
-                                            )
-                                            Toast.makeText(
-                                                context,
-                                                R.string.copy_settings_success,
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = AppIcons.ContentCopy,
-                                                contentDescription = null
-                                            )
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.paste_settings)) },
-                                        onClick = {
-                                            showMoreMenu = false
-                                            viewModel
-                                                .pasteCopiedEditSettingsToCurrentEdit()
-                                                ?.let { pastedCustomProperties ->
-                                                    editFrameCustomProperties =
-                                                        pastedCustomProperties
-                                                    Toast.makeText(
-                                                        context,
-                                                        R.string.paste_settings_success,
-                                                        Toast.LENGTH_SHORT
-                                                    ).show()
-                                                }
-                                        },
-                                        enabled = hasCopiedEditSettings,
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = AppIcons.ContentCopy,
-                                                contentDescription = null
-                                            )
-                                        }
-                                    )
-                                }
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent
-                        ),
-                        windowInsets = WindowInsets(0, 0, 0, 0)
-                    )
-                }
-            }
-
-            // 编辑控制区域
-            AnimatedVisibility(
-                visible = shouldShowEditPanel,
-                enter = slideInVertically(initialOffsetY = { it }) + expandVertically(expandFrom = Alignment.Bottom) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(),
-                modifier = Modifier.align(Alignment.BottomCenter)
-            ) {
-                Surface(
-                    color = Color.Black.copy(alpha = 0.9f),
-                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onSizeChanged { editPanelHeightPx = it.height }
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .navigationBarsPadding()
-                            .padding(bottom = if (areEditControlsHidden) 4.dp else 16.dp)
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.5f)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        val editPanelToggleDescription = stringResource(
-                            if (areEditControlsHidden) {
-                                R.string.edit_panel_expand
-                            } else {
-                                R.string.edit_panel_minimize
-                            }
+                        Text(
+                            text = stringResource(R.string.gallery_original),
+                            color = Color.White,
+                            fontSize = 24.sp
                         )
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(44.dp)
-                                .clickable(
-                                    onClickLabel = editPanelToggleDescription
-                                ) {
-                                    toggleEditControls()
-                                }
-                                .padding(horizontal = 16.dp)
-                        ) {
-                            if (areEditControlsHidden) {
-                                Text(
-                                    text = stringResource(R.string.edit_panel_title),
-                                    color = Color.White.copy(alpha = 0.82f),
-                                    fontSize = 14.sp,
-                                    modifier = Modifier
-                                        .align(Alignment.CenterStart)
-                                        .padding(start = 4.dp)
-                                )
-                            }
-                            Icon(
-                                imageVector = if (areEditControlsHidden) {
-                                    AppIcons.ExpandLess
-                                } else {
-                                    AppIcons.ExpandMore
-                                },
-                                contentDescription = editPanelToggleDescription,
-                                tint = Color.White.copy(alpha = 0.82f),
-                                modifier = Modifier
-                                    .align(Alignment.CenterEnd)
-                                    .padding(end = 4.dp)
-                                    .size(24.dp)
-                            )
-                        }
-
-                        AnimatedVisibility(
-                            visible = !areEditControlsHidden,
-                            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
-                        ) {
-                            Column {
-                                // 标签页切换
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp)
-                                        .horizontalScroll(editTabsScrollState),
-                                    horizontalArrangement = Arrangement.spacedBy(24.dp)
-                                ) {
-                                    TabItem(
-                                        title = stringResource(R.string.filter),
-                                        isSelected = editTab == EDIT_TAB_LUT,
-                                        onClick = { editTab = EDIT_TAB_LUT }
+                    }
+                }
+            }
+        },
+        toolPanel = {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Tool icons - one for each tab, showing which tool is active
+                EditToolIcon(
+                    icon = AppIcons.Palette,
+                    label = stringResource(R.string.gallery_lut),
+                    isSelected = editTab == EDIT_TAB_LUT,
+                    onClick = { 
+                        editTab = EDIT_TAB_LUT
+                        activeToolPanel = EDIT_TAB_LUT
+                    }
+                )
+                EditToolIcon(
+                    icon = AppIcons.FilterFrames,
+                    label = stringResource(R.string.gallery_frame),
+                    isSelected = editTab == EDIT_TAB_FRAME,
+                    onClick = { 
+                        editTab = EDIT_TAB_FRAME
+                        activeToolPanel = EDIT_TAB_FRAME
+                    }
+                )
+                EditToolIcon(
+                    icon = AppIcons.Tune,
+                    label = stringResource(R.string.gallery_adjustments),
+                    isSelected = editTab == EDIT_TAB_ADJUSTMENTS,
+                    onClick = { 
+                        editTab = EDIT_TAB_ADJUSTMENTS
+                        activeToolPanel = EDIT_TAB_ADJUSTMENTS
+                    }
+                )
+                EditToolIcon(
+                    icon = AppIcons.Contrast,
+                    label = stringResource(R.string.gallery_detail),
+                    isSelected = editTab == EDIT_TAB_DETAIL,
+                    onClick = { 
+                        editTab = EDIT_TAB_DETAIL
+                        activeToolPanel = EDIT_TAB_DETAIL
+                    }
+                )
+                EditToolIcon(
+                    icon = AppIcons.Output,
+                    label = stringResource(R.string.gallery_raw),
+                    isSelected = editTab == EDIT_TAB_RAW,
+                    onClick = { 
+                        editTab = EDIT_TAB_RAW
+                        activeToolPanel = EDIT_TAB_RAW
+                    }
+                )
+                EditToolIcon(
+                    icon = AppIcons.Crop169,
+                    label = stringResource(R.string.gallery_crop),
+                    isSelected = editTab == EDIT_TAB_CROP,
+                    onClick = { 
+                        editTab = EDIT_TAB_CROP
+                        activeToolPanel = EDIT_TAB_CROP
+                    }
+                )
+            }
+        },
+        settingsPanel = {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
+            ) {
+                when (editTab) {
+                    EDIT_TAB_LUT -> {
+                        // LUT Settings Panel - Horizontal scrollable preview rail
+                        SettingsPanelHeader(
+                            title = stringResource(R.string.gallery_lut),
+                            isCollapsed = isSettingsPanelCollapsed,
+                            onToggleCollapse = { isSettingsPanelCollapsed = !isSettingsPanelCollapsed }
+                        )
+                        if (availableLuts.isNotEmpty()) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(vertical = 8.dp),
+                                state = frameScrollState
+                            ) {
+                                items(availableLuts) { lut ->
+                                    FrameOption(
+                                        name = lut.title,
+                                        previewBitmap = thumbnailBitmap,
+                                        isSelected = lut.id == editLutId,
+                                        isVip = lut.isVip,
+                                        isCustom = lut.isCustom,
+                                        isEditable = lut.isEditable,
+                                        onClick = { viewModel.setEditLutId(lut.id) }
                                     )
-                                    if (!currentPhoto.isVideo) {
-                                        TabItem(
-                                            title = stringResource(R.string.frame),
-                                            isSelected = editTab == EDIT_TAB_FRAME,
-                                            onClick = { editTab = EDIT_TAB_FRAME }
-                                        )
-                                    }
-                                    TabItem(
-                                        title = stringResource(R.string.edit),
-                                        isSelected = editTab == EDIT_TAB_ADJUSTMENTS,
-                                        onClick = { editTab = EDIT_TAB_ADJUSTMENTS }
-                                    )
-                                    TabItem(
-                                        title = stringResource(R.string.recipe_tab_post),
-                                        isSelected = editTab == EDIT_TAB_DETAIL,
-                                        onClick = { editTab = EDIT_TAB_DETAIL }
-                                    )
-                                    if (isRaw) {
-                                        TabItem(
-                                            title = "RAW",
-                                            isSelected = editTab == EDIT_TAB_RAW,
-                                            onClick = { editTab = EDIT_TAB_RAW }
-                                        )
-                                    }
-                                    if (!currentPhoto.isVideo) {
-                                        TabItem(
-                                        title = stringResource(R.string.crop),
-                                        isSelected = editTab == EDIT_TAB_CROP,
-                                        onClick = {
-                                            cropPreviewBitmap = null
-                                            editTab = EDIT_TAB_CROP
-                                        }
-                                        )
-                                    }
-                                }
-                                Column(
-                                    modifier = Modifier
-                                        .heightIn(max = 550.dp)
-                                        .padding(
-                                            horizontal = if (editTab == EDIT_TAB_ADJUSTMENTS) {
-                                                0.dp
-                                            } else {
-                                                16.dp
-                                            }
-                                        )
-                                        .verticalScroll(editPanelScrollState)
-                                ) {
-                                    when (editTab) {
-                                        EDIT_TAB_LUT -> {
-                                            Spacer(modifier = Modifier.height(16.dp))
-                                            if (currentPhoto.isVideo && videoSourceProfile != null) {
-                                                VideoSourceLogSelector(
-                                                    profile = videoSourceProfile,
-                                                    detectedFromFile = viewModel.editVideoProfileDetected,
-                                                    onProfileSelected = viewModel::selectEditVideoSourceProfile,
-                                                )
-                                            }
-                                            val effectiveRecipe =
-                                                editPhotoRecipeParams ?: editLutRecipeParams
-                                            LutSelector(
-                                                availableLuts = availableLuts,
-                                                currentLutId = editLutId,
-                                                thumbnail = thumbnailBitmap.takeUnless { videoSourceProfile?.isEnabled == true },
-                                                onLutSelected = { viewModel.setEditLut(it) },
-                                                onManageClick = { onFilterManagementClick(it) },
-                                                categoryOrder = categoryOrder,
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            LutIntensitySlider(
-                                                intensity = effectiveRecipe.lutIntensity,
-                                                onIntensityChange = { intensity ->
-                                                    viewModel.setPhotoRecipeParams(
-                                                        RecipeParam.LUT_INTENSITY.setValue(
-                                                            effectiveRecipe,
-                                                            intensity
-                                                        )
-                                                    )
-                                                },
-                                                enabled = editLutId != null,
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-                                        }
-                                        EDIT_TAB_FRAME -> {
-                                            Spacer(modifier = Modifier.height(16.dp))
-
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    text = stringResource(R.string.frame),
-                                                    color = Color.White,
-                                                    fontSize = 16.sp
-                                                )
-
-                                                val currentFrame = availableFrames.find {
-                                                    it.id == editFrameId
-                                                }
-                                                if (currentFrame?.isEditable == true) {
-                                                    Row(
-                                                        modifier = Modifier
-                                                            .height(28.dp)
-                                                            .clip(RoundedCornerShape(14.dp))
-                                                            .background(Color.White.copy(alpha = 0.1f))
-                                                            .clickable {
-                                                                onOpenFrameEditor(currentFrame.id)
-                                                            }
-                                                            .padding(horizontal = 9.dp),
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = AppIcons.Tune,
-                                                            contentDescription = null,
-                                                            tint = AccentColor,
-                                                            modifier = Modifier.size(14.dp)
-                                                        )
-                                                        Text(
-                                                            text = stringResource(R.string.edit),
-                                                            color = Color.White,
-                                                            fontSize = 10.sp
-                                                        )
-                                                    }
-                                                }
-                                            }
-
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            LazyRow(
-                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                                state = frameScrollState
-                                            ) {
-                                                item {
-                                                    FrameOption(
-                                                        name = stringResource(R.string.none),
-                                                        isSelected = editFrameId == null,
-                                                        onClick = { viewModel.setEditFrame(null) }
-                                                    )
-                                                }
-                                                items(availableFrames) { frame ->
-                                                    FrameOption(
-                                                        name = frame.name,
-                                                        isSelected = editFrameId == frame.id,
-                                                        isCustom = !frame.isBuiltIn,
-                                                        isEditable = frame.isEditable,
-                                                        onClick = {
-                                                            if (editFrameId == frame.id) {
-                                                                if (frame.isEditable) {
-                                                                    onOpenFrameEditor(frame.id)
-                                                                }
-                                                            } else {
-                                                                viewModel.setEditFrame(frame.id)
-                                                            }
-                                                        }
-                                                    )
-                                                }
-                                            }
-                                        }
-                                EDIT_TAB_ADJUSTMENTS -> {
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    val effectiveRecipe = editPhotoRecipeParams ?: editLutRecipeParams
-                                    val applyEffectsToVideo by viewModel.editApplyEffectsToVideo.collectAsState()
-
-                                    ColorRecipePanel(
-                                        currentParams = effectiveRecipe,
-                                        onParamChange = { param, value ->
-                                            viewModel.setPhotoRecipeParams(
-                                                param.setValue(effectiveRecipe, value)
-                                            )
-                                        },
-                                        onParamsChange = { params ->
-                                            viewModel.setPhotoRecipeParams(
-                                                params
-                                            )
-                                        },
-                                        onRemarksChange = { remarks ->
-                                            viewModel.setPhotoRecipeParams(
-                                                effectiveRecipe.copy(remarks = remarks)
-                                            )
-                                        },
-                                        onCurveChange = { channel, points ->
-                                            val updated = when (channel) {
-                                                CurveChannel.MASTER -> effectiveRecipe.copy(masterCurvePoints = points)
-                                                CurveChannel.RED -> effectiveRecipe.copy(redCurvePoints = points)
-                                                CurveChannel.GREEN -> effectiveRecipe.copy(greenCurvePoints = points)
-                                                CurveChannel.BLUE -> effectiveRecipe.copy(blueCurvePoints = points)
-                                            }
-                                            viewModel.setPhotoRecipeParams(
-                                                updated
-                                            )
-                                        },
-                                        imageHistogram = imageHistogram,
-                                        currentEffects = effectiveRecipe.toEffectParams(),
-                                        onEffectsChange = { effects ->
-                                            val latestRecipe = viewModel.editPhotoRecipeParams.value
-                                                ?: viewModel.editLutRecipeParams.value
-                                            viewModel.setPhotoRecipeParams(
-                                                effects.applyTo(latestRecipe)
-                                            )
-                                        },
-                                        headerControls = if (
-                                            editLutId != null || currentPhoto.isMotionPhoto
-                                        ) {
-                                            {
-                                                Row(
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    if (editLutId != null) {
-                                                        CompactToggleChip(
-                                                            title = stringResource(
-                                                                R.string.edit_sync_lut_recipe
-                                                            ),
-                                                            checked = syncAdjustmentsToLut,
-                                                            onCheckedChange = viewModel::setSyncAdjustmentsToLut
-                                                        )
-                                                    }
-
-                                                    if (currentPhoto.isMotionPhoto) {
-                                                        CompactToggleChip(
-                                                            title = stringResource(
-                                                                R.string.settings_use_live_photo
-                                                            ),
-                                                            checked = applyEffectsToVideo,
-                                                            onCheckedChange = {
-                                                                viewModel.setApplyEffectsToVideo(it)
-                                                            }
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            null
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                                EDIT_TAB_DETAIL -> {
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    if (!currentPhoto.isVideo) {
-                                        val isDnCNNDenoising by viewModel.isAiDenoising.collectAsState()
-                                        val dnCNNProgress by viewModel.aiDenoiseProgress.collectAsState()
-
-                                        SliderSettingItem(
-                                            title = stringResource(R.string.ai_denoise_title),
-                                            description = if (isDnCNNDenoising) stringResource(
-                                                R.string.ai_denoise_processing,
-                                                dnCNNProgress * 100
-                                            ) else stringResource(R.string.ai_denoise_description),
-                                            value = editAiDenoiseStrength,
-                                            valueRange = 0f..1f,
-                                            onValueChange = { viewModel.setAiDenoiseStrength(it) },
-                                            onValueChangeFinished = {
-                                                if (isDnCNNDenoising) return@SliderSettingItem
-                                                if (editAiDenoiseStrength > 0.01f) {
-                                                    viewModel.applyDnCNNDenoise(
-                                                        photo = currentEditSourcePhoto,
-                                                        strength = editAiDenoiseStrength,
-                                                        onComplete = { success ->
-                                                            if (!success) {
-                                                                Toast.makeText(
-                                                                    context,
-                                                                    context.getString(R.string.ai_denoise_failed),
-                                                                    Toast.LENGTH_SHORT
-                                                                ).show()
-                                                            }
-                                                        }
-                                                    )
-                                                } else {
-                                                    viewModel.resetDnCNNDenoise(
-                                                        photo = currentEditSourcePhoto,
-                                                        onComplete = { success ->
-                                                            if (!success) {
-                                                                Toast.makeText(
-                                                                    context,
-                                                                    context.getString(R.string.ai_denoise_failed),
-                                                                    Toast.LENGTH_SHORT
-                                                                ).show()
-                                                            }
-                                                        }
-                                                    )
-                                                }
-                                            }
-                                        )
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        // 细节处理调整 (锐化, 降噪, 杂色降噪)
-                                        val aperture = editComputationalAperture
-                                        SliderSettingItem(
-                                            title = stringResource(
-                                                R.string.gallery_large_aperture_blur_title
-                                            ),
-                                            description = stringResource(
-                                                R.string.gallery_large_aperture_blur_description
-                                            ),
-                                            value = editComputationalAperture
-                                                ?: DEFAULT_COMPUTATIONAL_APERTURE,
-                                            valueRange = 1.0f..16.0f,
-                                            onValueChange = { viewModel.setComputationalAperture(it) },
-                                            onValueChangeFinished = { },
-                                            toggleValue = isDepthModelInstalled &&
-                                                aperture != null &&
-                                                aperture > 0f,
-                                            enabled = isDepthModelInstalled &&
-                                                aperture != null &&
-                                                aperture > 0f,
-                                            onToggleChange = { checked ->
-                                                if (checked) {
-                                                    val requestedAperture = aperture
-                                                        ?.takeIf { it > 0f }
-                                                        ?: DEFAULT_COMPUTATIONAL_APERTURE
-                                                    if (isDepthModelInstalled) {
-                                                        viewModel.setComputationalAperture(requestedAperture)
-                                                    } else {
-                                                        pendingVirtualAperture = requestedAperture
-                                                        showDepthModelDownloadDialog = true
-                                                    }
-                                                } else {
-                                                    viewModel.setComputationalAperture(null)
-                                                }
-                                            }
-                                        )
-                                        if (
-                                            isDepthModelInstalled &&
-                                            aperture != null &&
-                                            aperture > 0f
-                                        ) {
-                                            BokehStyleSelector(
-                                                selectedStyle = editBokehStyle,
-                                                onStyleSelected = viewModel::setBokehStyle,
-                                            )
-                                        }
-                                    }
-                                    SliderSettingItem(
-                                        title = stringResource(R.string.settings_noise_reduction),
-                                        value = editNoiseReduction,
-                                        valueRange = DenoiseStrength.valueRange,
-                                        resetValue = 0f,
-                                        onValueChange = { viewModel.setNoiseReduction(it) },
-                                        onValueChangeFinished = {
-                                            if (isRaw) {
-                                                viewModel.persistCurrentRawEditMetadata(currentEditSourcePhoto) { success ->
-                                                    if (success) requestRawPreviewRefresh()
-                                                }
-                                            }
-                                        }
-                                    )
-                                    SliderSettingItem(
-                                        title = stringResource(R.string.settings_chroma_noise_reduction),
-                                        value = editChromaNoiseReduction,
-                                        valueRange = DenoiseStrength.valueRange,
-                                        resetValue = 0f,
-                                        onValueChange = { viewModel.setChromaNoiseReduction(it) },
-                                        onValueChangeFinished = {
-                                            if (isRaw) {
-                                                viewModel.persistCurrentRawEditMetadata(currentEditSourcePhoto) { success ->
-                                                    if (success) requestRawPreviewRefresh()
-                                                }
-                                            }
-                                        }
-                                    )
-                                }
-                                EDIT_TAB_RAW -> {
-                                    RawEditPanel(
-                                        selectedDcpId = editRawDcpId,
-                                        availableDcps = availableDcps,
-                                        selectedBaselineLutId = editRawBaselineLutId,
-                                        onSelectBaselineLut = { lutId ->
-                                            viewModel.saveRawBaselineLutSelection(currentEditSourcePhoto, lutId) {
-                                                requestRawPreviewRefresh()
-                                            }
-                                        },
-                                        onEditBaselineRecipe = { lutId ->
-                                            baselineLutEditId = lutId
-                                            showBaselineLutEditSheet = true
-                                        },
-                                        availableLuts = availableLuts,
-                                        thumbnail = previewBitmap,
-                                        rawExposureCompensation = editRawExposureCompensation,
-                                        rawAdaptiveExposureMode = RawAdaptiveExposureMode.resolve(
-                                            usePhotonHdr =
-                                                editRawToneMappingParameters.usePhotonHdr,
-                                            useLegacyAutoExposure = editRawAutoExposure,
-                                        ),
-                                        rawHighlightsAdjustment = editRawHighlightsAdjustment,
-                                        rawShadowsAdjustment = editRawShadowsAdjustment,
-                                        rawBlackPointCorrection = editRawBlackPointCorrection,
-                                        rawWhitePointCorrection = editRawWhitePointCorrection,
-                                        rawBlackLevelMode = editRawBlackLevelMode,
-                                        rawCustomBlackLevel = editRawCustomBlackLevel,
-                                        rawWhiteLevelMode = editRawWhiteLevelMode,
-                                        rawCustomWhiteLevel = editRawCustomWhiteLevel,
-                                        rawCfaCorrectionMode = editRawCfaCorrectionMode,
-                                        rawRenderingEngine = editRawColorEngine,
-                                        rawToneMappingParameters = editRawToneMappingParameters,
-                                        spectralFilmSelection = editRawSpectralFilmStock?.let { stock ->
-                                            SpectralFilmSelection(
-                                                id = stock,
-                                                tuning = SpectralFilmTuning(
-                                                    cDensityGain = editRawSpectralFilmCDensityGain,
-                                                    mDensityGain = editRawSpectralFilmMDensityGain,
-                                                    yDensityGain = editRawSpectralFilmYDensityGain
-                                                )
-                                            )
-                                        },
-                                        spectralFilmPrint = editRawSpectralFilmPrint,
-                                        onSelectDcp = { dcpId ->
-                                            viewModel.saveRawDcpSelection(currentEditSourcePhoto, dcpId) {
-                                                requestRawPreviewRefresh()
-                                            }
-                                        },
-                                        onImportDcp = {
-                                            rawDcpLauncher.launch(arrayOf("*/*"))
-                                        },
-                                        onDeleteDcp = { dcp ->
-                                            val isDeletingSelectedDcp = editRawDcpId == dcp.id
-                                            viewModel.deleteRawDcp(currentEditSourcePhoto, dcp.id) { success ->
-                                                Toast.makeText(
-                                                    context,
-                                                    if (success) R.string.raw_dcp_delete_success else R.string.raw_dcp_delete_failed,
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                                if (success && isDeletingSelectedDcp) {
-                                                    requestRawPreviewRefresh()
-                                                }
-                                            }
-                                        },
-                                        hncsFilmCurveMode = editRawHncsFilmCurveMode,
-                                        onHncsFilmCurveModeChange = { mode ->
-                                            viewModel.saveRawHncsFilmCurveMode(
-                                                currentEditSourcePhoto,
-                                                mode
-                                            ) {
-                                                requestRawPreviewRefresh()
-                                            }
-                                        },
-                                        onRawExposureCompensationChange = {
-                                            viewModel.saveRawExposureCompensationValue(currentEditSourcePhoto, it)
-                                        },
-                                        onRawExposureCompensationReset = {
-                                            viewModel.resetRawExposureCompensationValue(currentEditSourcePhoto) { success ->
-                                                if (success) requestRawPreviewRefresh()
-                                            }
-                                        },
-                                        onRawAdaptiveExposureModeChange = { mode ->
-                                            viewModel.selectRawAdaptiveExposureModeForEdit(mode)
-                                            viewModel.persistCurrentRawEditMetadata(
-                                                currentEditSourcePhoto
-                                            ) { success ->
-                                                if (success) {
-                                                    requestRawPreviewRefresh()
-                                                }
-                                            }
-                                        },
-                                        onRawHighlightsAdjustmentChange = {
-                                            viewModel.saveRawHighlightsAdjustmentValue(currentEditSourcePhoto, it)
-                                        },
-                                        onRawShadowsAdjustmentChange = {
-                                            viewModel.saveRawShadowsAdjustmentValue(currentEditSourcePhoto, it)
-                                        },
-                                        onRawBlackPointCorrectionChange = {
-                                            viewModel.saveRawBlackPointCorrectionValue(currentEditSourcePhoto, it)
-                                        },
-                                        onRawWhitePointCorrectionChange = {
-                                            viewModel.saveRawWhitePointCorrectionValue(currentEditSourcePhoto, it)
-                                        },
-                                        onRawBlackLevelModeChange = {
-                                            viewModel.saveRawBlackLevelMode(currentEditSourcePhoto, it) {
-                                                requestRawPreviewRefresh()
-                                            }
-                                        },
-                                        onRawCustomBlackLevelChange = {
-                                            viewModel.saveRawCustomBlackLevel(currentEditSourcePhoto, it) {
-                                                requestRawPreviewRefresh()
-                                            }
-                                        },
-                                        onRawWhiteLevelModeChange = {
-                                            viewModel.saveRawWhiteLevelMode(currentEditSourcePhoto, it) {
-                                                requestRawPreviewRefresh()
-                                            }
-                                        },
-                                        onRawCustomWhiteLevelChange = {
-                                            viewModel.saveRawCustomWhiteLevel(currentEditSourcePhoto, it) {
-                                                requestRawPreviewRefresh()
-                                            }
-                                        },
-                                        onRawCfaCorrectionModeChange = {
-                                            viewModel.saveRawCfaCorrectionMode(currentEditSourcePhoto, it) {
-                                                requestRawPreviewRefresh()
-                                            }
-                                        },
-                                        onRawColorEngineChange = {
-                                            viewModel.saveRawColorEngine(currentEditSourcePhoto, it) {
-                                                requestRawPreviewRefresh()
-                                            }
-                                        },
-                                        onRawToneMappingParametersChange = {
-                                            viewModel.saveRawToneMappingParameters(currentEditSourcePhoto, it)
-                                        },
-                                        embeddedDngProfiles = embeddedDngProfileUiState.options,
-                                        selectedEmbeddedDngProfileId = activeEmbeddedDngProfileId,
-                                        onSelectEmbeddedDngProfile = { profile ->
-                                            viewModel.selectRawEmbeddedDngProfileForEdit(
-                                                profileId = profile.id,
-                                                hasProfileGainTableMap =
-                                                    profile.hasProfileGainTableMap,
-                                            )
-                                        },
-                                        onSpectralFilmSelectionChange = {
-                                            viewModel.saveRawSpectralFilmSelection(currentEditSourcePhoto, it) {
-                                                requestRawPreviewRefresh()
-                                            }
-                                        },
-                                        onSpectralFilmPrintChange = {
-                                            viewModel.saveRawSpectralFilmPrint(currentEditSourcePhoto, it) {
-                                                requestRawPreviewRefresh()
-                                            }
-                                        },
-                                        onAdjustmentStart = { },
-                                        onAdjustmentEnd = {
-                                            viewModel.persistCurrentRawEditMetadata(currentEditSourcePhoto) {
-                                                requestRawPreviewRefresh()
-                                            }
-                                        },
-                                        onOpenBaselineLutSheet = {
-                                            showRawBaselineLutSelectorSheet = true
-                                        },
-                                        showAdaptiveExposureControl = isImportedRaw,
-                                        showDngMetadataControls = true,
-                                        contentMode = RawEditPanelContentMode.FULL,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    SwitchSettingItem(
-                                        title = stringResource(R.string.settings_raw_lens_shading_correction),
-                                        description = stringResource(R.string.settings_raw_lens_shading_correction_description),
-                                        checked = editRawLensShadingCorrectionEnabled,
-                                        onCheckedChange = { enabled ->
-                                            viewModel.saveRawLensShadingCorrectionEnabled(
-                                                currentEditSourcePhoto,
-                                                enabled
-                                            ) { success ->
-                                                if (success) requestRawPreviewRefresh()
-                                            }
-                                        }
-                                    )
-                                }
-                                EDIT_TAB_CROP -> {
-                                    if (!currentPhoto.isVideo) {
-                                        // 裁剪编辑
-                                        val availablePhotoAspectRatios by cameraViewModel.availablePhotoAspectRatios.collectAsState()
-                                        CropEditPanel(
-                                            selectedOption = editCropAspectOption,
-                                            onOptionSelected = { viewModel.setCropAspectOption(it) },
-                                            straightenDegrees = editStraightenDegrees,
-                                            onStraightenDegreesChanged = {
-                                                viewModel.setStraightenDegrees(it)
-                                            },
-                                            isHorizontallyMirrored = editMirrorHorizontal,
-                                            onRotate = {
-                                                cropPreviewBitmap = null
-                                                viewModel.rotateEditClockwise()
-                                            },
-                                            onMirrorHorizontal = {
-                                                cropPreviewBitmap = null
-                                                viewModel.toggleEditHorizontalMirror()
-                                            },
-                                            availableRatios = availablePhotoAspectRatios,
-                                            imageWidth = cropPreviewBitmap?.width ?: 1,
-                                            imageHeight = cropPreviewBitmap?.height ?: 1
-                                        )
-                                    }
-                                }
-                                    }
                                 }
                             }
                         }
                     }
+                    EDIT_TAB_FRAME -> {
+                        // Frame Settings Panel - Horizontal scrollable preview rail
+                        SettingsPanelHeader(
+                            title = stringResource(R.string.gallery_frame),
+                            isCollapsed = isSettingsPanelCollapsed,
+                            onToggleCollapse = { isSettingsPanelCollapsed = !isSettingsPanelCollapsed }
+                        )
+                        if (availableFrames.isNotEmpty()) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(vertical = 8.dp),
+                                state = frameScrollState
+                            ) {
+                                items(availableFrames) { frame ->
+                                    FrameOption(
+                                        name = frame.name,
+                                        previewBitmap = null,
+                                        isSelected = frame.id == editFrameId,
+                                        isVip = frame.isVip,
+                                        isCustom = frame.isCustom,
+                                        onClick = { viewModel.setEditFrameId(frame.id) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    EDIT_TAB_ADJUSTMENTS -> {
+                        // Adjustments Settings Panel - Sliders
+                        SettingsPanelHeader(
+                            title = stringResource(R.string.gallery_adjustments),
+                            isCollapsed = isSettingsPanelCollapsed,
+                            onToggleCollapse = { isSettingsPanelCollapsed = !isSettingsPanelCollapsed }
+                        )
+                        Column {
+                            Text(
+                                text = stringResource(R.string.gallery_sharpening),
+                                color = Color.White.copy(alpha = 0.82f),
+                                fontSize = 14.sp
+                            )
+                            Slider(
+                                value = editSharpening,
+                                onValueChange = { viewModel.setEditSharpening(it) },
+                                valueRange = 0f..2f,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = stringResource(R.string.gallery_noise_reduction),
+                                color = Color.White.copy(alpha = 0.82f),
+                                fontSize = 14.sp
+                            )
+                            Slider(
+                                value = editNoiseReduction,
+                                onValueChange = { viewModel.setEditNoiseReduction(it) },
+                                valueRange = 0f..1f,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                    EDIT_TAB_DETAIL -> {
+                        // Detail Settings Panel - Bokeh style selector + aperture slider
+                        SettingsPanelHeader(
+                            title = stringResource(R.string.gallery_detail),
+                            isCollapsed = isSettingsPanelCollapsed,
+                            onToggleCollapse = { isSettingsPanelCollapsed = !isSettingsPanelCollapsed }
+                        )
+                        Column {
+                            BokehStyleSelector(
+                                selectedStyle = editBokehStyle,
+                                onStyleSelected = { viewModel.setEditBokehStyle(it) }
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = stringResource(R.string.gallery_computational_aperture),
+                                color = Color.White.copy(alpha = 0.82f),
+                                fontSize = 14.sp
+                            )
+                            Slider(
+                                value = editComputationalAperture ?: DEFAULT_COMPUTATIONAL_APERTURE,
+                                onValueChange = { viewModel.setComputationalAperture(it) },
+                                valueRange = 0.1f..32f,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                    EDIT_TAB_RAW -> {
+                        // RAW Settings Panel
+                        SettingsPanelHeader(
+                            title = stringResource(R.string.gallery_raw),
+                            isCollapsed = isSettingsPanelCollapsed,
+                            onToggleCollapse = { isSettingsPanelCollapsed = !isSettingsPanelCollapsed }
+                        )
+                        RawEditPanel(
+                            contentMode = RawEditPanelContentMode.FULL,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    EDIT_TAB_CROP -> {
+                        // Crop Settings Panel
+                        SettingsPanelHeader(
+                            title = stringResource(R.string.gallery_crop),
+                            isCollapsed = isSettingsPanelCollapsed,
+                            onToggleCollapse = { isSettingsPanelCollapsed = !isSettingsPanelCollapsed }
+                        )
+                        CropEditPanel(
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
-        }
-    }
-
-    if (isBaselineLutEditSheetVisible) {
-        LutEditBottomSheet(
-            lutId = baselineLutEditId!!,
-            editorTarget = LutEditorTarget.BASELINE_RAW,
-            imageHistogram = imageHistogram,
-            onDismiss = {
-                showBaselineLutEditSheet = false
-                showRawBaselineLutSelectorSheet = true
+        },
+        tabBar = {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SamsungEditTabItem(
+                    title = stringResource(R.string.gallery_lut),
+                    isSelected = editTab == EDIT_TAB_LUT,
+                    onClick = { 
+                        editTab = EDIT_TAB_LUT
+                        activeToolPanel = EDIT_TAB_LUT
+                    }
+                )
+                SamsungEditTabItem(
+                    title = stringResource(R.string.gallery_frame),
+                    isSelected = editTab == EDIT_TAB_FRAME,
+                    onClick = { 
+                        editTab = EDIT_TAB_FRAME
+                        activeToolPanel = EDIT_TAB_FRAME
+                    }
+                )
+                SamsungEditTabItem(
+                    title = stringResource(R.string.gallery_adjustments),
+                    isSelected = editTab == EDIT_TAB_ADJUSTMENTS,
+                    onClick = { 
+                        editTab = EDIT_TAB_ADJUSTMENTS
+                        activeToolPanel = EDIT_TAB_ADJUSTMENTS
+                    }
+                )
+                SamsungEditTabItem(
+                    title = stringResource(R.string.gallery_detail),
+                    isSelected = editTab == EDIT_TAB_DETAIL,
+                    onClick = { 
+                        editTab = EDIT_TAB_DETAIL
+                        activeToolPanel = EDIT_TAB_DETAIL
+                    }
+                )
+                SamsungEditTabItem(
+                    title = stringResource(R.string.gallery_raw),
+                    isSelected = editTab == EDIT_TAB_RAW,
+                    onClick = { 
+                        editTab = EDIT_TAB_RAW
+                        activeToolPanel = EDIT_TAB_RAW
+                    }
+                )
+                SamsungEditTabItem(
+                    title = stringResource(R.string.gallery_crop),
+                    isSelected = editTab == EDIT_TAB_CROP,
+                    onClick = { 
+                        editTab = EDIT_TAB_CROP
+                        activeToolPanel = EDIT_TAB_CROP
+                    }
+                )
             }
-        )
-    }
-
-    if (showRawBaselineLutSelectorSheet) {
-        RawBaselineColorCorrectionBottomSheet(
-            selectedLutId = editRawBaselineLutId,
-            availableLuts = availableLuts,
-            thumbnail = thumbnailBitmap,
-            containerColor = Color(0x151A1A1A),
-            onSelectLut = { lutId ->
-                viewModel.saveRawBaselineLutSelection(currentEditSourcePhoto, lutId)
-            },
-            onEditRecipe = { lutId ->
-                baselineLutEditId = lutId
-                showRawBaselineLutSelectorSheet = false
-                showBaselineLutEditSheet = true
-            },
-            onDismiss = {
-                showRawBaselineLutSelectorSheet = false
-            }
-        )
-    }
-
-    if (showPaymentDialog) {
-        val activity = context.findActivity()
-        PaymentDialog(
-            onDismiss = { viewModel.showPaymentDialog = false },
-            onPurchase = {
-                if (activity != null) {
-                    viewModel.purchase(activity)
-                }
-                viewModel.showPaymentDialog = false
-            }
-        )
-    }
-
-    if (showDepthModelDownloadDialog) {
-        DepthModelDownloadDialog(
-            state = depthModelState,
-            onDownload = { DepthModelManager.download(context) },
-            onImport = { depthModelImportLauncher.launch(arrayOf("*/*")) },
-            onDismiss = {
-                showDepthModelDownloadDialog = false
-                pendingVirtualAperture = null
-            }
-        )
-    }
-}
+        },
+        isSettingsPanelVisible = shouldShowEditPanel && activeToolPanel != null,
+        isSettingsPanelCollapsed = isSettingsPanelCollapsed
+    )
 
 private fun Context.findActivity(): Activity? {
     var context = this
