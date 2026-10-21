@@ -962,6 +962,25 @@ fun GalleryEditScreen(
                             onToggleCollapse = { isSettingsPanelCollapsed = !isSettingsPanelCollapsed }
                         )
                         RawEditPanel(
+                            selectedDcpId = editRawDcpId,
+                            availableDcps = availableDcps,
+                            selectedBaselineLutId = editLutId,
+                            onSelectBaselineLut = { viewModel.setEditLutId(it) },
+                            onEditBaselineRecipe = {},
+                            availableLuts = availableLuts,
+                            thumbnail = thumbnailBitmap,
+                            rawExposureCompensation = editRawExposureCompensation,
+                            onRawExposureCompensationChange = { viewModel.setEditRawExposureCompensation(it) },
+                            rawHighlightsAdjustment = editRawHighlightsAdjustment,
+                            onRawHighlightsAdjustmentChange = { viewModel.setEditRawHighlightsAdjustment(it) },
+                            rawShadowsAdjustment = editRawShadowsAdjustment,
+                            onRawShadowsAdjustmentChange = { viewModel.setEditRawShadowsAdjustment(it) },
+                            rawBlackPointCorrection = editRawBlackPointCorrection,
+                            onRawBlackPointCorrectionChange = { viewModel.setEditRawBlackPointCorrection(it) },
+                            rawWhitePointCorrection = editRawWhitePointCorrection,
+                            onRawWhitePointCorrectionChange = { viewModel.setEditRawWhitePointCorrection(it) },
+                            rawRenderingEngine = editRawColorEngine,
+                            onRawColorEngineChange = { viewModel.setEditRawRenderingEngine(it) },
                             contentMode = RawEditPanelContentMode.FULL,
                             modifier = Modifier.fillMaxWidth()
                         )
