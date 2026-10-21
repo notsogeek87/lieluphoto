@@ -983,10 +983,6 @@ fun CameraScreen(
         val density = LocalDensity.current
         val width = with(density) { constraints.maxWidth.toDp() }
         val height = with(density) { constraints.maxHeight.toDp() }
-
-        // Detect Galaxy Z Fold cover screen (narrow display)
-        val CoverScreenWidthThreshold = 600.dp
-        val isCoverScreen = width <= CoverScreenWidthThreshold
         val topSafePadding = cameraTopSafePadding()
         val topBarOffset = 0.dp
         val topBarBaseHeight = if (isVideoMode) {
@@ -1002,10 +998,14 @@ fun CameraScreen(
         val contentHeight = (height - navigationBarHeight).coerceAtLeast(0.dp)
         val viewfinderFramePadding = if (isXpan) XpanViewfinderInnerBorder * 2 else 0.dp
         val sideControlSpace = if (isXpan) XpanSideControlReservedWidth else 0.dp
-        val maxCardWidth = if (isCoverScreen) width else (width - sideControlSpace * 2).coerceAtLeast(viewfinderFramePadding)
+        val maxCardWidth = (width - sideControlSpace * 2)
+            .coerceAtLeast(viewfinderFramePadding)
         val maxCardHeight = if (isXpan) {
-            (contentHeight - topBarBottom - CameraControlsLayoutDefaults.XpanViewfinderClearance).coerceAtLeast(viewfinderFramePadding)
-        } else if (isCoverScreen) contentHeight else contentHeight
+            (contentHeight - topBarBottom - CameraControlsLayoutDefaults.XpanViewfinderClearance)
+                .coerceAtLeast(viewfinderFramePadding)
+        } else {
+            contentHeight
+        }
         val maxViewfinderContentWidth = (maxCardWidth - viewfinderFramePadding)
             .coerceAtLeast(0.dp)
         val maxViewfinderContentHeight = (maxCardHeight - viewfinderFramePadding)
@@ -1017,9 +1017,20 @@ fun CameraScreen(
         val cardWidth = viewfinderContentWidth + viewfinderFramePadding
         val cardHeight = viewfinderContentWidth / previewAspectRatio + viewfinderFramePadding
         val xpanSideWidth = ((width - cardWidth) / 2).coerceAtLeast(0.dp)
-        val placeViewfinderBelowTopBar = if (isCoverScreen) false else contentHeight - cardHeight >= topBarBottom
-        val extraViewfinderTopSpacing = if (isXpan) 0.dp else if (isCoverScreen) 0.dp else ((contentHeight - topBarBottom - cardHeight - CameraControlsLayoutDefaults.CollapsedControlsHeight) / 2).coerceAtLeast(0.dp)
-        val viewfinderTop = if (isCoverScreen) ((contentHeight - cardHeight) / 2).coerceAtLeast(0.dp) else if (placeViewfinderBelowTopBar) topBarBottom + extraViewfinderTopSpacing else ((contentHeight - cardHeight) / 2).coerceAtLeast(0.dp)
+        val placeViewfinderBelowTopBar = contentHeight - cardHeight >= topBarBottom
+        // Balance small previews between the toolbar and collapsed controls. Reserving both
+        // bars first prevents the downward shift from pushing parameters back into the image.
+        val extraViewfinderTopSpacing = if (isXpan) {
+            0.dp
+        } else {
+            ((contentHeight - topBarBottom - cardHeight -
+                CameraControlsLayoutDefaults.CollapsedControlsHeight) / 2).coerceAtLeast(0.dp)
+        }
+        val viewfinderTop = if (placeViewfinderBelowTopBar) {
+            topBarBottom + extraViewfinderTopSpacing
+        } else {
+            ((contentHeight - cardHeight) / 2).coerceAtLeast(0.dp)
+        }
         val viewfinderTopOverlayPadding = (topBarBottom - viewfinderTop).coerceAtLeast(0.dp)
 
         val topBar = @Composable {
@@ -1059,7 +1070,7 @@ fun CameraScreen(
         }
 
         val zoomBar = @Composable {
-            if (activePanel == ActivePanel.NONE && !isXpan && !isCoverScreen) {
+            if (activePanel == ActivePanel.NONE && !isXpan) {
                 ZoomControlBar(
                     viewModel = viewModel,
                     zoomRatio = viewModel.zoomRatioByMain,
@@ -1089,7 +1100,7 @@ fun CameraScreen(
         }
 
         val modelBar = @Composable {
-            if (activePanel == ActivePanel.NONE && !isXpan && !isVideoMode && !zoomRulerActive && !isCoverScreen) {
+            if (activePanel == ActivePanel.NONE && !isXpan && !isVideoMode && !zoomRulerActive) {
                 ModelQuickBar(
                     favorites = viewModel.favoriteLutList,
                     currentLut = viewModel.availableLutList.firstOrNull { it.id == currentLutId },
@@ -1197,7 +1208,11 @@ fun CameraScreen(
         val parameterBar = @Composable {
                 activeParameter: CameraParameter?,
                 onParameterClick: (CameraParameter) -> Unit ->
-            if (!isCoverScreen) CameraParameterBar(state, activeParameter, onParameterClick)
+            CameraParameterBar(
+                state = state,
+                selectedParameter = activeParameter,
+                onParameterClick = onParameterClick
+            )
         }
 
         val viewfinder = @Composable {
@@ -1705,7 +1720,7 @@ fun CameraScreen(
 
                     }
 
-                    if (isXpan && !isCoverScreen) {
+                    if (isXpan) {
                         CornerOverlay(
                             modifier = Modifier.fillMaxSize(),
                             radius = XpanViewfinderInnerBorder,
@@ -1720,7 +1735,7 @@ fun CameraScreen(
                 }
             }
 
-            if (isXpan && !isCoverScreen) {
+            if (isXpan) {
                 // Center both side bars in the space above the capture controls, which
                 // overlap the lower part of the XPAN viewfinder.
                 val sideControlsBottom = minOf(
@@ -1828,10 +1843,11 @@ fun CameraScreen(
                 onGalleryClick = {
                     onGalleryClick()
                 },
-                sideControlInset = if (isXpan && !isCoverScreen) {
+                sideControlInset = if (isXpan) {
                     (xpanSideWidth - CameraControlsLayoutDefaults.SideButtonSize) / 2
-                } else if (isCoverScreen) 8.dp else null,
-                isCoverScreen = isCoverScreen,
+                } else {
+                    null
+                },
                 modifier = modifier
             )
         }
@@ -1860,18 +1876,22 @@ fun CameraScreen(
 
             topBar()
 
-            if (isCoverScreen) {
-                if (activePanel == ActivePanel.NONE) CaptureModeSwitcher(shootingMode = state.shootingMode, enabled = !previewTransitionActive && !lensSwitchTransition.isActive, onModeSelected = ::setShootingModeWithPreviewTransition, modifier = Modifier.align(Alignment.TopCenter).padding(top = topBarHeight + 8.dp))
-                Box(modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter)) { controls(Modifier.fillMaxWidth()) }
-            } else {
-                CameraBottomControlsLayout(
-                    viewfinderBottom = viewfinderTop + cardHeight,
-                    modifier = Modifier.fillMaxSize(),
-                    modelBar = modelBar,
-                    zoomBar = {
-                        Box(modifier = if (isXpan) Modifier else Modifier.fillMaxWidth().height(CameraControlsLayoutDefaults.ZoomBarHeight)) { zoomBar() }
-                    },
-                    parameterRuler = {
+            CameraBottomControlsLayout(
+                viewfinderBottom = viewfinderTop + cardHeight,
+                modifier = Modifier.fillMaxSize(),
+                modelBar = modelBar,
+                zoomBar = {
+                    // Panel visibility changes the zoom content, not the space used to
+                    // position the parameter row beneath it. XPAN has no horizontal bar.
+                    Box(
+                        modifier = if (isXpan) Modifier else Modifier
+                            .fillMaxWidth()
+                            .height(CameraControlsLayoutDefaults.ZoomBarHeight)
+                    ) {
+                        zoomBar()
+                    }
+                },
+                parameterRuler = {
                     AnimatedVisibility(
                         visible = showParameterRuler,
                         enter = expandVertically(
@@ -1893,7 +1913,7 @@ fun CameraScreen(
                     }
                 },
                 parameterBar = {
-                    if (!isXpan && !isCoverScreen) {
+                    if (!isXpan) {
                         parameterBar(selectedParameter.takeIf { showParameterRuler }, onParameterClick)
                     }
                 },
@@ -1902,7 +1922,11 @@ fun CameraScreen(
                 }
             )
         }
-        val panelDismissBounds = if (isXpan) viewfinderAreaBounds ?: previewBounds else if (isCoverScreen) viewfinderAreaBounds ?: previewBounds else previewBounds
+        val panelDismissBounds = if (isXpan) {
+            viewfinderAreaBounds ?: previewBounds
+        } else {
+            previewBounds
+        }
 
         if (activePanel != ActivePanel.NONE) {
             PanelDismissPreviewOverlay(
@@ -2003,23 +2027,35 @@ fun CameraScreen(
             },
             useMultipleExposure = useMultipleExposure,
             onMultipleExposureToggle = { viewModel.setUseMultipleExposure(it) },
-            contentTopPadding = if (isCoverScreen) 8.dp else CameraTopBarBaseTopPadding + topSafePadding
+            contentTopPadding = CameraTopBarBaseTopPadding + topSafePadding
         )
-        val filterPanelTop = minOf(if (!isXpan && !isVideoMode && !isCoverScreen) topBarHeight else 0.dp, maxHeight)
+
+        // During navigation measurement or window resizing, the viewport can be
+        // shorter than the toolbar. The panel then has no available vertical space.
+        val filterPanelTop = minOf(
+            if (!isXpan && !isVideoMode) topBarHeight else 0.dp,
+            maxHeight
+        )
         val fallbackFilterPanelBottom = when {
             isXpan -> maxHeight - 48.dp
             isVideoMode -> maxHeight - 170.dp
-            isCoverScreen -> maxHeight - 48.dp
             else -> topBarHeight + cardHeight - 48.dp
         }
-        val filterPanelAnchorY = if (isXpan) captureButtonBounds?.top else if (isCoverScreen) captureButtonBounds?.top else filterButtonBounds?.bottom
+        val filterPanelAnchorY = if (isXpan) {
+            captureButtonBounds?.top
+        } else {
+            filterButtonBounds?.bottom
+        }
         val requestedFilterPanelBottom = filterPanelAnchorY?.let { anchorY ->
             val parentTop = cameraScreenBounds?.top ?: 0f
             with(density) { (anchorY - parentTop).toDp() - 8.dp }
         } ?: fallbackFilterPanelBottom
         val filterPanelBottom = requestedFilterPanelBottom.coerceIn(filterPanelTop, maxHeight)
 
-        AnimatedVisibility(activePanel == ActivePanel.FILTERS, enter = if (isXpan || isCoverScreen) slideInVertically(initialOffsetY = { it }) else fadeIn(), exit = if (isXpan || isCoverScreen) slideOutVertically(targetOffsetY = { it }) else fadeOut())
+        AnimatedVisibility(
+            activePanel == ActivePanel.FILTERS,
+            enter = if (isXpan) {slideInVertically(initialOffsetY = { it })} else fadeIn(),
+            exit = if (isXpan) {slideOutVertically(targetOffsetY = { it })} else fadeOut()
         ) {
             Box(
                 modifier = Modifier
@@ -2236,7 +2272,6 @@ private fun Controls(
     onCaptureTap: () -> Unit,
     onGalleryClick: () -> Unit,
     sideControlInset: Dp?,
-    isCoverScreen: Boolean = false,
     modifier: Modifier = Modifier.fillMaxSize()
 ) {
     val captureButtonStyle by viewModel.captureButtonStyle.collectAsState()
@@ -2340,7 +2375,11 @@ private fun Controls(
                                 viewModel.pauseVideoRecording()
                             }
                         },
-                        modifier = Modifier.align(Alignment.CenterStart).padding(start = if (isCoverScreen) 8.dp else 100.dp).size(48.dp).autoRotate()
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 100.dp)
+                            .size(48.dp)
+                            .autoRotate()
                     ) {
                         Icon(
                             imageVector = if (state.videoRecordingState.isPaused) Icons.Default.PlayArrow else AppIcons.Pause,
@@ -2350,7 +2389,28 @@ private fun Controls(
                         )
                     }
                 } else {
-                    if (!isCoverScreen) PhysicalButton(onClick = { if (!state.videoRecordingState.isProcessing) onSwitchCameraClick() }, modifier = Modifier.align(Alignment.CenterEnd).padding(end = sideControlInset ?: 40.dp).size(CameraControlsLayoutDefaults.SideButtonSize).autoRotate(), shape = CircleShape) { Icon(imageVector = AppIcons.Cameraswitch, contentDescription = stringResource(R.string.switch_camera), tint = Color.White.copy(alpha = if (state.videoRecordingState.isProcessing) 0.35f else 1f), modifier = Modifier.size(24.dp)) }
+                    PhysicalButton(
+                        onClick = {
+                            if (!state.videoRecordingState.isProcessing) {
+                                onSwitchCameraClick()
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = sideControlInset ?: 40.dp)
+                            .size(CameraControlsLayoutDefaults.SideButtonSize)
+                            .autoRotate(),
+                        shape = CircleShape
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.Cameraswitch,
+                            contentDescription = stringResource(R.string.switch_camera),
+                            tint = Color.White.copy(
+                                alpha = if (state.videoRecordingState.isProcessing) 0.35f else 1f
+                            ),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
 
@@ -2373,8 +2433,14 @@ private fun Controls(
                 as AiEnhanceModelState.Downloading?
             var showAiDownloadDialog by remember { mutableStateOf(false) }
             var showAiModelPicker by remember { mutableStateOf(false) }
-            if (!isCoverScreen) Box(modifier = Modifier.width(300.dp).height(CameraControlsLayoutDefaults.ModeSwitcherSpacing), contentAlignment = Alignment.CenterEnd) {
-                if (state.captureMode != CaptureMode.VIDEO) AiEnhanceChip(
+            Box(
+                modifier = Modifier
+                    .width(300.dp)
+                    .height(CameraControlsLayoutDefaults.ModeSwitcherSpacing),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                if (state.captureMode != CaptureMode.VIDEO) {
+                    AiEnhanceChip(
                         active = aiPreferences.aiEnhanceEnabled && (aiChoiceReady || aiChoiceDownloading != null),
                         label = stringResource(
                             when (aiChoice) {
@@ -2438,7 +2504,18 @@ private fun Controls(
                 )
             }
 
-            if (!isCoverScreen) CaptureModeSwitcher(shootingMode = when { state.captureMode == CaptureMode.VIDEO -> CameraShootingMode.VIDEO; isNightMode -> CameraShootingMode.NIGHT; state.isVirtualApertureEnabled -> CameraShootingMode.PORTRAIT; else -> CameraShootingMode.PHOTO }, enabled = modeSwitchEnabled && !state.videoRecordingState.isRecording && !state.videoRecordingState.isProcessing, onModeSelected = onCaptureModeSelected)
+            CaptureModeSwitcher(
+                shootingMode = when {
+                    state.captureMode == CaptureMode.VIDEO -> CameraShootingMode.VIDEO
+                    isNightMode -> CameraShootingMode.NIGHT
+                    state.isVirtualApertureEnabled -> CameraShootingMode.PORTRAIT
+                    else -> CameraShootingMode.PHOTO
+                },
+                enabled = modeSwitchEnabled &&
+                    !state.videoRecordingState.isRecording &&
+                    !state.videoRecordingState.isProcessing,
+                onModeSelected = onCaptureModeSelected
+            )
         }
     }
 }
