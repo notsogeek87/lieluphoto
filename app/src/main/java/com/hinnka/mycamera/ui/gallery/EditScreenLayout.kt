@@ -2,22 +2,13 @@ package com.hinnka.mycamera.ui.gallery
 
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.repeatMode
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,59 +21,40 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.window.core.layout.WindowInsets
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.hinnka.mycamera.R
 import com.hinnka.mycamera.ui.icons.AppIcons
 import com.hinnka.mycamera.ui.theme.AccentColor
 
 object EditLayoutConstants {
+    // Portrait mode: toolbar on the right side
     val PORTRAIT_TOOLBAR_WIDTH = 56.dp
     val PORTRAIT_SETTINGS_PANEL_WIDTH = 300.dp
+    
+    // Landscape mode: tool panel on left, settings panel on right
     val LANDSCAPE_TOOL_PANEL_WIDTH = 200.dp
     val LANDSCAPE_SETTINGS_PANEL_WIDTH = 300.dp
+    
+    // Tab bar height (bottom in portrait, top in landscape)
     val TAB_BAR_HEIGHT = 48.dp
+    
+    // Tool icon size - minimum 48dp for accessibility
     val TOOL_ICON_SIZE = 48.dp
+    
+    // Panel styling
     val PANEL_CORNER_RADIUS = 12.dp
     val PANEL_ELEVATION = 8.dp
     val TOOLBAR_PADDING = 8.dp
@@ -183,6 +155,13 @@ fun SettingsPanelHeader(
     }
 }
 
+/**
+ * Main Samsung-style edit layout that ensures:
+ * 1. Image is ALWAYS 100% visible, NEVER overlain by any UI element
+ * 2. Tools are placed in dedicated side panels
+ * 3. Tab bar is positioned at top (landscape) or bottom (portrait)
+ * 4. Settings panel is collapsible and replaces current panel (no stacking)
+ */
 @Composable
 fun SamsungEditLayout(
     topBar: @Composable () -> Unit,
@@ -221,6 +200,14 @@ fun SamsungEditLayout(
     }
 }
 
+/**
+ * Portrait mode layout:
+ * - Top bar at top
+ * - Image area in center (full width, excluding tab bar)
+ * - Vertical toolbar on the right side
+ * - Settings panel slides in from the right, below toolbar
+ * - Tab bar at bottom
+ */
 @Composable
 fun PortraitEditLayout(
     topBar: @Composable () -> Unit,
@@ -237,16 +224,16 @@ fun PortraitEditLayout(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // Top bar at the top
+        // Top bar
         topBar()
         
-        // Main content area with image and side panels
+        // Main content area: Image + Tool panels
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
         ) {
-            // Image area - takes remaining space
+            // Image area - takes all available space except toolbar width
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -255,7 +242,7 @@ fun PortraitEditLayout(
                 imageArea()
             }
             
-            // Tool panel on the right
+            // Toolbar column on the right
             Column(
                 modifier = Modifier
                     .width(EditLayoutConstants.PORTRAIT_TOOLBAR_WIDTH)
@@ -267,7 +254,7 @@ fun PortraitEditLayout(
                 toolPanel()
             }
             
-            // Settings panel - slides from right
+            // Settings panel - slides in from right, pushes toolbar to the left
             if (isSettingsPanelVisible) {
                 val panelWidth = if (isSettingsPanelCollapsed) {
                     EditLayoutConstants.PORTRAIT_TOOLBAR_WIDTH
@@ -299,7 +286,7 @@ fun PortraitEditLayout(
             }
         }
         
-        // Tab bar at the bottom
+        // Tab bar at bottom
         Box(
             modifier = Modifier
                 .height(EditLayoutConstants.TAB_BAR_HEIGHT)
@@ -316,6 +303,14 @@ fun PortraitEditLayout(
     }
 }
 
+/**
+ * Landscape mode layout:
+ * - Top bar at top
+ * - Tab bar below top bar
+ * - Tool panel on the left
+ * - Image area in center
+ * - Settings panel on the right
+ */
 @Composable
 fun LandscapeEditLayout(
     topBar: @Composable () -> Unit,
@@ -332,7 +327,7 @@ fun LandscapeEditLayout(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // Top bar at the top
+        // Top bar
         topBar()
         
         // Tab bar below top bar
@@ -350,7 +345,7 @@ fun LandscapeEditLayout(
             }
         }
         
-        // Main content area
+        // Main content row: Tool panel + Image + Settings panel
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -373,7 +368,7 @@ fun LandscapeEditLayout(
                 }
             }
             
-            // Image area in the center
+            // Image area in center - takes all remaining space
             Box(
                 modifier = Modifier
                     .weight(1f)

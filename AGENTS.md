@@ -539,6 +539,43 @@ sdk.dir=/path/to/android/sdk
 
 ---
 
+## 🚀 Checklist Anti-Erreurs Fréquentes
+
+### ❌ ERREURS À ÉVITER (Déjà faites)
+
+- [ ] **Imports manquants** : Vérifier TOUS les imports après modification de fichiers
+  - Ex: `EditScreenLayout` utilisé dans `GalleryEditScreen.kt` -> import manquant = build KO
+- [ ] **Fichiers nouveaux non ajoutés** : `git add` pour TOUS les nouveaux fichiers
+  - Ex: `EditScreenLayout.kt` créé mais pas `git add` = fichier non poussé
+- [ ] **Variables non initialisées** : Vérifier que toutes les `val`/`var` ont une valeur
+- [ ] **Null Safety** : Pas de `!!` non nécessaire, préférer les types non-nullables
+- [ ] **Changements de signature** : Vérifier que les appels de fonctions correspondent aux définitions
+
+### ⚠️ VÉRIFIER AVANT TOUT PUSH
+
+```bash
+# 1. Vérifier la compilation Kotlin
+./gradlew compileDefaultDebugKotlin
+
+# 2. Vérifier les imports dans TOUS les fichiers modifiés
+grep -n "import" app/src/main/java/com/hinnka/mycamera/ui/gallery/*.kt
+
+# 3. Vérifier les nouveaux fichiers
+git status | grep "Untracked files"
+
+# 4. Vérifier les appels de fonctions existantes
+grep -n "functionName" app/src/main/java/com/hinnka/mycamera/ui/gallery/*.kt
+```
+
+### ✅ BONNES PRATIQUES POST-ERREUR
+
+1. **Reproduire l'erreur localement** avant de pusher
+2. **Vérifier `git diff`** pour voir TOUTES les modifications
+3. **Tester chaque étape** : compilation -> imports -> nouveaux fichiers -> appels
+4. **Ne pas pusher en urgence** : Prendre 2 min pour vérifier
+
+---
+
 ## 🏁 Conclusion
 
 En suivant ce guide, vous contribuerez à maintenir **LieluPhoto** comme un projet de haute qualité, stable et performant.
