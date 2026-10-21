@@ -2019,7 +2019,10 @@ fun CameraScreen(
         } ?: fallbackFilterPanelBottom
         val filterPanelBottom = requestedFilterPanelBottom.coerceIn(filterPanelTop, maxHeight)
 
-        AnimatedVisibility(activePanel == ActivePanel.FILTERS, enter = if (isXpan || isCoverScreen) slideInVertically(initialOffsetY = { it }) else fadeIn(), exit = if (isXpan || isCoverScreen) slideOutVertically(targetOffsetY = { it }) else fadeOut())
+        AnimatedVisibility(
+            visible = activePanel == ActivePanel.FILTERS,
+            enter = if (isXpan || isCoverScreen) slideInVertically(initialOffsetY = { it }) else fadeIn(),
+            exit = if (isXpan || isCoverScreen) slideOutVertically(targetOffsetY = { it }) else fadeOut()
         ) {
             Box(
                 modifier = Modifier
@@ -2220,7 +2223,7 @@ fun MultipleExposureOverlay(
 }
 
 @Composable
-private fun Controls(
+fun Controls(
     state: CameraState,
     viewModel: CameraViewModel,
     galleryViewModel: GalleryViewModel,
@@ -2350,95 +2353,134 @@ private fun Controls(
                         )
                     }
                 } else {
-                    if (!isCoverScreen) PhysicalButton(onClick = { if (!state.videoRecordingState.isProcessing) onSwitchCameraClick() }, modifier = Modifier.align(Alignment.CenterEnd).padding(end = sideControlInset ?: 40.dp).size(CameraControlsLayoutDefaults.SideButtonSize).autoRotate(), shape = CircleShape) { Icon(imageVector = AppIcons.Cameraswitch, contentDescription = stringResource(R.string.switch_camera), tint = Color.White.copy(alpha = if (state.videoRecordingState.isProcessing) 0.35f else 1f), modifier = Modifier.size(24.dp)) }
+                    if (!isCoverScreen) {
+                        PhysicalButton(
+                            onClick = { if (!state.videoRecordingState.isProcessing) onSwitchCameraClick() },
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .padding(end = sideControlInset ?: 40.dp)
+                                .size(CameraControlsLayoutDefaults.SideButtonSize)
+                                .autoRotate(),
+                            shape = CircleShape
+                        ) {
+                            Icon(
+                                imageVector = AppIcons.Cameraswitch,
+                                contentDescription = stringResource(R.string.switch_camera),
+                                tint = Color.White.copy(alpha = if (state.videoRecordingState.isProcessing) 0.35f else 1f),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
                 }
             }
 
             // Petit bouton « IA » au-dessus des modes photo, masqué en vidéo. Toucher : active ou
             // coupe l'amélioration (tout le temps une fois allumée). Appui long : choix du modèle
             // (bruit NAFNet, visages GFPGAN, ou les deux) et téléchargement / suppression.
-            val aiContext = androidx.compose.ui.platform.LocalContext.current
-            val aiPreferences by viewModel.userPreferences.collectAsState()
-            val aiDenoiseState by remember(aiContext.applicationContext) {
-                AiEnhanceModelManager.observe(aiContext, AiModel.DENOISE)
-            }.collectAsState()
-            val aiFacesState by remember(aiContext.applicationContext) {
-                AiEnhanceModelManager.observe(aiContext, AiModel.FACES)
-            }.collectAsState()
-            val aiModelStates = mapOf(AiModel.DENOISE to aiDenoiseState, AiModel.FACES to aiFacesState)
-            val aiChoice = AiEnhanceChoice.fromPersisted(aiPreferences.aiEnhanceModel)
-            val aiChoiceStates = aiChoice.models.map { aiModelStates.getValue(it) }
-            val aiChoiceReady = aiChoiceStates.all { it == AiEnhanceModelState.Ready }
-            val aiChoiceDownloading = aiChoiceStates.firstOrNull { it is AiEnhanceModelState.Downloading }
-                as AiEnhanceModelState.Downloading?
-            var showAiDownloadDialog by remember { mutableStateOf(false) }
-            var showAiModelPicker by remember { mutableStateOf(false) }
-            if (!isCoverScreen) Box(modifier = Modifier.width(300.dp).height(CameraControlsLayoutDefaults.ModeSwitcherSpacing), contentAlignment = Alignment.CenterEnd) {
-                if (state.captureMode != CaptureMode.VIDEO) AiEnhanceChip(
-                        active = aiPreferences.aiEnhanceEnabled && (aiChoiceReady || aiChoiceDownloading != null),
-                        label = stringResource(
-                            when (aiChoice) {
-                                AiEnhanceChoice.DENOISE -> R.string.ai_enhance_chip
-                                AiEnhanceChoice.FACES -> R.string.ai_enhance_chip_faces
-                                AiEnhanceChoice.BOTH -> R.string.ai_enhance_chip_both
-                            }
-                        ),
-                        downloadProgress = aiChoiceDownloading?.let { it.progress ?: 0f },
-                        enabled = !state.videoRecordingState.isRecording,
-                        onClick = {
-                            when {
-                                aiChoiceReady ->
-                                    viewModel.setAiEnhanceEnabled(!aiPreferences.aiEnhanceEnabled)
-                                aiChoiceDownloading != null -> Unit
-                                else -> showAiDownloadDialog = true
-                            }
+            if (!isCoverScreen) {
+                val aiContext = androidx.compose.ui.platform.LocalContext.current
+                val aiPreferences by viewModel.userPreferences.collectAsState()
+                val aiDenoiseState by remember(aiContext.applicationContext) {
+                    AiEnhanceModelManager.observe(aiContext, AiModel.DENOISE)
+                }.collectAsState()
+                val aiFacesState by remember(aiContext.applicationContext) {
+                    AiEnhanceModelManager.observe(aiContext, AiModel.FACES)
+                }.collectAsState()
+                val aiModelStates = mapOf(AiModel.DENOISE to aiDenoiseState, AiModel.FACES to aiFacesState)
+                val aiChoice = AiEnhanceChoice.fromPersisted(aiPreferences.aiEnhanceModel)
+                val aiChoiceStates = aiChoice.models.map { aiModelStates.getValue(it) }
+                val aiChoiceReady = aiChoiceStates.all { it == AiEnhanceModelState.Ready }
+                val aiChoiceDownloading = aiChoiceStates.firstOrNull { it is AiEnhanceModelState.Downloading }
+                    as AiEnhanceModelState.Downloading?
+                var showAiDownloadDialog by remember { mutableStateOf(false) }
+                var showAiModelPicker by remember { mutableStateOf(false) }
+
+                Box(
+                    modifier = Modifier
+                        .width(300.dp)
+                        .height(CameraControlsLayoutDefaults.ModeSwitcherSpacing),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    if (state.captureMode != CaptureMode.VIDEO) {
+                        AiEnhanceChip(
+                            active = aiPreferences.aiEnhanceEnabled && (aiChoiceReady || aiChoiceDownloading != null),
+                            label = stringResource(
+                                when (aiChoice) {
+                                    AiEnhanceChoice.DENOISE -> R.string.ai_enhance_chip
+                                    AiEnhanceChoice.FACES -> R.string.ai_enhance_chip_faces
+                                    AiEnhanceChoice.BOTH -> R.string.ai_enhance_chip_both
+                                }
+                            ),
+                            downloadProgress = aiChoiceDownloading?.let { it.progress ?: 0f },
+                            enabled = !state.videoRecordingState.isRecording,
+                            onClick = {
+                                when {
+                                    aiChoiceReady ->
+                                        viewModel.setAiEnhanceEnabled(!aiPreferences.aiEnhanceEnabled)
+                                    aiChoiceDownloading != null -> Unit
+                                    else -> showAiDownloadDialog = true
+                                }
+                            },
+                            onLongClick = { showAiModelPicker = true }
+                        )
+                    }
+                }
+
+                if (showAiDownloadDialog) {
+                    val missingModels = aiChoice.models.filter { aiModelStates.getValue(it) != AiEnhanceModelState.Ready }
+                    AlertDialog(
+                        onDismissRequest = { showAiDownloadDialog = false },
+                        title = { Text(stringResource(R.string.ai_enhance_dialog_title)) },
+                        text = {
+                            Text(
+                                stringResource(
+                                    R.string.ai_enhance_dialog_message_models,
+                                    missingModels.joinToString(" + ") { aiModelLabel(aiContext, it) }
+                                )
+                            )
                         },
-                        onLongClick = { showAiModelPicker = true }
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showAiDownloadDialog = false
+                                viewModel.setAiEnhanceEnabled(true)
+                                missingModels.forEach { AiEnhanceModelManager.download(aiContext, it) }
+                            }) { Text(stringResource(R.string.ai_enhance_dialog_download)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showAiDownloadDialog = false }) {
+                                Text(stringResource(android.R.string.cancel))
+                            }
+                        }
+                    )
+                }
+
+                if (showAiModelPicker) {
+                    AiEnhanceModelPicker(
+                        choice = aiChoice,
+                        modelStates = aiModelStates,
+                        onChoiceSelected = {
+                            viewModel.setAiEnhanceModel(it)
+                            viewModel.setAiEnhanceEnabled(true)
+                        },
+                        onDownload = { AiEnhanceModelManager.download(aiContext, it) },
+                        onDelete = { AiEnhanceModelManager.delete(aiContext, it) },
+                        onDismiss = { showAiModelPicker = false }
                     )
                 }
             }
-            if (showAiDownloadDialog) {
-                val missingModels = aiChoice.models.filter { aiModelStates.getValue(it) != AiEnhanceModelState.Ready }
-                AlertDialog(
-                    onDismissRequest = { showAiDownloadDialog = false },
-                    title = { Text(stringResource(R.string.ai_enhance_dialog_title)) },
-                    text = {
-                        Text(
-                            stringResource(
-                                R.string.ai_enhance_dialog_message_models,
-                                missingModels.joinToString(" + ") { aiModelLabel(aiContext, it) }
-                            )
-                        )
-                    },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            showAiDownloadDialog = false
-                            viewModel.setAiEnhanceEnabled(true)
-                            missingModels.forEach { AiEnhanceModelManager.download(aiContext, it) }
-                        }) { Text(stringResource(R.string.ai_enhance_dialog_download)) }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showAiDownloadDialog = false }) {
-                            Text(stringResource(android.R.string.cancel))
-                        }
-                    }
-                )
-            }
-            if (showAiModelPicker) {
-                AiEnhanceModelPicker(
-                    choice = aiChoice,
-                    modelStates = aiModelStates,
-                    onChoiceSelected = {
-                        viewModel.setAiEnhanceModel(it)
-                        viewModel.setAiEnhanceEnabled(true)
-                    },
-                    onDownload = { AiEnhanceModelManager.download(aiContext, it) },
-                    onDelete = { AiEnhanceModelManager.delete(aiContext, it) },
-                    onDismiss = { showAiModelPicker = false }
-                )
-            }
 
-            if (!isCoverScreen) CaptureModeSwitcher(shootingMode = when { state.captureMode == CaptureMode.VIDEO -> CameraShootingMode.VIDEO; isNightMode -> CameraShootingMode.NIGHT; state.isVirtualApertureEnabled -> CameraShootingMode.PORTRAIT; else -> CameraShootingMode.PHOTO }, enabled = modeSwitchEnabled && !state.videoRecordingState.isRecording && !state.videoRecordingState.isProcessing, onModeSelected = onCaptureModeSelected)
+            if (!isCoverScreen) {
+                CaptureModeSwitcher(
+                    shootingMode = when {
+                        state.captureMode == CaptureMode.VIDEO -> CameraShootingMode.VIDEO
+                        isNightMode -> CameraShootingMode.NIGHT
+                        state.isVirtualApertureEnabled -> CameraShootingMode.PORTRAIT
+                        else -> CameraShootingMode.PHOTO
+                    },
+                    enabled = modeSwitchEnabled && !state.videoRecordingState.isRecording && !state.videoRecordingState.isProcessing,
+                    onModeSelected = onCaptureModeSelected
+                )
+            }
         }
     }
 }
