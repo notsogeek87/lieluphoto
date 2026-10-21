@@ -39,7 +39,7 @@
                 android:name=".MainActivity"
                 android:exported="true"
                 android:label="@string/app_name"
-                android:screenOrientation="portrait"
+                android:screenOrientation="fullUser"
                 android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
                 android:launchMode="singleTask"
                 android:theme="@style/Theme.MyCamera.Splash">
