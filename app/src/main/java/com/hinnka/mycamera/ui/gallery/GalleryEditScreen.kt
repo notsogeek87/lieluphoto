@@ -83,7 +83,10 @@ import com.hinnka.mycamera.ui.components.*
 import com.hinnka.mycamera.ui.components.RawEditPanel
 import com.hinnka.mycamera.ui.components.RawBaselineColorCorrectionBottomSheet
 import com.hinnka.mycamera.ui.theme.AccentColor
-import com.hinnka.mycamera.ui.gallery.EditScreenLayout
+import com.hinnka.mycamera.ui.gallery.SamsungEditLayout
+import com.hinnka.mycamera.ui.gallery.EditToolIcon
+import com.hinnka.mycamera.ui.gallery.SettingsPanelHeader
+import com.hinnka.mycamera.ui.gallery.SamsungEditTabItem
 import com.hinnka.mycamera.utils.PLog
 import com.hinnka.mycamera.viewmodel.CameraViewModel
 import com.hinnka.mycamera.viewmodel.GalleryViewModel
