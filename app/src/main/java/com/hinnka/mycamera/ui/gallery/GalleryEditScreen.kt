@@ -76,6 +76,8 @@ import com.hinnka.mycamera.raw.SpectralFilmTuning
 import com.hinnka.mycamera.raw.DngEmbeddedProfile
 import com.hinnka.mycamera.raw.RawAdaptiveExposureMode
 import com.hinnka.mycamera.raw.HncsFilmCurveMode
+import com.hinnka.mycamera.raw.HncsRenderIntent
+import com.hinnka.mycamera.raw.RawRenderingEngine
 import com.hinnka.mycamera.processor.DenoiseStrength
 import com.hinnka.mycamera.processor.BokehStyle
 import com.hinnka.mycamera.ui.camera.LutEditBottomSheet
@@ -161,7 +163,7 @@ private data class PreviewRenderSignature(
     val editRawDcpId: String?,
     val editRawEmbeddedDngProfileId: String?,
     val editRawHncsProfileId: String?,
-    val editRawHncsRenderIntent: String,
+    val editRawHncsRenderIntent: HncsRenderIntent,
     val editRawHncsFilmCurveMode: HncsFilmCurveMode,
     val editRawRenderingEngine: RawRenderingEngine,
     val editRawBaselineLutId: String?,
@@ -289,6 +291,7 @@ fun GalleryEditScreen(
     val editRawBaselineLutId by viewModel.editRawBaselineLutId.collectAsState()
     val editRawBaselineRecipeParams by viewModel.editRawBaselineRecipeParams.collectAsState()
     val editRawColorEngine by viewModel.editRawRenderingEngine.collectAsState()
+    val editRawRenderingEngine by viewModel.editRawRenderingEngine.collectAsState()
     val editRawToneMappingParameters by viewModel.editRawToneMappingParameters.collectAsState()
     val editRawSpectralFilmStock by viewModel.editRawSpectralFilmStock.collectAsState()
     val editRawSpectralFilmPrint by viewModel.editRawSpectralFilmPrint.collectAsState()
@@ -438,10 +441,10 @@ fun GalleryEditScreen(
             editRawHncsProfileId =
                 if (fast || rawDevelopIsBaked) null else editRawHncsProfileId,
             editRawHncsRenderIntent =
-                if (fast || rawDevelopIsBaked) "" else editRawHncsRenderIntent.assetValue,
+                if (fast || rawDevelopIsBaked) HncsRenderIntent.Standard else editRawHncsRenderIntent,
             editRawHncsFilmCurveMode =
                 if (fast || rawDevelopIsBaked) HncsFilmCurveMode.Standard else editRawHncsFilmCurveMode,
-            editRawRenderingEngine = if (fast || rawDevelopIsBaked) RawRenderingEngine.AdobeCurve else editRawColorEngine,
+            editRawRenderingEngine = if (fast || rawDevelopIsBaked) RawRenderingEngine.AdobeCurve else editRawRenderingEngine,
             // RAW develop controls above are baked into original.jpg, while baseline color
             // correction is still applied by PhotoProcessor to that bitmap preview.
             editRawBaselineLutId = editRawBaselineLutId,
@@ -985,7 +988,7 @@ fun GalleryEditScreen(
                             rawWhiteLevelMode = editRawWhiteLevelMode,
                             rawCustomWhiteLevel = editRawCustomWhiteLevel,
                             rawCfaCorrectionMode = editRawCfaCorrectionMode,
-                            rawRenderingEngine = editRawColorEngine,
+                            rawRenderingEngine = editRawRenderingEngine,
                             rawToneMappingParameters = editRawToneMappingParameters,
                             spectralFilmSelection = editRawSpectralFilmStock,
                             spectralFilmPrint = editRawSpectralFilmPrint,
