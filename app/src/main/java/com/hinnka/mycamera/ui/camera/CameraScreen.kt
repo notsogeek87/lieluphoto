@@ -3105,8 +3105,9 @@ fun Modifier.autoRotate(
     dy: Dp = 0.dp,
     matchParentSize: Boolean = false
 ): Modifier = composed {
-    val targetDegrees =
-        if (OrientationObserver.rotationDegrees != 0f) OrientationObserver.rotationDegrees - 180 else 0f
+    // Don't apply device rotation compensation - EXIF rotation is already applied to bitmaps
+    // This prevents double rotation when device orientation changes
+    val targetDegrees = 0f
 
     val animatedDegrees by animateFloatAsState(
         targetValue = targetDegrees,
