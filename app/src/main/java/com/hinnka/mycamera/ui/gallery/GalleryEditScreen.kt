@@ -75,6 +75,7 @@ import com.hinnka.mycamera.raw.SpectralFilmSelection
 import com.hinnka.mycamera.raw.SpectralFilmTuning
 import com.hinnka.mycamera.raw.DngEmbeddedProfile
 import com.hinnka.mycamera.raw.RawAdaptiveExposureMode
+import com.hinnka.mycamera.raw.HncsFilmCurveMode
 import com.hinnka.mycamera.processor.DenoiseStrength
 import com.hinnka.mycamera.processor.BokehStyle
 import com.hinnka.mycamera.ui.camera.LutEditBottomSheet
@@ -979,9 +980,39 @@ fun GalleryEditScreen(
                             onRawBlackPointCorrectionChange = { viewModel.setEditRawBlackPointCorrection(it) },
                             rawWhitePointCorrection = editRawWhitePointCorrection,
                             onRawWhitePointCorrectionChange = { viewModel.setEditRawWhitePointCorrection(it) },
+                            rawBlackLevelMode = editRawBlackLevelMode,
+                            rawCustomBlackLevel = editRawCustomBlackLevel,
+                            rawWhiteLevelMode = editRawWhiteLevelMode,
+                            rawCustomWhiteLevel = editRawCustomWhiteLevel,
+                            rawCfaCorrectionMode = editRawCfaCorrectionMode,
                             rawRenderingEngine = editRawColorEngine,
+                            rawToneMappingParameters = editRawToneMappingParameters,
+                            spectralFilmSelection = editRawSpectralFilmStock,
+                            spectralFilmPrint = editRawSpectralFilmPrint,
+                            onSelectDcp = { dcpId -> viewModel.saveRawDcpSelection(currentEditSourcePhoto, dcpId) { viewModel.refreshRawPreview(currentEditSourcePhoto) } },
+                            onImportDcp = { rawDcpLauncher.launch(arrayOf("application/x-dcp", "application/octet-stream")) },
+                            onDeleteDcp = { dcp -> viewModel.deleteDcp(dcp) },
+                            onRawBlackLevelModeChange = { viewModel.setEditRawBlackLevelMode(it) },
+                            onRawCustomBlackLevelChange = { viewModel.setEditRawCustomBlackLevel(it) },
+                            onRawWhiteLevelModeChange = { viewModel.setEditRawWhiteLevelMode(it) },
+                            onRawCustomWhiteLevelChange = { viewModel.setEditRawCustomWhiteLevel(it) },
+                            onRawCfaCorrectionModeChange = { viewModel.setEditRawCfaCorrectionMode(it) },
                             onRawColorEngineChange = { viewModel.setEditRawRenderingEngine(it) },
+                            onRawToneMappingParametersChange = { viewModel.setEditRawToneMappingParameters(it) },
+                            onSpectralFilmSelectionChange = { viewModel.setEditRawSpectralFilmStock(it) },
+                            onSpectralFilmPrintChange = { viewModel.setEditRawSpectralFilmPrint(it) },
+                            onAdjustmentStart = { },
+                            onAdjustmentEnd = { },
+                            embeddedDngProfiles = embeddedDngProfileUiState.options,
+                            selectedEmbeddedDngProfileId = activeEmbeddedDngProfileId,
+                            onSelectEmbeddedDngProfile = { profile -> viewModel.setEditRawEmbeddedDngProfileId(profile.id) },
+                            showAdaptiveExposureControl = false,
+                            rawAdaptiveExposureMode = if (viewModel.editRawAutoExposure.value) RawAdaptiveExposureMode.PHOTON_HDR else RawAdaptiveExposureMode.OFF,
+                            onRawAdaptiveExposureModeChange = { viewModel.selectRawAdaptiveExposureModeForEdit(it) },
+                            showDngMetadataControls = false,
                             contentMode = RawEditPanelContentMode.FULL,
+                            hncsFilmCurveMode = editRawHncsFilmCurveMode,
+                            onHncsFilmCurveModeChange = { mode -> viewModel.saveRawHncsFilmCurveMode(currentEditSourcePhoto, mode) },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -1570,4 +1601,5 @@ internal fun VideoEditPlayer(
     } else {
         Spacer(modifier = modifier.fillMaxSize())
     }
+}
 }
