@@ -1,5 +1,15 @@
 # LieluPhoto - Guide pour tous les Agents IA
 
+## ⚠️ RÈGLE FONDAMENTALE POUR TOUS LES AGENTS IA
+**L'agent code SEUL, de A à Z.**
+- Il **ne demande JAMAIS** à l'utilisateur de coder.
+- Il **vérifie systématiquement** que :
+  - Le code compile (`./gradlew assembleDebug`, etc.).
+  - **TOUS les tests passent** avant tout push.
+- Si un choix d'architecture bloque, il pose **une seule question courte** pour trancher.
+
+---
+
 ## 📋 Présentation
 
 Ce document définit les règles, conventions et bonnes pratiques pour **tous les agents IA** (Vibe Code, Claude, GitHub Copilot, etc.) travaillant sur le projet **LieluPhoto**.
