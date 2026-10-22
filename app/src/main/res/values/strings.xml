@@ -885,6 +885,14 @@
     <string name="update_ready_message">The update APK has been downloaded. Install it now?</string>
     <string name="update_install_now">Install</string>
     <string name="update_install_permission_hint">Allow this app to install unknown apps, then tap Install again.</string>
+    <string name="update_banner_available">Update available: %1$s (build %2$d)</string>
+    <string name="update_banner_downloading">Downloading update… %1$d%%</string>
+    <string name="update_banner_downloading_unknown">Downloading update…</string>
+    <string name="update_banner_ready">Update %1$s (build %2$d) downloaded</string>
+    <string name="update_banner_failed">Update download failed</string>
+    <string name="update_banner_download">Update</string>
+    <string name="update_banner_retry">Retry</string>
+    <string name="update_banner_dismiss">Close</string>
     <string name="settings_default_focal_length">Default Focal Length</string>
     <string name="settings_default_focal_length_description">Set the focal length to automatically switch to when the app starts.</string>
     <string name="settings_main_camera_id">Main Camera ID</string>

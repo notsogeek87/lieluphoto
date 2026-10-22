@@ -24,4 +24,11 @@ if (VERSION_CODE_BASE + run <= BuildConfig.VERSION_CODE) return null
 
 ## Vérification au démarrage
 
-`MyCameraApplication` appelle `AppUpdateManager.startSilentUpdate(this)` à chaque lancement : l'app interroge la dernière release en arrière-plan, télécharge l'APK s'il est plus récent, puis `AppUpdateInstallPrompt` (MainActivity) affiche « Installer maintenant ». Aucune vérification manuelle n'est nécessaire dans les réglages. Cet appel était commenté depuis le fork upstream ; il est réactivé.
+Comme dans LieluFind, `MyCameraApplication` appelle `AppUpdateManager.checkOnLaunch(this)` à chaque lancement : l'app interroge la dernière release en arrière-plan, sans rien télécharger. Si elle est plus récente, `AppUpdateManager.state` passe à `Available` et `AppUpdateBanner` (affiché en haut de `MainActivity`) montre « Mise à jour disponible : <version> (build <versionCode>) » avec un bouton « Mettre à jour ».
+
+- « Mettre à jour » télécharge l'APK, avec la progression dans le bandeau, puis lance l'installeur système.
+- Si l'APK de cette release est déjà téléchargé, le bandeau propose directement « Installer ».
+- Sans l'autorisation « Installer des applis inconnues », les réglages Android s'ouvrent ; au retour, « Installer » relance l'installation.
+- En cas d'échec, le bandeau propose « Réessayer ». La croix masque le bandeau jusqu'au prochain lancement.
+
+La vérification manuelle reste disponible dans les réglages et alimente le même bandeau.

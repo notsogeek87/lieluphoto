@@ -31,9 +31,20 @@ import java.util.concurrent.TimeUnit
 
 data class AppUpdateRelease(
     val versionName: String?,
+    val buildNumber: Int,
     val downloadUrl: String,
     val fileName: String
 )
+
+/** État de la mise à jour, affiché par le bandeau de MainActivity. */
+sealed interface AppUpdateState {
+    data object None : AppUpdateState
+    data class Available(val release: AppUpdateRelease) : AppUpdateState
+    /** [progress] dans 0..1, null tant que la taille est inconnue. */
+    data class Downloading(val release: AppUpdateRelease, val progress: Float?) : AppUpdateState
+    data class Ready(val release: AppUpdateRelease, val apkFile: File) : AppUpdateState
+    data class Failed(val release: AppUpdateRelease) : AppUpdateState
+}
 
 object AppUpdateManager {
     private const val TAG = "AppUpdateManager"
@@ -52,9 +63,9 @@ object AppUpdateManager {
     private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val downloadLock = Any()
     private var activeDownload: Pair<String, Deferred<File>>? = null
-    private var activeSilentCheck: Deferred<Unit>? = null
-    private val _readyApk = MutableStateFlow<File?>(null)
-    val readyApk: StateFlow<File?> = _readyApk.asStateFlow()
+    private var activeLaunchCheck: Deferred<Unit>? = null
+    private val _state = MutableStateFlow<AppUpdateState>(AppUpdateState.None)
+    val state: StateFlow<AppUpdateState> = _state.asStateFlow()
 
     /**
      * Même mécanique que LieluFind : dernière release GitHub (tag `v<versionName>.<run>`),
@@ -96,6 +107,7 @@ object AppUpdateManager {
                         if (name.endsWith(".apk", ignoreCase = true) && url.isNotBlank()) {
                             return@withContext AppUpdateRelease(
                                 versionName = parts.dropLast(1).joinToString("."),
+                                buildNumber = VERSION_CODE_BASE + run,
                                 downloadUrl = url,
                                 fileName = name
                             )
@@ -112,32 +124,35 @@ object AppUpdateManager {
     suspend fun downloadApk(context: Context, release: AppUpdateRelease): File =
         getOrStartDownload(context.applicationContext, release).await()
 
-    fun startSilentUpdate(context: Context) {
+    /**
+     * Vérification au lancement, comme LieluFind : ne télécharge rien, signale seulement
+     * la release disponible (ou l'APK déjà téléchargé) via [state].
+     */
+    fun checkOnLaunch(context: Context) {
         val appContext = context.applicationContext
         synchronized(downloadLock) {
-            if (activeSilentCheck?.isActive == true) return
-            activeSilentCheck = downloadScope.async {
-                runCatching {
-                    val release = checkForUpdate() ?: return@async
-                    val apkFile = findDownloadedApk(appContext, release)
-                        ?: getOrStartDownload(appContext, release).await()
-                    _readyApk.value = apkFile
-                }.onFailure { error ->
-                    PLog.e(TAG, "Silent update failed", error)
+            if (activeLaunchCheck?.isActive == true) return
+            activeLaunchCheck = downloadScope.async {
+                val release = checkForUpdate() ?: return@async
+                if (_state.value !is AppUpdateState.None) return@async
+                val apkFile = findDownloadedApk(appContext, release)
+                _state.value = if (apkFile != null) {
+                    AppUpdateState.Ready(release, apkFile)
+                } else {
+                    AppUpdateState.Available(release)
                 }
             }
         }
     }
 
+    /** Lance le téléchargement depuis le bandeau ; la progression passe par [state]. */
+    fun startDownload(context: Context, release: AppUpdateRelease) {
+        getOrStartDownload(context.applicationContext, release)
+    }
+
     fun findDownloadedApk(context: Context, release: AppUpdateRelease): File? {
         val apkFile = resolveApkFile(context.applicationContext, release)
         return apkFile.takeIf { it.isUsableForRelease(context.applicationContext, release) }
-    }
-
-    fun consumeReadyApk(apkFile: File?) {
-        if (apkFile == null || _readyApk.value == apkFile) {
-            _readyApk.value = null
-        }
     }
 
     fun startInstall(context: Context, apkFile: File): Boolean {
@@ -196,18 +211,24 @@ object AppUpdateManager {
                     val apkFile = resolveApkFile(context, release)
                     if (apkFile.isUsableForRelease(context, release)) {
                         PLog.d(TAG, "Reuse downloaded APK: ${apkFile.absolutePath}, size=${apkFile.length()}")
-                        return@async apkFile
+                        return@runCatching apkFile
                     }
 
                     discardInvalidCachedApk(context, release, apkFile)
-                    downloadApkFile(release.downloadUrl, apkFile)
+                    _state.value = AppUpdateState.Downloading(release, null)
+                    downloadApkFile(release.downloadUrl, apkFile) { progress ->
+                        _state.value = AppUpdateState.Downloading(release, progress)
+                    }
                     if (!apkFile.isUsableForRelease(context, release)) {
                         throw IllegalStateException("Downloaded APK is invalid: ${apkFile.absolutePath}")
                     }
                     PLog.d(TAG, "APK downloaded: ${apkFile.absolutePath}, size=${apkFile.length()}")
                     apkFile
+                }.onSuccess { apkFile ->
+                    _state.value = AppUpdateState.Ready(release, apkFile)
                 }.onFailure { error ->
                     PLog.e(TAG, "APK download error", error)
+                    _state.value = AppUpdateState.Failed(release)
                 }.getOrThrow()
             }
             activeDownload = key to deferred
@@ -224,7 +245,7 @@ object AppUpdateManager {
         return File(updateDir, release.fileName.sanitizeApkFileName())
     }
 
-    private fun downloadApkFile(downloadUrl: String, apkFile: File) {
+    private fun downloadApkFile(downloadUrl: String, apkFile: File, onProgress: (Float) -> Unit) {
         val partFile = File("${apkFile.absolutePath}.part")
         var connection: HttpURLConnection? = null
         try {
@@ -245,9 +266,28 @@ object AppUpdateManager {
                 partFile.delete()
             }
 
+            val startBytes = if (append) existingBytes else 0L
+            val totalBytes = connection.contentLengthLong
+                .takeIf { it > 0L }
+                ?.let { startBytes + it }
             connection.inputStream.use { input ->
                 FileOutputStream(partFile, append).use { output ->
-                    input.copyTo(output)
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    var written = startBytes
+                    var lastPercent = -1
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        output.write(buffer, 0, read)
+                        written += read
+                        if (totalBytes != null) {
+                            val percent = (written * 100 / totalBytes).toInt()
+                            if (percent != lastPercent) {
+                                lastPercent = percent
+                                onProgress((written.toFloat() / totalBytes).coerceIn(0f, 1f))
+                            }
+                        }
+                    }
                 }
             }
 

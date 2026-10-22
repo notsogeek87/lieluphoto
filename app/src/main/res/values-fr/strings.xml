@@ -976,6 +976,14 @@
     <string name="update_ready_message">L\'APK de mise à jour a été téléchargé. L\'installer maintenant ?</string>
     <string name="update_install_now">Installer</string>
     <string name="update_install_permission_hint">Autorisez cette application à installer des applications inconnues, puis touchez à nouveau Installer.</string>
+    <string name="update_banner_available">Mise à jour disponible : %1$s (build %2$d)</string>
+    <string name="update_banner_downloading">Téléchargement de la mise à jour… %1$d %%</string>
+    <string name="update_banner_downloading_unknown">Téléchargement de la mise à jour…</string>
+    <string name="update_banner_ready">Mise à jour %1$s (build %2$d) téléchargée</string>
+    <string name="update_banner_failed">Échec du téléchargement de la mise à jour</string>
+    <string name="update_banner_download">Mettre à jour</string>
+    <string name="update_banner_retry">Réessayer</string>
+    <string name="update_banner_dismiss">Fermer</string>
     <string name="settings_main_camera_id">ID de la caméra principale</string>
     <string name="settings_main_camera_id_description">Choisissez quel ID de caméra arrière 1x est utilisé comme caméra principale.</string>
     <string name="settings_main_camera_id_option">Caméra ID %1$s</string>
