@@ -593,4 +593,20 @@ data class CameraState(
             )
         }
     }
+
+    /**
+     * Égalité hors relevés de l'aperçu, rafraîchis à chaque image : ISO, pose, mise au point,
+     * balance des blancs mesurée, ouverture physique et histogramme. L'écran caméra ne se
+     * recompose que sur les autres champs ; les zones qui affichent ces relevés lisent l'état courant.
+     */
+    fun equalsIgnoringLiveReadout(other: CameraState): Boolean = this == other.copy(
+        iso = iso,
+        shutterSpeed = shutterSpeed,
+        focusDistance = focusDistance,
+        actualAwbTemperature = actualAwbTemperature,
+        actualAwbTint = actualAwbTint,
+        actualAwbGains = actualAwbGains,
+        physicalAperture = physicalAperture,
+        histogram = histogram,
+    )
 }
