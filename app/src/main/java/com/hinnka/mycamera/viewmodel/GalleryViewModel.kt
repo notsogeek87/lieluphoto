@@ -1024,8 +1024,6 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             photonOffset = 0
             hasMorePhotonPhotos = false
 
-            pruneDeletedExportsIfNeeded()
-
             val newList = repository.getPhotosSync()
             val currentMap = _photos.value.associateBy { it.id }
 
@@ -1065,6 +1063,9 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             _isLoading.value = false
             _isPhotonLoadingMore.value = false
         }
+        // Après la publication de la liste : le contrôle interroge la galerie du téléphone
+        // et ne doit pas retarder l'affichage ; les photos retirées sortent ensuite de l'état.
+        pruneDeletedExportsIfNeeded()
     }
 
     private var lastExportPruneAt = 0L
@@ -1083,11 +1084,16 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                 .firstOrNull()?.deleteWhenExportRemoved == false
         ) return
         lastExportPruneAt = now
-        val scan = GalleryManager.scanDeletedExports(getApplication())
-        when {
-            scan.photoIds.isEmpty() -> Unit
-            scan.needsConfirmation -> pendingExportPruneIds = scan.photoIds
-            else -> removePrunedPhotos(scan.photoIds)
+        try {
+            val scan = GalleryManager.scanDeletedExports(getApplication())
+            when {
+                scan.photoIds.isEmpty() -> Unit
+                scan.needsConfirmation -> pendingExportPruneIds = scan.photoIds
+                else -> removePrunedPhotos(scan.photoIds)
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            PLog.e(TAG, "Failed to sync deleted exports", e)
         }
     }
 

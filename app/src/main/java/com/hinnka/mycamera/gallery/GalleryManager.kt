@@ -126,6 +126,8 @@ object GalleryManager {
     private const val TAG = "PhotoManager"
     private const val PRUNE_MIN_AGE_MS = 10 * 60 * 1000L
     private const val PRUNE_MASS_GUARD_MIN = 5
+    // Reste sous la limite de 999 paramètres SQLite de MediaStore.
+    private const val PRUNE_MEDIA_ID_QUERY_CHUNK = 500
     private val metadataMutex = Mutex()
     private const val THUMBNAIL_MAX_EDGE = 512
     private const val PHOTOS_DIR = "photos"
@@ -5362,6 +5364,77 @@ object GalleryManager {
     }
 
     /**
+     * État de chaque URI exportée. Les URI MediaStore (`…/media/<id>`) sont vérifiées par lots,
+     * une requête `_id IN (…)` par collection, au lieu d'un aller-retour IPC par fichier ;
+     * les autres URI gardent la requête unitaire. Un lot illisible rend ses URI [ExportUriState.UNKNOWN].
+     */
+    private fun queryExportUriStates(context: Context, uriStrings: List<String>): Map<String, ExportUriState> {
+        val states = HashMap<String, ExportUriState>(uriStrings.size)
+        val idsByCollection = LinkedHashMap<Uri, MutableMap<Long, String>>()
+        for (uriString in uriStrings.distinct()) {
+            val uri = Uri.parse(uriString)
+            val mediaId = if (uri.authority == MediaStore.AUTHORITY) {
+                uri.lastPathSegment?.toLongOrNull()
+            } else {
+                null
+            }
+            if (mediaId == null) {
+                states[uriString] = queryExportUriState(context, uri)
+                continue
+            }
+            val collection = Uri.Builder()
+                .scheme(uri.scheme)
+                .authority(uri.authority)
+                .apply { uri.pathSegments.dropLast(1).forEach { appendPath(it) } }
+                .build()
+            idsByCollection.getOrPut(collection) { LinkedHashMap() }[mediaId] = uriString
+        }
+        idsByCollection.forEach { (collection, uriById) ->
+            uriById.keys.chunked(PRUNE_MEDIA_ID_QUERY_CHUNK).forEach { ids ->
+                val presentIds = queryPresentMediaIds(context, collection, ids)
+                ids.forEach { id ->
+                    states[uriById.getValue(id)] = when {
+                        presentIds == null -> ExportUriState.UNKNOWN
+                        id in presentIds -> ExportUriState.PRESENT
+                        else -> ExportUriState.MISSING
+                    }
+                }
+            }
+        }
+        return states
+    }
+
+    private fun queryPresentMediaIds(context: Context, collection: Uri, ids: List<Long>): Set<Long>? {
+        return try {
+            val args = android.os.Bundle().apply {
+                putString(
+                    android.content.ContentResolver.QUERY_ARG_SQL_SELECTION,
+                    "${MediaStore.MediaColumns._ID} IN (${ids.joinToString(",") { "?" }})"
+                )
+                putStringArray(
+                    android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS,
+                    ids.map { it.toString() }.toTypedArray()
+                )
+                putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
+            }
+            val cursor = context.contentResolver.query(
+                collection,
+                arrayOf(MediaStore.MediaColumns._ID),
+                args,
+                null
+            ) ?: return null
+            cursor.use {
+                val idColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+                buildSet { while (it.moveToNext()) add(it.getLong(idColumn)) }
+            }
+        } catch (e: Exception) {
+            // 权限丢失、存储卷未挂载等：无法确认，宁可保留。
+            PLog.w(TAG, "Cannot determine export URI states in $collection: ${e.message}")
+            null
+        }
+    }
+
+    /**
      * 删除“所有导出文件都已从系统相册消失”的应用内照片（含 RAW 负片）。
      * 只在能明确确认文件不存在时才删除；未导出过、状态未知、刚导出的照片一律保留。
      * 若 5 张以上的候选照片全部缺失，可能是系统相册不可读（权限/存储卷异常），
@@ -5375,13 +5448,16 @@ object GalleryManager {
         val missing = mutableListOf<String>()
         var checked = 0
 
-        for (photoId in GalleryMediaStore.getPhotoIds(context)) {
-            if (photoId in processingIds) continue
-            val metadata = loadMetadata(context, photoId) ?: continue
-            if (metadata.exportedUris.isEmpty()) continue
-            if ((metadata.dateTaken ?: 0L) > recentThreshold) continue
+        val candidates = GalleryMediaStore.getExportedMediaRecords(context).filter { record ->
+            record.id !in processingIds &&
+                record.exportedUris.isNotEmpty() &&
+                (record.dateTaken ?: 0L) <= recentThreshold
+        }
+        val uriStates = queryExportUriStates(context, candidates.flatMap { it.exportedUris })
 
-            val states = metadata.exportedUris.map { queryExportUriState(context, Uri.parse(it)) }
+        for (record in candidates) {
+            val photoId = record.id
+            val states = record.exportedUris.map { uriStates.getValue(it) }
             if (ExportUriState.UNKNOWN in states) continue
             checked++
             if (states.all { it == ExportUriState.MISSING }) missing.add(photoId)
