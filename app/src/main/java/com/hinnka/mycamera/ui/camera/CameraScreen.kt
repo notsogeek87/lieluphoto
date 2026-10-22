@@ -1317,8 +1317,9 @@ fun CameraScreen(
                         },
                 ) {
                     val currentCameraId = state.currentCameraId
-                    val calibrationOffset by viewModel.getCameraOrientationOffset(currentCameraId)
-                        .collectAsState(initial = 0)
+                    val calibrationOffset by remember(currentCameraId) {
+                        viewModel.getCameraOrientationOffset(currentCameraId)
+                    }.collectAsState(initial = 0)
                     val eyeFocusActive = eyeFocusEnabled &&
                         viewModel.isEyeFocusRuntimeAvailable &&
                         state.isAutoFocus &&
