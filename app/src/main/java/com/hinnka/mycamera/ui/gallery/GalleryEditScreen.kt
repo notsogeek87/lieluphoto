@@ -125,7 +125,6 @@ private const val EDIT_TAB_DETAIL = 3
 private const val EDIT_TAB_RAW = 4
 private const val EDIT_TAB_CROP = 5
 private const val DEFAULT_COMPUTATIONAL_APERTURE = 1.8f
-private val APERTURE_SLIDER_RANGE = 1.0f..16.0f
 
 private data class EmbeddedDngProfileUiState(
     val options: List<RawEmbeddedDngProfileOption> = emptyList(),
@@ -299,6 +298,7 @@ fun GalleryEditScreen(
     
     val editComputationalAperture by viewModel.editComputationalAperture.collectAsState()
     val editBokehStyle by viewModel.editBokehStyle.collectAsState()
+    val isBokehProcessing by viewModel.isBokehProcessing.collectAsState()
     val editFocusX by viewModel.editFocusPointX.collectAsState()
     val editFocusY by viewModel.editFocusPointY.collectAsState()
 
@@ -1095,6 +1095,35 @@ fun GalleryEditScreen(
                     )
                 }
 
+                // 虚化处理中提示
+                AnimatedVisibility(
+                    visible = isBokehProcessing && !currentPhoto.isVideo,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            color = AccentColor,
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.gallery_bokeh_processing),
+                            color = Color.White,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+
                 // L'emplacement Preview d'EditLayout est déjà borné entre la barre du haut et le panneau.
                 LutSwipeIndicator(state = lutSwipeState)
             }
@@ -1617,32 +1646,16 @@ fun GalleryEditScreen(
                                         Spacer(modifier = Modifier.height(8.dp))
                                         // 细节处理调整 (锐化, 降噪, 杂色降噪)
                                         val aperture = editComputationalAperture
-                                        SliderSettingItem(
+                                        ApertureScaleSettingItem(
                                             title = stringResource(
                                                 R.string.gallery_large_aperture_blur_title
                                             ),
                                             description = stringResource(
                                                 R.string.gallery_large_aperture_blur_description
                                             ),
-                                            // Curseur inversé : plus il est rempli, plus le flou est fort (nombre f bas).
-                                            value = APERTURE_SLIDER_RANGE.endInclusive +
-                                                APERTURE_SLIDER_RANGE.start -
-                                                (editComputationalAperture ?: DEFAULT_COMPUTATIONAL_APERTURE),
-                                            valueRange = APERTURE_SLIDER_RANGE,
-                                            valueTextFormatter = {
-                                                String.format(
-                                                    "%.2f",
-                                                    APERTURE_SLIDER_RANGE.endInclusive +
-                                                        APERTURE_SLIDER_RANGE.start - it
-                                                )
-                                            },
-                                            onValueChange = {
-                                                viewModel.setComputationalAperture(
-                                                    APERTURE_SLIDER_RANGE.endInclusive +
-                                                        APERTURE_SLIDER_RANGE.start - it
-                                                )
-                                            },
-                                            onValueChangeFinished = { },
+                                            value = editComputationalAperture
+                                                ?: DEFAULT_COMPUTATIONAL_APERTURE,
+                                            onValueChange = { viewModel.setComputationalAperture(it) },
                                             toggleValue = isDepthModelInstalled &&
                                                 aperture != null &&
                                                 aperture > 0f,
