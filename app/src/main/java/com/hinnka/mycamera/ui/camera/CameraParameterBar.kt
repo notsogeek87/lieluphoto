@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -16,8 +17,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -29,6 +32,7 @@ import com.hinnka.mycamera.ui.theme.AccentColor
 import com.hinnka.mycamera.R
 import com.hinnka.mycamera.camera.CameraState
 import com.hinnka.mycamera.camera.CameraUtils
+import com.hinnka.mycamera.ui.icons.AppIcons
 import com.hinnka.mycamera.video.CaptureMode
 import kotlin.math.roundToLong
 
@@ -57,7 +61,8 @@ fun CameraParameterBar(
 
 internal data class CameraParameterItem(
     val parameter: CameraParameter,
-    val label: String,
+    val icon: ImageVector,
+    val description: String,
     val value: String?,
     val isEnabled: Boolean = true,
     val isWarning: Boolean = false
@@ -71,7 +76,8 @@ internal fun cameraParameterItems(state: CameraState): List<CameraParameterItem>
     return listOf(
         CameraParameterItem(
             CameraParameter.EXPOSURE_COMPENSATION,
-            stringResource(R.string.camera_parameter_exposure),
+            AppIcons.BrightnessMedium,
+            stringResource(R.string.camera_parameter_exposure_description),
             if (showValues) CameraUtils.formatExposureCompensation(
                 state.exposureCompensation, state.getExposureCompensationStep()
             ) else null,
@@ -79,24 +85,28 @@ internal fun cameraParameterItems(state: CameraState): List<CameraParameterItem>
         ),
         CameraParameterItem(
             CameraParameter.SHUTTER_SPEED,
-            stringResource(R.string.camera_parameter_shutter),
+            AppIcons.ShutterSpeed,
+            stringResource(R.string.camera_parameter_shutter_description),
             if (showValues) formatShutterSpeedValue(state.shutterSpeed) else null,
             isWarning = showValues && state.isPreviewExposureLimited()
         ),
         CameraParameterItem(
             CameraParameter.ISO,
-            stringResource(R.string.camera_parameter_iso),
+            AppIcons.Grain,
+            stringResource(R.string.camera_parameter_iso_description),
             if (showValues) state.iso.toString() else null
         ),
         CameraParameterItem(
             CameraParameter.FOCUS,
-            stringResource(R.string.camera_parameter_focus),
+            AppIcons.CenterFocusStrong,
+            stringResource(R.string.camera_parameter_focus_description),
             if (showValues) formatFocusDistance(state.focusDistance) else null,
             isEnabled = state.minimumFocusDistance > 0f
         ),
         CameraParameterItem(
             CameraParameter.WHITE_BALANCE,
-            stringResource(R.string.camera_parameter_white_balance),
+            AppIcons.Thermostat,
+            stringResource(R.string.camera_parameter_white_balance_description),
             if (showValues) formatWhiteBalanceValue(state) else null,
             isEnabled = state.canAdjustWhiteBalance || state.actualAwbTemperature != null
         )
@@ -137,7 +147,10 @@ internal fun ParameterItem(
                 else Modifier.height(CameraControlsLayoutDefaults.ParameterBarHeight)
             )
             .then(if (titleOnly) Modifier.clip(RoundedCornerShape(8.dp)) else Modifier)
-            .semantics { selected = isSelected }
+            .semantics {
+                selected = isSelected
+                contentDescription = item.description
+            }
             .clickable(enabled = item.isEnabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -151,7 +164,7 @@ internal fun ParameterItem(
         ) {
             if (item.value == null) {
                 PhotoParameterTitle(
-                    label = item.label,
+                    icon = item.icon,
                     color = labelColor,
                     isSelected = isSelected,
                     isEnabled = item.isEnabled
@@ -171,13 +184,11 @@ internal fun ParameterItem(
                         maxLines = 1,
                         softWrap = false
                     )
-                    Text(
-                        text = item.label,
-                        color = labelColor,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Medium,
-                        style = TextStyle(shadow = ViewfinderTextShadow),
-                        maxLines = 1
+                    Icon(
+                        imageVector = item.icon,
+                        contentDescription = null,
+                        tint = labelColor,
+                        modifier = Modifier.size(12.dp)
                     )
                 }
             }
@@ -196,7 +207,7 @@ internal fun ParameterItem(
 
 @Composable
 private fun PhotoParameterTitle(
-    label: String,
+    icon: ImageVector,
     color: Color,
     isSelected: Boolean,
     isEnabled: Boolean
@@ -226,15 +237,11 @@ private fun PhotoParameterTitle(
             .background(backgroundColor, shape),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            color = color,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            style = TextStyle(shadow = ViewfinderTextShadow),
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            softWrap = false
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(22.dp)
         )
     }
 }

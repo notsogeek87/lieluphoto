@@ -161,6 +161,26 @@ object GalleryMediaStore {
         }
     }
 
+    data class ExportedMediaRecord(
+        val id: String,
+        val dateTaken: Long?,
+        val exportedUris: List<String>,
+    )
+
+    /** Photos ayant au moins un fichier exporté, sans charger ni convertir le reste des métadonnées. */
+    suspend fun getExportedMediaRecords(context: Context): List<ExportedMediaRecord> {
+        ensureMigrated(context)
+        return withContext(Dispatchers.IO) {
+            GalleryDatabase.getInstance(context.applicationContext).galleryMediaDao().getExportRows().map { row ->
+                ExportedMediaRecord(
+                    id = row.id,
+                    dateTaken = row.dateTaken,
+                    exportedUris = GalleryDelimitedCodec.decodeList(row.exportedUris),
+                )
+            }
+        }
+    }
+
     private fun buildMigrateEntity(context: Context, photoDir: File): GalleryMediaEntity? {
         val metadataFile = File(photoDir, "metadata.json")
         if (!metadataFile.exists()) return null

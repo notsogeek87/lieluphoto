@@ -98,6 +98,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.math.*
@@ -265,7 +266,12 @@ fun CameraScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val state by viewModel.state.collectAsState()
+    // Les relevés de l'aperçu changent à chaque image : [state] n'est republié que sur les autres
+    // champs. Les zones qui affichent ISO, pose, mise au point, balance des blancs mesurée ou
+    // histogramme lisent l'état courant elles-mêmes (voir [CameraState.equalsIgnoringLiveReadout]).
+    val state by remember(viewModel) {
+        viewModel.state.distinctUntilChanged { old, new -> old.equalsIgnoringLiveReadout(new) }
+    }.collectAsState(initial = viewModel.state.value)
     val depthModelState by remember(context.applicationContext) {
         DepthModelManager.observe(context)
     }.collectAsState()
@@ -1123,6 +1129,8 @@ fun CameraScreen(
         }
 
         val parameterRuler = @Composable { rulerModifier: Modifier ->
+            // État courant, relevés de l'aperçu compris : seule la règle se recompose à chaque image.
+            val state by viewModel.state.collectAsState()
             val whiteBalanceCurrentValue = if (
                 state.awbMode == android.hardware.camera2.CameraMetadata.CONTROL_AWB_MODE_AUTO
             ) {
@@ -1218,6 +1226,8 @@ fun CameraScreen(
         val parameterBar = @Composable {
                 activeParameter: CameraParameter?,
                 onParameterClick: (CameraParameter) -> Unit ->
+            // État courant, relevés de l'aperçu compris : seule la barre se recompose à chaque image.
+            val state by viewModel.state.collectAsState()
             CameraParameterBar(
                 state = state,
                 selectedParameter = activeParameter,
@@ -1317,8 +1327,9 @@ fun CameraScreen(
                         },
                 ) {
                     val currentCameraId = state.currentCameraId
-                    val calibrationOffset by viewModel.getCameraOrientationOffset(currentCameraId)
-                        .collectAsState(initial = 0)
+                    val calibrationOffset by remember(currentCameraId) {
+                        viewModel.getCameraOrientationOffset(currentCameraId)
+                    }.collectAsState(initial = 0)
                     val eyeFocusActive = eyeFocusEnabled &&
                         viewModel.isEyeFocusRuntimeAvailable &&
                         state.isAutoFocus &&
@@ -1645,18 +1656,23 @@ fun CameraScreen(
                         }
 
                         // 实时直方图 (Overlaid on preview if enabled)
-                        if (isPhotoStyleMode && state.histogram != null && viewModel.showHistogram) {
-                            HistogramView(
-                                histogram = state.histogram,
-                                modifier = Modifier
-                                    .padding(
-                                        start = 8.dp,
-                                        top = viewfinderTopOverlayPadding + 8.dp
+                        if (isPhotoStyleMode && viewModel.showHistogram) {
+                            val histogramModifier = Modifier
+                                .padding(
+                                    start = 8.dp,
+                                    top = viewfinderTopOverlayPadding + 8.dp
+                                )
+                                .size(80.dp, 40.dp)
+                                .align(Alignment.TopStart)
+                                .autoRotate(dx = -20.dp, dy = 20.dp)
+                            LiveCameraState(viewModel) { liveState ->
+                                liveState.histogram?.let { histogram ->
+                                    HistogramView(
+                                        histogram = histogram,
+                                        modifier = histogramModifier
                                     )
-                                    .size(80.dp, 40.dp)
-                                    .align(Alignment.TopStart)
-                                    .autoRotate(dx = -20.dp, dy = 20.dp)
-                            )
+                                }
+                            }
                         }
 
                         // 网格线覆盖
@@ -1791,13 +1807,15 @@ fun CameraScreen(
                             .width(xpanSideWidth),
                         contentAlignment = Alignment.Center
                     ) {
-                        CameraParameterBarVerticel(
-                            state = state,
-                            selectedParameter = selectedParameter.takeIf {
-                                showParameterRuler
-                            },
-                            onParameterClick = onParameterClick,
-                        )
+                        LiveCameraState(viewModel) { state ->
+                            CameraParameterBarVerticel(
+                                state = state,
+                                selectedParameter = selectedParameter.takeIf {
+                                    showParameterRuler
+                                },
+                                onParameterClick = onParameterClick,
+                            )
+                        }
                     }
                 }
             }
@@ -3187,6 +3205,19 @@ fun Modifier.autoRotate(
             }
         }
     }
+}
+
+/**
+ * Fournit à [content] l'état courant de la caméra, relevés de l'aperçu compris. Leur
+ * rafraîchissement à chaque image ne recompose que [content], pas l'écran qui l'entoure.
+ */
+@Composable
+private fun LiveCameraState(
+    viewModel: CameraViewModel,
+    content: @Composable (CameraState) -> Unit
+) {
+    val state by viewModel.state.collectAsState()
+    content(state)
 }
 
 @Composable

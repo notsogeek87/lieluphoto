@@ -5,6 +5,12 @@ import androidx.room.Delete
 import androidx.room.Query
 import androidx.room.Upsert
 
+data class GalleryExportRow(
+    val id: String,
+    val dateTaken: Long?,
+    val exportedUris: String?,
+)
+
 @Dao
 interface GalleryMediaDao {
     @Query("SELECT * FROM gallery_media WHERE id = :id LIMIT 1")
@@ -18,6 +24,9 @@ interface GalleryMediaDao {
 
     @Query("SELECT id FROM gallery_media ORDER BY dateAdded DESC")
     suspend fun getIds(): List<String>
+
+    @Query("SELECT id, dateTaken, exportedUris FROM gallery_media WHERE exportedUris IS NOT NULL AND exportedUris != ''")
+    suspend fun getExportRows(): List<GalleryExportRow>
 
     @Query("SELECT COUNT(*) FROM gallery_media")
     suspend fun count(): Int

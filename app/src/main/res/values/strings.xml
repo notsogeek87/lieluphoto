@@ -30,12 +30,12 @@
     <string name="capture_mode_video">Video</string>
 
     <!-- Exposure Controls -->
-    <string name="camera_parameter_exposure" translatable="false">EV</string>
-    <string name="camera_parameter_shutter" translatable="false">Tv</string>
-    <string name="camera_parameter_iso" translatable="false">ISO</string>
-    <string name="camera_parameter_focus" translatable="false">AF</string>
-    <string name="camera_parameter_white_balance" translatable="false">AWB</string>
     <string name="camera_parameter_auto" translatable="false">A</string>
+    <string name="camera_parameter_exposure_description">Brightness</string>
+    <string name="camera_parameter_shutter_description">Shutter speed</string>
+    <string name="camera_parameter_iso_description">ISO sensitivity</string>
+    <string name="camera_parameter_focus_description">Focus</string>
+    <string name="camera_parameter_white_balance_description">White balance</string>
 
     <!-- Focus -->
     <string name="camera_focus_auto">AUTO</string>

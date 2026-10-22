@@ -180,6 +180,31 @@ object AppIcons {
             }
         }
 
+    val BrightnessMedium: ImageVector
+        get() {
+            _brightnessMedium?.let { return it }
+            return ImageVector.Builder(
+                name = "AppIcons.BrightnessMedium",
+                defaultWidth = 24f.dp,
+                defaultHeight = 24f.dp,
+                viewportWidth = 960f,
+                viewportHeight = 960f,
+                autoMirror = false,
+            ).apply {
+                group(
+                    translationY = 960f,
+                ) {
+                    addPath(
+                        pathData = addPathNodes("M480-28 346-160H160v-186L28-480l132-134v-186h186l134-132 134 132h186v186l132 134-132 134v186H614L480-28Zm0-252q83 0 141.5-58.5T680-480q0-83-58.5-141.5T480-680v400Zm0 140 100-100h140v-140l100-100-100-100v-140H580L480-820 380-720H240v140L140-480l100 100v140h140l100 100Zm0-340Z"),
+                        fill = SolidColor(Color.Black),
+                        pathFillType = PathFillType.NonZero,
+                    )
+                }
+            }.build().also {
+                _brightnessMedium = it
+            }
+        }
+
     val Bookmark: ImageVector
         get() {
             _bookmark?.let { return it }
@@ -323,6 +348,31 @@ object AppIcons {
                 }
             }.build().also {
                 _cameraswitch = it
+            }
+        }
+
+    val CenterFocusStrong: ImageVector
+        get() {
+            _centerFocusStrong?.let { return it }
+            return ImageVector.Builder(
+                name = "AppIcons.CenterFocusStrong",
+                defaultWidth = 24f.dp,
+                defaultHeight = 24f.dp,
+                viewportWidth = 960f,
+                viewportHeight = 960f,
+                autoMirror = false,
+            ).apply {
+                group(
+                    translationY = 960f,
+                ) {
+                    addPath(
+                        pathData = addPathNodes("M200-120q-33 0-56.5-23.5T120-200v-160h80v160h160v80H200Zm400 0v-80h160v-160h80v160q0 33-23.5 56.5T760-120H600ZM120-600v-160q0-33 23.5-56.5T200-840h160v80H200v160h-80Zm640 0v-160H600v-80h160q33 0 56.5 23.5T840-760v160h-80ZM480-280q-83 0-141.5-58.5T280-480q0-83 58.5-141.5T480-680q83 0 141.5 58.5T680-480q0 83-58.5 141.5T480-280Zm0-80q50 0 85-35t35-85q0-50-35-85t-85-35q-50 0-85 35t-35 85q0 50 35 85t85 35Zm0-120Z"),
+                        fill = SolidColor(Color.Black),
+                        pathFillType = PathFillType.NonZero,
+                    )
+                }
+            }.build().also {
+                _centerFocusStrong = it
             }
         }
 
@@ -1269,6 +1319,31 @@ object AppIcons {
             }
         }
 
+    val ShutterSpeed: ImageVector
+        get() {
+            _shutterSpeed?.let { return it }
+            return ImageVector.Builder(
+                name = "AppIcons.ShutterSpeed",
+                defaultWidth = 24f.dp,
+                defaultHeight = 24f.dp,
+                viewportWidth = 960f,
+                viewportHeight = 960f,
+                autoMirror = false,
+            ).apply {
+                group(
+                    translationY = 960f,
+                ) {
+                    addPath(
+                        pathData = addPathNodes("M360-840v-80h240v80H360ZM480-80q-75 0-140.5-28.5T225-186q-49-49-77-114.5T120-440q0-74 28.5-139.5T226-694q49-49 114.5-77.5T480-800q63 0 120 21t104 59l58-58 56 56-56 58q36 47 57 104t21 120q0 74-28 139.5T735-186q-49 49-114.5 77.5T480-80Zm0-360Zm0-80h268q-18-62-61.5-109T584-700L480-520Zm-70 40 134-232q-59-15-121.5-2.5T306-660l104 180Zm-206 80h206L276-632q-42 47-62.5 106.5T204-400Zm172 220 104-180H212q18 62 61.5 109T376-180Zm40 12q66 17 128 1.5T654-220L550-400 416-168Zm268-80q44-48 63.5-107.5T756-480H550l134 232Z"),
+                        fill = SolidColor(Color.Black),
+                        pathFillType = PathFillType.NonZero,
+                    )
+                }
+            }.build().also {
+                _shutterSpeed = it
+            }
+        }
+
     val Shuffle: ImageVector
         get() {
             _shuffle?.let { return it }
@@ -1366,6 +1441,31 @@ object AppIcons {
                 }
             }.build().also {
                 _swapHoriz = it
+            }
+        }
+
+    val Thermostat: ImageVector
+        get() {
+            _thermostat?.let { return it }
+            return ImageVector.Builder(
+                name = "AppIcons.Thermostat",
+                defaultWidth = 24f.dp,
+                defaultHeight = 24f.dp,
+                viewportWidth = 960f,
+                viewportHeight = 960f,
+                autoMirror = false,
+            ).apply {
+                group(
+                    translationY = 960f,
+                ) {
+                    addPath(
+                        pathData = addPathNodes("M520-520v-80h200v80H520Zm0-160v-80h320v80H520ZM320-120q-83 0-141.5-58.5T120-320q0-48 21-89.5t59-70.5v-240q0-50 35-85t85-35q50 0 85 35t35 85v240q38 29 59 70.5t21 89.5q0 83-58.5 141.5T320-120ZM200-320h240q0-29-12.5-54T392-416l-32-24v-280q0-17-11.5-28.5T320-760q-17 0-28.5 11.5T280-720v280l-32 24q-23 17-35.5 42T200-320Z"),
+                        fill = SolidColor(Color.Black),
+                        pathFillType = PathFillType.NonZero,
+                    )
+                }
+            }.build().also {
+                _thermostat = it
             }
         }
 
@@ -1551,12 +1651,14 @@ private var _addPhotoAlternate: ImageVector? = null
 private var _article: ImageVector? = null
 private var _autoAwesome: ImageVector? = null
 private var _barChart: ImageVector? = null
+private var _brightnessMedium: ImageVector? = null
 private var _bookmark: ImageVector? = null
 private var _borderBottom: ImageVector? = null
 private var _burstMode: ImageVector? = null
 private var _business: ImageVector? = null
 private var _cameraAlt: ImageVector? = null
 private var _cameraswitch: ImageVector? = null
+private var _centerFocusStrong: ImageVector? = null
 private var _checkBox: ImageVector? = null
 private var _checkBoxOutlineBlank: ImageVector? = null
 private var _chevronRight: ImageVector? = null
@@ -1595,10 +1697,12 @@ private var _pushPin: ImageVector? = null
 private var _restartAlt: ImageVector? = null
 private var _screenRotation: ImageVector? = null
 private var _selectAll: ImageVector? = null
+private var _shutterSpeed: ImageVector? = null
 private var _shuffle: ImageVector? = null
 private var _starBorder: ImageVector? = null
 private var _stop: ImageVector? = null
 private var _swapHoriz: ImageVector? = null
+private var _thermostat: ImageVector? = null
 private var _timer: ImageVector? = null
 private var _tune: ImageVector? = null
 private var _vibration: ImageVector? = null

@@ -1427,4 +1427,9 @@
     <string name="ai_enhance_faces_model_title">Modèle visages (GFPGAN)</string>
     <string name="ai_enhance_faces_model_description">Touchez pour télécharger le modèle de restauration des visages GFPGAN (environ 431 Mo, licence Apache 2.0). Il rend les yeux, la peau et les cheveux plus nets. Fonctionne entièrement sur le téléphone.</string>
     <string name="ai_enhance_faces_model_ready">Modèle installé. Touchez pour le supprimer et libérer 431 Mo.</string>
+    <string name="camera_parameter_exposure_description">Luminosité</string>
+    <string name="camera_parameter_shutter_description">Vitesse d’obturation</string>
+    <string name="camera_parameter_iso_description">Sensibilité ISO</string>
+    <string name="camera_parameter_focus_description">Mise au point</string>
+    <string name="camera_parameter_white_balance_description">Balance des blancs</string>
 </resources>
