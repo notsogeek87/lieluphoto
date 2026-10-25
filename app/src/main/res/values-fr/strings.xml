@@ -1204,6 +1204,7 @@
     <string name="depth_model_downloading_progress">Téléchargement du modèle… %1$d %%</string>
     <string name="depth_model_importing">Importation et vérification du modèle…</string>
     <string name="depth_model_installing">Vérification et installation du modèle…</string>
+    <string name="portrait_model_preparing">Portrait · %1$s</string>
     <string name="depth_model_download_failed">Le modèle n\'a pas pu être importé, téléchargé ou vérifié. Vérifiez le fichier sélectionné ou votre connexion, puis réessayez.</string>
     <string name="depth_model_download_ready">Un modèle de profondeur compatible est prêt. Vous pouvez en importer un autre pour le remplacer.</string>
     <string name="depth_model_retry">Réessayer</string>

@@ -1117,6 +1117,13 @@ fun CameraScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    // Portrait en préparation : progression visible en permanence, l'appui la détaille.
+                    if (portraitPreparing) {
+                        PortraitModelProgressChip(
+                            modelState = depthModelState,
+                            onClick = { showDepthModelDownloadDialog = true }
+                        )
+                    }
                     // Portrait : l'ouverture se règle juste au-dessus du zoom, avec les modèles.
                     if (state.isVirtualApertureEnabled) {
                         ApertureDial(
@@ -2626,6 +2633,8 @@ fun CaptureButton(
         photoCaptureProgress.takeIf { isCapturing && captureMode == CaptureMode.PHOTO }
     )
 
+    val currentOnTap by rememberUpdatedState(onTap)
+    val currentTapBlocked by rememberUpdatedState(isCapturing || isVideoProcessing)
     val currentDisabled by rememberUpdatedState(
         isCapturing ||
             isVideoProcessing ||
@@ -2640,8 +2649,10 @@ fun CaptureButton(
                 var isLongPressStarted = false
                 detectTapGestures(
                     onTap = {
-                        if (!isCapturing && !isVideoProcessing) {
-                            onTap()
+                        // Le geste n'est lancé qu'une fois (clé allowLongPress) : lire l'état et le
+                        // rappel courants, sinon l'appui exécute la version du premier affichage.
+                        if (!currentTapBlocked) {
+                            currentOnTap()
                         }
                     },
                     onLongPress = if (allowLongPress) {

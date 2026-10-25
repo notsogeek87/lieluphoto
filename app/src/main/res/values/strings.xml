@@ -1129,6 +1129,7 @@
     <string name="depth_model_downloading_progress">Downloading model… %1$d%%</string>
     <string name="depth_model_importing">Importing and verifying model…</string>
     <string name="depth_model_installing">Verifying and installing model…</string>
+    <string name="portrait_model_preparing">Portrait · %1$s</string>
     <string name="depth_model_download_failed">The model could not be imported, downloaded, or verified. Check the selected file or your connection and try again.</string>
     <string name="depth_model_download_ready">A compatible depth model is ready. You can import another model to replace it.</string>
     <string name="depth_model_retry">Retry</string>

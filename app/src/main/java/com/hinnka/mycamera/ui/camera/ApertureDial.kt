@@ -4,9 +4,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -35,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hinnka.mycamera.R
+import com.hinnka.mycamera.ml.DepthModelDownloadState
 import com.hinnka.mycamera.ui.theme.AccentColor
 import kotlin.math.PI
 import kotlin.math.abs
@@ -198,3 +202,61 @@ private fun bladeAngle(blade: Int): Double = -PI / 2 + blade * 2 * PI / IrisBlad
 
 private fun DrawScope.polarPoint(center: Offset, radius: Float, angle: Double): Offset =
     Offset(center.x + radius * cos(angle).toFloat(), center.y + radius * sin(angle).toFloat())
+
+/**
+ * Pastille posée à la place du cadran tant que le Portrait attend son modèle de profondeur :
+ * l'utilisateur voit que le mode se prépare et où en est le téléchargement. L'appui ouvre le détail.
+ */
+@Composable
+internal fun PortraitModelProgressChip(
+    modelState: DepthModelDownloadState,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val downloading = modelState as? DepthModelDownloadState.Downloading
+    val progress = downloading?.takeIf { !it.isInstalling }?.progress
+    val detail = when {
+        modelState is DepthModelDownloadState.Importing -> stringResource(R.string.depth_model_importing)
+        downloading?.isInstalling == true -> stringResource(R.string.depth_model_installing)
+        progress != null -> stringResource(R.string.depth_model_downloading_progress, (progress * 100f).roundToInt())
+        else -> stringResource(R.string.depth_model_downloading)
+    }
+    val shape = RoundedCornerShape(20.dp)
+    val accent = AccentColor
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(Color.Black.copy(alpha = 0.45f))
+            .border(0.5.dp, Color.White.copy(alpha = 0.18f), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.portrait_model_preparing, detail),
+            color = Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1
+        )
+        val indicatorModifier = Modifier
+            .width(200.dp)
+            .height(3.dp)
+            .clip(RoundedCornerShape(2.dp))
+        if (progress != null) {
+            LinearProgressIndicator(
+                progress = { progress },
+                color = accent,
+                trackColor = Color.White.copy(alpha = 0.2f),
+                modifier = indicatorModifier
+            )
+        } else {
+            LinearProgressIndicator(
+                color = accent,
+                trackColor = Color.White.copy(alpha = 0.2f),
+                modifier = indicatorModifier
+            )
+        }
+    }
+}
