@@ -76,7 +76,6 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import coil.request.ImageRequest
 import coil.compose.AsyncImage
 import com.hinnka.mycamera.hdr.HdrGainmapStrength
-import com.hinnka.mycamera.lut.creator.AiPhotoCriterion
 import com.hinnka.mycamera.lut.isVideoTransformerExportSupported
 import com.hinnka.mycamera.lut.VideoExportOption
 import com.hinnka.mycamera.lut.VideoExportResolution

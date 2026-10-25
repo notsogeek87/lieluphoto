@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
 import android.util.Log
-import androidx.annotation.Keep
 import com.hinnka.mycamera.BuildConfig
 import com.hinnka.mycamera.utils.PLog
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +22,6 @@ import androidx.core.graphics.scale
 import com.hinnka.mycamera.data.ContentRepository
 import com.hinnka.mycamera.utils.DeviceUtil
 import kotlinx.coroutines.flow.firstOrNull
-import kotlin.math.roundToInt
 
 class OpenAIApiClient() {
 
@@ -242,127 +240,6 @@ ${customPrompt.ifBlank { "No additional direction." }}
             }
         }
 
-    suspend fun evaluateImageQuality(
-        bitmap: Bitmap,
-        localeTag: String
-    ): Result<AiPhotoEvaluation> =
-        withContext(Dispatchers.IO) {
-            try {
-                val base64Image = bitmapToBase64(bitmap)
-                val prompt = """
-You are an exacting international photography juror reviewing one single image.
-Use an editorial, contemporary-photography framework inspired by the recurring
-principles in LensCulture juror guidance: impact, originality, visual language,
-narrative autonomy, conceptual coherence, aesthetic quality, and technical mastery.
-This is not an official LensCulture score and you must not claim that it is.
-
-Judge what is visible in the image. Do not invent the photographer's biography,
-caption, location, intent, or a larger series. Do not penalize unconventional focus,
-exposure, color, grain, motion, or framing when the choice clearly strengthens the
-work. Be candid, specific, and constructive; avoid generic praise.
-
-Start from 60 for competent but unremarkable work, then move only when visible
-evidence earns it. Calibrate strictly:
-- 0-49: unresolved
-- 50-64: developing
-- 65-73: promising
-- 74-81: strong
-- 82-89: distinctive
-- 90-95: award-ready
-- 96-100: truly exceptional and extremely rare
-
-Score these five independent criteria from 0 to 100:
-1. Visual Impact (25%): stopping power, memorability, emotional immediacy, and
-   whether the image rewards sustained attention.
-2. Originality & Authorial Voice (20%): a fresh subjective point of view and a
-   distinctive visual language, not novelty for its own sake.
-3. Narrative & Meaning (20%): the image's ability to evoke a story, idea, tension,
-   or feeling and to stand autonomously without a caption.
-4. Intent & Coherence (20%): whether subject, moment, framing, light, color, and
-   editing work together toward a legible purpose within this single frame.
-5. Aesthetic & Technical Execution (15%): composition, light, tone/color,
-   focus/motion, timing, and post-processing, judged by how well craft serves intent.
-
-For every criterion, give one short sentence citing concrete visual evidence.
-Also provide:
-- "verdict": a concise two-sentence juror assessment balancing achievement and limitation.
-- "strength": the single most successful visible choice.
-- "improvement": the highest-leverage, actionable change for shooting, selection,
-  framing, timing, light, or editing. Do not prescribe a generic rule.
-
-The user's current system language is "$localeTag". Every feedback string MUST be written in that language.
-Return JSON only, without markdown formatting, code blocks, or any conversational text, using this exact schema:
-{
-  "visualImpact": {
-    "score": 0-100 integer,
-    "feedback": "specific evidence"
-  },
-  "originalityAndVoice": {
-    "score": 0-100 integer,
-    "feedback": "specific evidence"
-  },
-  "narrativeAndMeaning": {
-    "score": 0-100 integer,
-    "feedback": "specific evidence"
-  },
-  "intentAndCoherence": {
-    "score": 0-100 integer,
-    "feedback": "specific evidence"
-  },
-  "aestheticAndTechnicalExecution": {
-    "score": 0-100 integer,
-    "feedback": "specific evidence"
-  },
-  "verdict": "concise two-sentence juror assessment",
-  "strength": "single strongest visible choice",
-  "improvement": "single highest-leverage actionable change"
-}
-                """.trimIndent()
-
-                val jsonObject = JSONObject().apply {
-                    put("model", model)
-                    put("messages", JSONArray().apply {
-                        put(JSONObject().apply {
-                            put("role", "user")
-                            put("content", JSONArray().apply {
-                                put(JSONObject().apply {
-                                    put("type", "text")
-                                    put("text", prompt)
-                                })
-                                put(JSONObject().apply {
-                                    put("type", "image_url")
-                                    put("image_url", JSONObject().apply {
-                                        put("url", "data:image/jpeg;base64,$base64Image")
-                                    })
-                                })
-                            })
-                        })
-                    })
-                    put("response_format", JSONObject().apply {
-                        put("type", "json_object")
-                    })
-                    putChatGenerationOptions(maxCompletionTokens = 1024)
-                }
-
-                val requestBody =
-                    jsonObject.toString().toRequestBody("application/json".toMediaType())
-
-                val requestBuilder = Request.Builder()
-                    .url("$apiBaseUrl/chat/completions")
-                    .addOpenAIHeaders()
-                    .post(requestBody)
-                if (CHAT_COMPLETIONS_STREAMING_ENABLED) {
-                    requestBuilder.addHeader("Accept", "text/event-stream")
-                }
-                val request = requestBuilder.build()
-
-                val text = executeChatCompletion(request, "Evaluate")
-                Result.success(parseEvaluation(text))
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
-        }
-
     private fun executeChatCompletion(request: Request, operation: String): String =
         if (CHAT_COMPLETIONS_STREAMING_ENABLED) {
             executeStreamingChatCompletion(request, operation)
@@ -499,54 +376,6 @@ Return JSON only, without markdown formatting, code blocks, or any conversationa
         }
         return text.toString()
     }
-
-    private fun parseEvaluation(text: String): AiPhotoEvaluation {
-        val cleaned = text
-            .trim()
-            .removePrefix("```json")
-            .removePrefix("```")
-            .removeSuffix("```")
-            .trim()
-        val jsonStart = cleaned.indexOf('{')
-        val jsonEnd = cleaned.lastIndexOf('}')
-        val jsonText = if (jsonStart >= 0 && jsonEnd >= jsonStart) {
-            cleaned.substring(jsonStart, jsonEnd + 1)
-        } else {
-            cleaned
-        }
-        val json = JSONObject(jsonText)
-        val scores = AiPhotoCriteriaScores(
-            visualImpact = json.requirePhotoCriterion("visualImpact"),
-            originalityAndVoice = json.requirePhotoCriterion("originalityAndVoice"),
-            narrativeAndMeaning = json.requirePhotoCriterion("narrativeAndMeaning"),
-            intentAndCoherence = json.requirePhotoCriterion("intentAndCoherence"),
-            aestheticAndTechnicalExecution =
-                json.requirePhotoCriterion("aestheticAndTechnicalExecution")
-        )
-        return AiPhotoEvaluation(
-            overallScore = scores.weightedOverallScore(),
-            scores = scores,
-            verdict = json.requireEvaluationText("verdict"),
-            strength = json.requireEvaluationText("strength"),
-            improvement = json.requireEvaluationText("improvement")
-        )
-    }
-
-    private fun JSONObject.requirePhotoCriterion(name: String): AiPhotoCriterion {
-        val criterion = getJSONObject(name)
-        val score = criterion.getInt("score")
-        require(score in 0..100) {
-            "AI response field \"$name.score\" was outside 0..100"
-        }
-        return AiPhotoCriterion(
-            score = score,
-            feedback = criterion.requireEvaluationText("feedback")
-        )
-    }
-
-    private fun JSONObject.requireEvaluationText(name: String): String =
-        getString(name).trim().takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("AI response field \"$name\" was blank")
 
     private fun parseLutRecipe(text: String): LutRecipe {
         val json = JSONObject(extractJsonObjectText(text))
@@ -740,39 +569,5 @@ Return JSON only, without markdown formatting, code blocks, or any conversationa
             return textBuilder.toString()
         }
         return ""
-    }
-}
-
-@Keep
-data class AiPhotoEvaluation(
-    val overallScore: Int,
-    val scores: AiPhotoCriteriaScores,
-    val verdict: String,
-    val strength: String,
-    val improvement: String
-)
-
-@Keep
-data class AiPhotoCriterion(
-    val score: Int,
-    val feedback: String
-)
-
-@Keep
-data class AiPhotoCriteriaScores(
-    val visualImpact: AiPhotoCriterion,
-    val originalityAndVoice: AiPhotoCriterion,
-    val narrativeAndMeaning: AiPhotoCriterion,
-    val intentAndCoherence: AiPhotoCriterion,
-    val aestheticAndTechnicalExecution: AiPhotoCriterion
-) {
-    fun weightedOverallScore(): Int {
-        val weightedSum =
-            visualImpact.score * 25 +
-                originalityAndVoice.score * 20 +
-                narrativeAndMeaning.score * 20 +
-                intentAndCoherence.score * 20 +
-                aestheticAndTechnicalExecution.score * 15
-        return (weightedSum / 100f).roundToInt().coerceIn(0, 100)
     }
 }
