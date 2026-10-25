@@ -911,16 +911,6 @@
     <string name="lut_creator_finish">完了</string>
     <string name="lut_creator_error">エラー： %s</string>
     <string name="lut_creator_try_again">再試行</string>
-    <string name="gallery_ai_analysis">AIレビュー</string>
-    <string name="gallery_ai_quality_title">AI写真講評</string>
-    <string name="gallery_ai_premium_required">AI写真講評はPro機能です。アップグレードすると、審査員形式の採点と講評を利用できます。</string>
-    <string name="gallery_ai_analyzing">写真を講評中…</string>
-    <string name="gallery_ai_analyzing_description">5つの編集審査基準を評価し、画面内で確認できる要素に基づいて講評します。</string>
-    <string name="gallery_ai_analysis_failed">レビューを完了できませんでした</string>
-    <string name="gallery_ai_analysis_failed_description">AIサービス設定と接続を確認して、もう一度お試しください。</string>
-    <string name="gallery_ai_criteria_title">項目別評価</string>
-    <string name="gallery_ai_criteria_description">各項目は、画面内で確認できる根拠に基づいて独立採点されます。</string>
-    <string name="gallery_ai_criterion_visual_impact">視覚的インパクト</string>
     <string name="settings_ai_model">AIモデル</string>
     <string name="settings_ai_model_desc">AIに使用するモデルを選択</string>
     <string name="settings_ai_model_loading">モデルを読み込み中…</string>
