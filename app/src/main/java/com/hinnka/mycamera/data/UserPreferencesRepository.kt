@@ -182,8 +182,9 @@ data class UserPreferences(
     val autoSaveAfterCapture: Boolean = true,  // 自动保存
     val updateExportAfterEdit: Boolean = true,  // 编辑后更新已导出到系统相册的照片
     val deleteWhenExportRemoved: Boolean = true,  // 系统相册中的导出文件被删除后，同步删除应用内照片
-    // Amélioration IA (NAFNet) des photos en faible lumière, si le modèle est téléchargé.
-    val aiEnhanceEnabled: Boolean = false,
+    // Amélioration IA des photos (bruit NAFNet, visages GFPGAN), activée par défaut : les modèles
+    // sont proposés au téléchargement à chaque ouverture tant qu'ils manquent.
+    val aiEnhanceEnabled: Boolean = true,
     val photoSavePath: PhotoSavePath = PhotoSavePath.DCIM_PHOTON,
     val photoSaveTreeUri: String? = null,
     val nrLevel: Int = NoiseReductionLevel.DEFAULT,  // 降噪等级：0=Off, 1=Fast, 2=High Quality, 3=ZSL, 4=Minimal
@@ -773,7 +774,7 @@ class UserPreferencesRepository(private val context: Context) {
                 autoSaveAfterCapture = preferences[AUTO_SAVE_AFTER_CAPTURE] ?: true,
                 updateExportAfterEdit = preferences[UPDATE_EXPORT_AFTER_EDIT] ?: true,
                 deleteWhenExportRemoved = preferences[DELETE_WHEN_EXPORT_REMOVED] ?: true,
-                aiEnhanceEnabled = preferences[AI_ENHANCE_ENABLED] ?: false,
+                aiEnhanceEnabled = preferences[AI_ENHANCE_ENABLED] ?: true,
                 photoSavePath = PhotoSavePath.fromPersistedName(preferences[PHOTO_SAVE_PATH]),
                 photoSaveTreeUri = preferences[PHOTO_SAVE_TREE_URI]?.takeIf { it.isNotBlank() },
                 nrLevel = NoiseReductionLevel.normalize(

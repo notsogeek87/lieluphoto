@@ -72,6 +72,7 @@ import com.hinnka.mycamera.camera.CameraState
 import com.hinnka.mycamera.camera.FocusPointSource
 import com.hinnka.mycamera.camera.PhotoCaptureProgress
 import com.hinnka.mycamera.data.CaptureButtonStyle
+import com.hinnka.mycamera.data.ContentRepository
 import com.hinnka.mycamera.data.DevelopAnimationStyle
 import com.hinnka.mycamera.ml.DepthModelDownloadState
 import com.hinnka.mycamera.ml.DepthModelManager
@@ -98,6 +99,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.math.*
@@ -116,7 +118,6 @@ enum class ActivePanel {
 
 private enum class CameraShootingMode {
     PHOTO,
-    NIGHT,
     PORTRAIT,
     VIDEO
 }
@@ -136,12 +137,12 @@ private val VideoTopBarLoweredOffset = 36.dp
 private val XpanViewfinderInnerBorder = 4.dp
 private val XpanSideControlReservedWidth = 56.dp
 
-private fun formatVirtualApertureFStop(aperture: Float): String {
+internal fun formatVirtualApertureFStop(aperture: Float): String {
     val rounded = aperture.roundToInt()
     return if (aperture == rounded.toFloat()) rounded.toString() else aperture.toString()
 }
 
-private val VirtualApertureStops = listOf(1.0f, 1.4f, 1.8f, 2.0f, 2.8f, 4.0f, 5.6f, 8.0f, 11.0f, 16.0f)
+internal val VirtualApertureStops = listOf(1.0f, 1.4f, 1.8f, 2.0f, 2.8f, 4.0f, 5.6f, 8.0f, 11.0f, 16.0f)
 
 @Composable
 private fun VirtualApertureDialog(
@@ -168,39 +169,6 @@ private fun VirtualApertureDialog(
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.ok)) } }
     )
-}
-
-/** Sélecteur d'ouverture affiché dans le viseur tant que le mode Portrait est actif. */
-@Composable
-private fun VirtualApertureSelector(
-    aperture: Float,
-    onApertureChange: (Float) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val index = VirtualApertureStops.indices
-        .minByOrNull { kotlin.math.abs(VirtualApertureStops[it] - aperture) } ?: 0
-    Surface(
-        color = Color.Black.copy(alpha = 0.2f),
-        shape = RoundedCornerShape(8.dp),
-        modifier = modifier
-    ) {
-        Slider(
-            value = index.toFloat(),
-            onValueChange = { onApertureChange(VirtualApertureStops[it.roundToInt()]) },
-            valueRange = 0f..(VirtualApertureStops.size - 1).toFloat(),
-            steps = VirtualApertureStops.size - 2,
-            colors = SliderDefaults.colors(
-                thumbColor = Color.White,
-                activeTrackColor = Color.White,
-                inactiveTrackColor = Color.White.copy(alpha = 0.35f),
-                activeTickColor = Color.Transparent,
-                inactiveTickColor = Color.Transparent
-            ),
-            modifier = Modifier
-                .width(180.dp)
-                .padding(horizontal = 8.dp)
-        )
-    }
 }
 
 @Composable
@@ -736,11 +704,11 @@ fun CameraScreen(
         runPreviewTransition { viewModel.switchCamera() }
     }
 
-    // Portrait = photo avec bokeh IA activé ; Photo et Nuit le coupent.
-    // Nuit = photo avec empilement multi-images renforcé.
+    // Portrait = photo avec bokeh IA activé ; Photo le coupe.
+    // Nuit (empilement multi-images renforcé) est un interrupteur à part, combinable avec les deux.
     fun applyBokehForMode(mode: CameraShootingMode) {
         if (mode != CameraShootingMode.PORTRAIT) pendingBokehEnable = false
-        viewModel.setNightMode(mode == CameraShootingMode.NIGHT)
+        if (mode == CameraShootingMode.VIDEO) viewModel.setNightMode(false)
         when (mode) {
             CameraShootingMode.PORTRAIT -> if (!state.isVirtualApertureEnabled) {
                 if (DepthModelManager.isInstalled(context)) {
@@ -751,8 +719,7 @@ fun CameraScreen(
                     DepthModelManager.download(context)
                 }
             }
-            CameraShootingMode.PHOTO,
-            CameraShootingMode.NIGHT -> if (state.isVirtualApertureEnabled) {
+            CameraShootingMode.PHOTO -> if (state.isVirtualApertureEnabled) {
                 viewModel.setVirtualApertureAuto(false)
             }
             CameraShootingMode.VIDEO -> Unit
@@ -762,13 +729,11 @@ fun CameraScreen(
     fun setShootingModeWithPreviewTransition(mode: CameraShootingMode) {
         val targetCaptureMode = when (mode) {
             CameraShootingMode.PHOTO,
-            CameraShootingMode.NIGHT,
             CameraShootingMode.PORTRAIT -> CaptureMode.PHOTO
             CameraShootingMode.VIDEO -> CaptureMode.VIDEO
         }
         val targetUseRaw = when (mode) {
             CameraShootingMode.PHOTO,
-            CameraShootingMode.NIGHT,
             CameraShootingMode.PORTRAIT -> false
             CameraShootingMode.VIDEO -> null
         }
@@ -789,19 +754,17 @@ fun CameraScreen(
         }
     }
 
-    // Balayage horizontal du viseur : Photo · Nuit · Portrait · Vidéo, comme sur l'appareil Samsung.
+    // Balayage horizontal du viseur : Photo · Portrait · Vidéo, comme sur l'appareil Samsung.
     fun swipeShootingMode(forward: Boolean) {
         if (state.videoRecordingState.isRecording || state.videoRecordingState.isProcessing) return
         if (previewTransitionActive || lensSwitchTransition.isActive) return
         val modes = buildList {
             add(CameraShootingMode.PHOTO)
-            add(CameraShootingMode.NIGHT)
             add(CameraShootingMode.PORTRAIT)
             add(CameraShootingMode.VIDEO)
         }
         val current = when {
             state.captureMode == CaptureMode.VIDEO -> CameraShootingMode.VIDEO
-            nightMode -> CameraShootingMode.NIGHT
             state.isVirtualApertureEnabled || portraitPreparing -> CameraShootingMode.PORTRAIT
             else -> CameraShootingMode.PHOTO
         }
@@ -811,7 +774,6 @@ fun CameraScreen(
             context.getString(
                 when (target) {
                     CameraShootingMode.PHOTO -> R.string.capture_mode_photo
-                    CameraShootingMode.NIGHT -> R.string.capture_mode_night
                     CameraShootingMode.PORTRAIT -> R.string.capture_mode_portrait
                     CameraShootingMode.VIDEO -> R.string.capture_mode_video
                 }
@@ -1162,14 +1124,26 @@ fun CameraScreen(
 
         val modelBar = @Composable {
             if (activePanel == ActivePanel.NONE && !isXpan && !isVideoMode && !zoomRulerActive) {
-                ModelQuickBar(
-                    favorites = viewModel.favoriteLutList,
-                    currentLut = viewModel.availableLutList.firstOrNull { it.id == currentLutId },
-                    onSelect = { viewModel.setLut(it.id) },
-                    onClear = { viewModel.setLut(null) },
-                    onToggleFavorite = { viewModel.toggleLutFavorite(it.id) },
-                    onOpenPanel = { activePanel = ActivePanel.FILTERS }
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Portrait : l'ouverture se règle juste au-dessus du zoom, avec les modèles.
+                    if (state.isVirtualApertureEnabled) {
+                        ApertureDial(
+                            aperture = state.virtualAperture,
+                            onApertureChange = { viewModel.setDefaultVirtualAperture(it) }
+                        )
+                    }
+                    ModelQuickBar(
+                        favorites = viewModel.favoriteLutList,
+                        currentLut = viewModel.availableLutList.firstOrNull { it.id == currentLutId },
+                        onSelect = { viewModel.setLut(it.id) },
+                        onClear = { viewModel.setLut(null) },
+                        onToggleFavorite = { viewModel.toggleLutFavorite(it.id) },
+                        onOpenPanel = { activePanel = ActivePanel.FILTERS }
+                    )
+                }
             }
         }
 
@@ -1519,8 +1493,7 @@ fun CameraScreen(
 
                     // Scène sombre détectée : pastille « Nuit » pour activer le mode d'un appui.
                     if (state.nightSuggested && !nightMode &&
-                        state.captureMode == CaptureMode.PHOTO &&
-                        !state.isVirtualApertureEnabled
+                        state.captureMode == CaptureMode.PHOTO
                     ) {
                         // En bas à droite du viseur, au-dessus du zoom et des styles s'ils le recouvrent.
                         val nightChipBottomPadding = with(LocalDensity.current) {
@@ -1540,7 +1513,7 @@ fun CameraScreen(
                                 .padding(end = 12.dp, bottom = nightChipBottomPadding)
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable(enabled = !state.isCapturing && !previewTransitionActive) {
-                                    setShootingModeWithPreviewTransition(CameraShootingMode.NIGHT)
+                                    viewModel.setNightMode(true)
                                 }
                         ) {
                             Row(
@@ -1650,10 +1623,6 @@ fun CameraScreen(
                                             )
                                         )
                                     }
-                                    VirtualApertureSelector(
-                                        aperture = state.virtualAperture,
-                                        onApertureChange = { viewModel.setDefaultVirtualAperture(it) }
-                                    )
                                 }
                                 if (showApertureDialog) {
                                     VirtualApertureDialog(
@@ -1681,6 +1650,14 @@ fun CameraScreen(
                                 }
                             }
                             if (showVirtualApertureIndicator) {
+                                // Interrupteur indépendant du mode : la Nuit s'ajoute à Photo comme à Portrait.
+                                ViewfinderChip(
+                                    active = nightMode,
+                                    label = stringResource(R.string.capture_mode_night),
+                                    downloadProgress = null,
+                                    enabled = !state.isCapturing && !previewTransitionActive,
+                                    onClick = { viewModel.setNightMode(!nightMode) }
+                                )
                                 AiEnhanceControl(
                                     viewModel = viewModel,
                                     enabled = !state.videoRecordingState.isRecording
@@ -1887,7 +1864,6 @@ fun CameraScreen(
                 },
                 onSwitchCameraClick = ::switchCameraWithPreviewTransition,
                 onCaptureModeSelected = ::setShootingModeWithPreviewTransition,
-                isNightMode = nightMode,
                 isPortraitPreparing = portraitPreparing,
                 modeSwitchEnabled = !previewTransitionActive && !lensSwitchTransition.isActive,
                 onCaptureTap = {
@@ -2350,7 +2326,6 @@ private fun Controls(
     onCaptureButtonBoundsChanged: (Rect) -> Unit,
     onSwitchCameraClick: () -> Unit,
     onCaptureModeSelected: (CameraShootingMode) -> Unit,
-    isNightMode: Boolean,
     isPortraitPreparing: Boolean,
     modeSwitchEnabled: Boolean,
     onCaptureTap: () -> Unit,
@@ -2503,7 +2478,6 @@ private fun Controls(
             CaptureModeSwitcher(
                 shootingMode = when {
                     state.captureMode == CaptureMode.VIDEO -> CameraShootingMode.VIDEO
-                    isNightMode -> CameraShootingMode.NIGHT
                     state.isVirtualApertureEnabled || isPortraitPreparing -> CameraShootingMode.PORTRAIT
                     else -> CameraShootingMode.PHOTO
                 },
@@ -2831,7 +2805,7 @@ private fun rememberPhotoCaptureProgress(progress: PhotoCaptureProgress?): State
 }
 
 @Composable
-private fun AiEnhanceChip(
+private fun ViewfinderChip(
     active: Boolean,
     label: String,
     downloadProgress: Float?,
@@ -2896,7 +2870,23 @@ private fun AiEnhanceControl(
     } / AiModel.entries.sumOf { it.sizeBytes.toDouble() }
     var showAiDownloadDialog by remember { mutableStateOf(false) }
 
-    AiEnhanceChip(
+    // L'IA est activée par défaut : à chaque ouverture de l'app, les modèles manquants sont proposés
+    // au téléchargement. Fermer la fenêtre ne l'évite pas pour la prochaine ouverture.
+    val aiCameraInitialized by viewModel.isInitialized.collectAsState()
+    val currentAiReady by rememberUpdatedState(aiReady)
+    val currentAiDownloading by rememberUpdatedState(aiDownloading)
+    LaunchedEffect(aiCameraInitialized) {
+        if (!aiCameraInitialized || viewModel.aiLaunchPromptShown) return@LaunchedEffect
+        // Valeur enregistrée, pas l'état initial du flux, tant que les préférences ne sont pas lues.
+        val enabled = ContentRepository.getInstance(aiContext.applicationContext)
+            .userPreferencesRepository.userPreferences.firstOrNull()?.aiEnhanceEnabled ?: false
+        viewModel.aiLaunchPromptShown = true
+        if (enabled && !currentAiReady && !currentAiDownloading) {
+            showAiDownloadDialog = true
+        }
+    }
+
+    ViewfinderChip(
         active = aiPreferences.aiEnhanceEnabled && (aiReady || aiDownloading),
         label = stringResource(R.string.ai_enhance_chip),
         downloadProgress = if (aiDownloading) aiDownloadProgress.toFloat() else null,
@@ -2919,7 +2909,8 @@ private fun AiEnhanceControl(
                 Text(
                     stringResource(
                         R.string.ai_enhance_dialog_message_models,
-                        missingModels.joinToString(" + ") { aiModelLabel(aiContext, it) }
+                        missingModels.joinToString(" + ") { aiModelLabel(aiContext, it) },
+                        (missingModels.sumOf { it.sizeBytes } / 1_000_000L).toInt()
                     )
                 )
             },
@@ -2966,12 +2957,11 @@ private fun CaptureModeSwitcher(
             )
             .padding(3.dp)
     ) {
-        val knobWidth = maxWidth / 4
+        val knobWidth = maxWidth / 3
         val selectedIndex = when (shootingMode) {
             CameraShootingMode.PHOTO -> 0
-            CameraShootingMode.NIGHT -> 1
-            CameraShootingMode.PORTRAIT -> 2
-            CameraShootingMode.VIDEO -> 3
+            CameraShootingMode.PORTRAIT -> 1
+            CameraShootingMode.VIDEO -> 2
         }
         val knobOffset by animateDpAsState(
             targetValue = knobWidth * selectedIndex,
@@ -3000,13 +2990,6 @@ private fun CaptureModeSwitcher(
                 selected = shootingMode == CameraShootingMode.PHOTO,
                 enabled = enabled,
                 onClick = { onModeSelected(CameraShootingMode.PHOTO) },
-                modifier = Modifier.weight(1f)
-            )
-            ModeSwitcherItem(
-                label = stringResource(R.string.capture_mode_night),
-                selected = shootingMode == CameraShootingMode.NIGHT,
-                enabled = enabled,
-                onClick = { onModeSelected(CameraShootingMode.NIGHT) },
                 modifier = Modifier.weight(1f)
             )
             ModeSwitcherItem(

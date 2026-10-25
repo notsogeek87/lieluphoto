@@ -4204,6 +4204,9 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         setShootingMode(mode, useRaw = null)
     }
 
+    /** Vrai une fois la proposition de téléchargement des modèles IA faite pour cette ouverture de l'app. */
+    var aiLaunchPromptShown = false
+
     private val _portraitPreparing = MutableStateFlow(false)
 
     /** Vrai tant que le Portrait attend son modèle de profondeur : aucune photo ne part avant. */

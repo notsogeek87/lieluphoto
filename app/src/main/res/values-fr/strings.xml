@@ -366,6 +366,7 @@
     <string name="camera_focus_point_label">Mise au point</string>
     <string name="camera_metering_point_label">Mesure</string>
     <string name="virtual_aperture_viewfinder_hint">f/%1$s</string>
+    <string name="virtual_aperture_dial_description">Ouverture</string>
     <string name="virtual_aperture_viewfinder_off">Bokeh désactivé</string>
     <string name="model_add_favorite">Ajouter le modèle actif aux favoris</string>
     <string name="model_remove_favorite">Retirer le modèle actif des favoris</string>
@@ -1393,7 +1394,7 @@
     <string name="ai_enhance_dialog_title">Télécharger le modèle IA ?</string>
     <string name="ai_enhance_dialog_message">Le modèle IA nettoie le bruit de vos photos (Photo, Nuit et Portrait). Il pèse environ 62 Mo et fonctionne entièrement sur le téléphone. Une fois téléchargé, le bouton IA active ou coupe l\'amélioration pour toutes les photos ; l\'enregistrement prend quelques secondes de plus.</string>
     <string name="ai_enhance_dialog_download">Télécharger</string>
-    <string name="ai_enhance_dialog_message_models">À télécharger : %1$s. Les modèles fonctionnent entièrement sur le téléphone. Appui long sur le bouton IA pour choisir entre le nettoyage du bruit, la restauration des visages, ou les deux. L\'enregistrement prend quelques secondes de plus.</string>
+    <string name="ai_enhance_dialog_message_models">À télécharger : %1$s (environ %2$d Mo au total). Les modèles fonctionnent entièrement sur le téléphone et nettoient le bruit et restaurent les visages sur chaque photo. L\'enregistrement prend quelques secondes de plus.</string>
     <string name="ai_enhance_model_denoise_name">Bruit (NAFNet)</string>
     <string name="ai_enhance_model_faces_name">Visages (GFPGAN)</string>
     <string name="ai_enhance_faces_model_title">Modèle visages (GFPGAN)</string>
