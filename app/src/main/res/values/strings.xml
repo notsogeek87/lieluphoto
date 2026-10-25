@@ -1477,4 +1477,10 @@
     <string name="ai_enhance_faces_model_title">Face model (GFPGAN)</string>
     <string name="ai_enhance_faces_model_description">Tap to download the GFPGAN face restoration model (about 431 MB, Apache 2.0 license). It sharpens eyes, skin and hair on faces. Runs entirely on the phone.</string>
     <string name="ai_enhance_faces_model_ready">Model installed. Tap to delete it and free 431 MB.</string>
+    <string name="lens_indicator_front">Front</string>
+    <string name="lens_indicator_main">Main</string>
+    <string name="lens_indicator_ultra_wide">Ultra wide</string>
+    <string name="lens_indicator_telephoto">Telephoto</string>
+    <string name="lens_indicator_macro">Macro</string>
+    <string name="lens_indicator_format">%1$s · %2$d mm</string>
 </resources>

@@ -1900,6 +1900,14 @@ fun CameraScreen(
                 contentAlignment = Alignment.Center
             ) {
                 viewfinder()
+                state.getCurrentCameraInfo()?.let { camera ->
+                    LensIndicator(
+                        camera = camera,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 8.dp, bottom = 8.dp)
+                    )
+                }
             }
 
             topBar()

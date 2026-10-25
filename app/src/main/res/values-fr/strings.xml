@@ -1440,4 +1440,10 @@
     <string name="camera_parameter_iso_description">Sensibilité ISO</string>
     <string name="camera_parameter_focus_description">Mise au point</string>
     <string name="camera_parameter_white_balance_description">Balance des blancs</string>
+    <string name="lens_indicator_front">Frontal</string>
+    <string name="lens_indicator_main">Principal</string>
+    <string name="lens_indicator_ultra_wide">Ultra grand-angle</string>
+    <string name="lens_indicator_telephoto">Téléobjectif</string>
+    <string name="lens_indicator_macro">Macro</string>
+    <string name="lens_indicator_format">%1$s · %2$d mm</string>
 </resources>
