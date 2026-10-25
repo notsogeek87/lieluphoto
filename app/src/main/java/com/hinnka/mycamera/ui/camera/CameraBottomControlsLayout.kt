@@ -10,7 +10,7 @@ import androidx.compose.ui.unit.dp
 
 /** Shared dimensions keep preview placement and control measurement in agreement. */
 internal object CameraControlsLayoutDefaults {
-    val ParameterBarHeight = 48.dp
+    val ParameterBarHeight = 40.dp
     val ZoomBarHeight = 32.dp
     val CaptureButtonSize = 72.dp
     val SideButtonSize = 48.dp

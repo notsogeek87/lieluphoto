@@ -1577,46 +1577,34 @@ fun CameraScreen(
                                 }
                             }
                             if (showVirtualApertureIndicator) {
-                                Surface(
-                                    color = Color.Black.copy(
-                                        alpha = if (state.isVirtualApertureEnabled) 0.2f else 0.1f
-                                    ),
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .combinedClickable(
-                                            onLongClick = {
-                                                if (state.isVirtualApertureEnabled) showApertureDialog = true
-                                            }
-                                        ) {
-                                            if (state.isVirtualApertureEnabled) {
+                                // Le libellé « Bokeh désactivé » n'est pas affiché : le mode Portrait active le bokeh.
+                                if (state.isVirtualApertureEnabled) {
+                                    Surface(
+                                        color = Color.Black.copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .combinedClickable(
+                                                onLongClick = { showApertureDialog = true }
+                                            ) {
                                                 viewModel.setVirtualApertureAuto(false)
-                                            } else if (DepthModelManager.isInstalled(context)) {
-                                                viewModel.setVirtualApertureAuto(true)
-                                            } else {
-                                                pendingBokehEnable = true
-                                                showDepthModelDownloadDialog = true
                                             }
-                                        }
-                                ) {
-                                    Text(
-                                        text = if (state.isVirtualApertureEnabled) {
-                                            stringResource(
+                                    ) {
+                                        Text(
+                                            text = stringResource(
                                                 R.string.virtual_aperture_viewfinder_hint,
                                                 formatVirtualApertureFStop(state.virtualAperture)
+                                            ),
+                                            color = Color.White,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            style = TextStyle(shadow = ViewfinderTextShadow),
+                                            modifier = Modifier.padding(
+                                                horizontal = 6.dp,
+                                                vertical = 3.dp
                                             )
-                                        } else {
-                                            stringResource(R.string.virtual_aperture_viewfinder_off)
-                                        },
-                                        color = Color.White,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        style = TextStyle(shadow = ViewfinderTextShadow),
-                                        modifier = Modifier.padding(
-                                            horizontal = 6.dp,
-                                            vertical = 3.dp
                                         )
-                                    )
+                                    }
                                 }
                                 if (showApertureDialog) {
                                     VirtualApertureDialog(
@@ -1906,14 +1894,6 @@ fun CameraScreen(
                 contentAlignment = Alignment.Center
             ) {
                 viewfinder()
-                state.getCurrentCameraInfo()?.let { camera ->
-                    LensIndicator(
-                        camera = camera,
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(start = 8.dp, top = 8.dp)
-                    )
-                }
             }
 
             topBar()

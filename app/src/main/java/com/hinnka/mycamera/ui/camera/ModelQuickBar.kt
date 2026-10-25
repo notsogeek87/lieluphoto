@@ -52,12 +52,15 @@ internal fun ModelQuickBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         val panelLabel = stringResource(R.string.model_open_panel)
-        QuickChip(
-            text = currentLut?.takeIf { it.id != "none" }?.getName() ?: panelLabel,
-            selected = false,
-            description = panelLabel,
-            onClick = onOpenPanel
-        )
+        // Un modèle favori actif figure déjà parmi les puces : le bouton du viseur ouvre le panneau.
+        if (currentId == null || favorites.none { it.id == currentId }) {
+            QuickChip(
+                text = currentLut?.takeIf { it.id != "none" }?.getName() ?: panelLabel,
+                selected = false,
+                description = panelLabel,
+                onClick = onOpenPanel
+            )
+        }
         if (currentLut != null && currentId != null) {
             val label = stringResource(
                 if (currentLut.isFavorite) R.string.model_remove_favorite else R.string.model_add_favorite
