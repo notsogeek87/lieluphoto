@@ -3612,6 +3612,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun capture() {
+        if (_portraitPreparing.value) return
         if (state.value.captureMode == CaptureMode.VIDEO) {
             if (state.value.videoRecordingState.isProcessing) {
                 return
@@ -4201,6 +4202,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setCaptureMode(mode: CaptureMode) {
         setShootingMode(mode, useRaw = null)
+    }
+
+    private val _portraitPreparing = MutableStateFlow(false)
+
+    /** Vrai tant que le Portrait attend son modèle de profondeur : aucune photo ne part avant. */
+    fun setPortraitPreparing(preparing: Boolean) {
+        _portraitPreparing.value = preparing
     }
 
     private val _nightMode = MutableStateFlow(false)

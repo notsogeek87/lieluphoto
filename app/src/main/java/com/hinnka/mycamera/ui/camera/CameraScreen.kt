@@ -316,11 +316,22 @@ fun CameraScreen(
     ) { uri ->
         uri?.let { DepthModelManager.importModel(context, it) }
     }
+    // Portrait demandé mais modèle en cours d'installation : le mode est annoncé, le déclencheur bloqué.
+    val portraitPreparing = pendingBokehEnable && (
+        depthModelState is DepthModelDownloadState.Downloading ||
+            depthModelState is DepthModelDownloadState.Importing
+        )
+    LaunchedEffect(portraitPreparing) {
+        viewModel.setPortraitPreparing(portraitPreparing)
+    }
     LaunchedEffect(depthModelState, pendingBokehEnable) {
         if (depthModelState is DepthModelDownloadState.Ready && pendingBokehEnable) {
             viewModel.setVirtualApertureAuto(true)
             pendingBokehEnable = false
             showDepthModelDownloadDialog = false
+        } else if (depthModelState is DepthModelDownloadState.Failed) {
+            // Échec : retour au rendu Photo ; « Réessayer » ou « Importer » relancent l'attente.
+            pendingBokehEnable = false
         }
     }
     val isCameraInitialized by viewModel.isInitialized.collectAsState()
@@ -728,6 +739,7 @@ fun CameraScreen(
     // Portrait = photo avec bokeh IA activé ; Photo et Nuit le coupent.
     // Nuit = photo avec empilement multi-images renforcé.
     fun applyBokehForMode(mode: CameraShootingMode) {
+        if (mode != CameraShootingMode.PORTRAIT) pendingBokehEnable = false
         viewModel.setNightMode(mode == CameraShootingMode.NIGHT)
         when (mode) {
             CameraShootingMode.PORTRAIT -> if (!state.isVirtualApertureEnabled) {
@@ -790,7 +802,7 @@ fun CameraScreen(
         val current = when {
             state.captureMode == CaptureMode.VIDEO -> CameraShootingMode.VIDEO
             nightMode -> CameraShootingMode.NIGHT
-            state.isVirtualApertureEnabled -> CameraShootingMode.PORTRAIT
+            state.isVirtualApertureEnabled || portraitPreparing -> CameraShootingMode.PORTRAIT
             else -> CameraShootingMode.PHOTO
         }
         val target = modes.getOrNull(modes.indexOf(current) + if (forward) 1 else -1) ?: return
@@ -1653,11 +1665,17 @@ fun CameraScreen(
                                 if (showDepthModelDownloadDialog) {
                                     DepthModelDownloadDialog(
                                         state = depthModelState,
-                                        onDownload = { DepthModelManager.download(context) },
-                                        onImport = { depthModelImportLauncher.launch(arrayOf("*/*")) },
+                                        onDownload = {
+                                            pendingBokehEnable = true
+                                            DepthModelManager.download(context)
+                                        },
+                                        onImport = {
+                                            pendingBokehEnable = true
+                                            depthModelImportLauncher.launch(arrayOf("*/*"))
+                                        },
                                         onDismiss = {
                                             showDepthModelDownloadDialog = false
-                                            pendingBokehEnable = false
+                                            if (!portraitPreparing) pendingBokehEnable = false
                                         }
                                     )
                                 }
@@ -1870,8 +1888,14 @@ fun CameraScreen(
                 onSwitchCameraClick = ::switchCameraWithPreviewTransition,
                 onCaptureModeSelected = ::setShootingModeWithPreviewTransition,
                 isNightMode = nightMode,
+                isPortraitPreparing = portraitPreparing,
                 modeSwitchEnabled = !previewTransitionActive && !lensSwitchTransition.isActive,
                 onCaptureTap = {
+                    if (portraitPreparing) {
+                        // Pas de photo sans bokeh pendant l'installation : on montre la progression.
+                        showDepthModelDownloadDialog = true
+                        return@Controls
+                    }
                     val shouldDebounceRawCapture =
                         state.captureRaw && state.captureMode == CaptureMode.PHOTO
                     if (shouldDebounceRawCapture) {
@@ -2327,6 +2351,7 @@ private fun Controls(
     onSwitchCameraClick: () -> Unit,
     onCaptureModeSelected: (CameraShootingMode) -> Unit,
     isNightMode: Boolean,
+    isPortraitPreparing: Boolean,
     modeSwitchEnabled: Boolean,
     onCaptureTap: () -> Unit,
     onGalleryClick: () -> Unit,
@@ -2479,7 +2504,7 @@ private fun Controls(
                 shootingMode = when {
                     state.captureMode == CaptureMode.VIDEO -> CameraShootingMode.VIDEO
                     isNightMode -> CameraShootingMode.NIGHT
-                    state.isVirtualApertureEnabled -> CameraShootingMode.PORTRAIT
+                    state.isVirtualApertureEnabled || isPortraitPreparing -> CameraShootingMode.PORTRAIT
                     else -> CameraShootingMode.PHOTO
                 },
                 enabled = modeSwitchEnabled &&
