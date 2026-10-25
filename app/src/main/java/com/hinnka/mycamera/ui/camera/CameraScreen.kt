@@ -84,7 +84,6 @@ import com.hinnka.mycamera.utils.OrientationObserver
 import com.hinnka.mycamera.viewmodel.CameraViewModel
 import com.hinnka.mycamera.viewmodel.GalleryViewModel
 import com.hinnka.mycamera.viewmodel.withNightBoost
-import com.hinnka.mycamera.ml.AiEnhanceChoice
 import com.hinnka.mycamera.ml.AiEnhanceModelManager
 import com.hinnka.mycamera.ml.AiModel
 import com.hinnka.mycamera.ml.AiEnhanceModelState
@@ -2812,8 +2811,7 @@ private fun AiEnhanceChip(
     label: String,
     downloadProgress: Float?,
     enabled: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onClick: () -> Unit
 ) {
     val text = if (downloadProgress != null) "$label ${(downloadProgress * 100f).toInt()} %" else label
     val shape = RoundedCornerShape(12.dp)
@@ -2823,7 +2821,7 @@ private fun AiEnhanceChip(
             .clip(shape)
             .background(if (active) Color.White else Color.Black.copy(alpha = 0.28f))
             .border(0.5.dp, Color.White.copy(alpha = 0.18f), shape)
-            .combinedClickable(enabled = enabled, onLongClick = onLongClick, onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -2844,8 +2842,8 @@ private fun AiEnhanceChip(
 
 /**
  * Pastille « IA » du viseur, masquée en vidéo. Toucher : active ou coupe l'amélioration (tout le
- * temps une fois allumée). Appui long : choix du modèle (bruit NAFNet, visages GFPGAN, ou les
- * deux) et téléchargement / suppression.
+ * temps une fois allumée). Applique toujours les deux modèles (bruit NAFNet, visages GFPGAN) ; le
+ * premier appui télécharge ceux qui manquent.
  */
 @Composable
 private fun AiEnhanceControl(
@@ -2861,37 +2859,34 @@ private fun AiEnhanceControl(
         AiEnhanceModelManager.observe(aiContext, AiModel.FACES)
     }.collectAsState()
     val aiModelStates = mapOf(AiModel.DENOISE to aiDenoiseState, AiModel.FACES to aiFacesState)
-    val aiChoice = AiEnhanceChoice.fromPersisted(aiPreferences.aiEnhanceModel)
-    val aiChoiceStates = aiChoice.models.map { aiModelStates.getValue(it) }
-    val aiChoiceReady = aiChoiceStates.all { it == AiEnhanceModelState.Ready }
-    val aiChoiceDownloading = aiChoiceStates.firstOrNull { it is AiEnhanceModelState.Downloading }
-        as AiEnhanceModelState.Downloading?
+    val aiReady = aiModelStates.values.all { it == AiEnhanceModelState.Ready }
+    val aiDownloading = aiModelStates.values.any { it is AiEnhanceModelState.Downloading }
+    // Progression de l'ensemble des modèles, pondérée par leur taille.
+    val aiDownloadProgress = AiModel.entries.sumOf { model ->
+        when (val modelState = aiModelStates.getValue(model)) {
+            AiEnhanceModelState.Ready -> model.sizeBytes.toDouble()
+            is AiEnhanceModelState.Downloading -> (modelState.progress ?: 0f) * model.sizeBytes.toDouble()
+            else -> 0.0
+        }
+    } / AiModel.entries.sumOf { it.sizeBytes.toDouble() }
     var showAiDownloadDialog by remember { mutableStateOf(false) }
-    var showAiModelPicker by remember { mutableStateOf(false) }
 
     AiEnhanceChip(
-        active = aiPreferences.aiEnhanceEnabled && (aiChoiceReady || aiChoiceDownloading != null),
-        label = stringResource(
-            when (aiChoice) {
-                AiEnhanceChoice.DENOISE -> R.string.ai_enhance_chip
-                AiEnhanceChoice.FACES -> R.string.ai_enhance_chip_faces
-                AiEnhanceChoice.BOTH -> R.string.ai_enhance_chip_both
-            }
-        ),
-        downloadProgress = aiChoiceDownloading?.let { it.progress ?: 0f },
+        active = aiPreferences.aiEnhanceEnabled && (aiReady || aiDownloading),
+        label = stringResource(R.string.ai_enhance_chip),
+        downloadProgress = if (aiDownloading) aiDownloadProgress.toFloat() else null,
         enabled = enabled,
         onClick = {
             when {
-                aiChoiceReady ->
+                aiReady ->
                     viewModel.setAiEnhanceEnabled(!aiPreferences.aiEnhanceEnabled)
-                aiChoiceDownloading != null -> Unit
+                aiDownloading -> Unit
                 else -> showAiDownloadDialog = true
             }
-        },
-        onLongClick = { showAiModelPicker = true }
+        }
     )
     if (showAiDownloadDialog) {
-        val missingModels = aiChoice.models.filter { aiModelStates.getValue(it) != AiEnhanceModelState.Ready }
+        val missingModels = AiModel.entries.filter { aiModelStates.getValue(it) != AiEnhanceModelState.Ready }
         AlertDialog(
             onDismissRequest = { showAiDownloadDialog = false },
             title = { Text(stringResource(R.string.ai_enhance_dialog_title)) },
@@ -2917,19 +2912,6 @@ private fun AiEnhanceControl(
             }
         )
     }
-    if (showAiModelPicker) {
-        AiEnhanceModelPicker(
-            choice = aiChoice,
-            modelStates = aiModelStates,
-            onChoiceSelected = {
-                viewModel.setAiEnhanceModel(it)
-                viewModel.setAiEnhanceEnabled(true)
-            },
-            onDownload = { AiEnhanceModelManager.download(aiContext, it) },
-            onDelete = { AiEnhanceModelManager.delete(aiContext, it) },
-            onDismiss = { showAiModelPicker = false }
-        )
-    }
 }
 
 private fun aiModelLabel(context: android.content.Context, model: AiModel): String =
@@ -2939,90 +2921,6 @@ private fun aiModelLabel(context: android.content.Context, model: AiModel): Stri
             AiModel.FACES -> R.string.ai_enhance_model_faces_name
         }
     )
-
-@Composable
-private fun AiEnhanceModelPicker(
-    choice: AiEnhanceChoice,
-    modelStates: Map<AiModel, AiEnhanceModelState>,
-    onChoiceSelected: (AiEnhanceChoice) -> Unit,
-    onDownload: (AiModel) -> Unit,
-    onDelete: (AiModel) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.ai_enhance_picker_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                AiEnhanceChoice.entries.forEach { option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onChoiceSelected(option) }
-                            .padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = option == choice, onClick = { onChoiceSelected(option) })
-                        Text(
-                            text = stringResource(
-                                when (option) {
-                                    AiEnhanceChoice.DENOISE -> R.string.ai_enhance_choice_denoise
-                                    AiEnhanceChoice.FACES -> R.string.ai_enhance_choice_faces
-                                    AiEnhanceChoice.BOTH -> R.string.ai_enhance_choice_both
-                                }
-                            ),
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                AiModel.entries.forEach { model ->
-                    val modelState = modelStates.getValue(model)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(aiModelLabel(context, model), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            Text(
-                                text = when (modelState) {
-                                    AiEnhanceModelState.Ready -> stringResource(R.string.ai_enhance_model_installed)
-                                    is AiEnhanceModelState.Downloading -> stringResource(
-                                        R.string.ai_enhance_model_downloading,
-                                        ((modelState.progress ?: 0f) * 100f).toInt()
-                                    )
-                                    AiEnhanceModelState.Failed -> stringResource(R.string.ai_enhance_model_failed_short)
-                                    AiEnhanceModelState.Missing -> stringResource(
-                                        when (model) {
-                                            AiModel.DENOISE -> R.string.ai_enhance_model_denoise_size
-                                            AiModel.FACES -> R.string.ai_enhance_model_faces_size
-                                        }
-                                    )
-                                },
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        when (modelState) {
-                            AiEnhanceModelState.Ready -> TextButton(onClick = { onDelete(model) }) {
-                                Text(stringResource(R.string.ai_enhance_model_delete))
-                            }
-                            is AiEnhanceModelState.Downloading -> Unit
-                            else -> TextButton(onClick = { onDownload(model) }) {
-                                Text(stringResource(R.string.ai_enhance_dialog_download))
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.ok)) }
-        }
-    )
-}
 
 @Composable
 private fun CaptureModeSwitcher(

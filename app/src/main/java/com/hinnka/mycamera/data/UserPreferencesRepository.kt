@@ -184,7 +184,6 @@ data class UserPreferences(
     val deleteWhenExportRemoved: Boolean = true,  // 系统相册中的导出文件被删除后，同步删除应用内照片
     // Amélioration IA (NAFNet) des photos en faible lumière, si le modèle est téléchargé.
     val aiEnhanceEnabled: Boolean = false,
-    val aiEnhanceModel: String = "DENOISE",
     val photoSavePath: PhotoSavePath = PhotoSavePath.DCIM_PHOTON,
     val photoSaveTreeUri: String? = null,
     val nrLevel: Int = NoiseReductionLevel.DEFAULT,  // 降噪等级：0=Off, 1=Fast, 2=High Quality, 3=ZSL, 4=Minimal
@@ -452,7 +451,6 @@ class UserPreferencesRepository(private val context: Context) {
         private val UPDATE_EXPORT_AFTER_EDIT = booleanPreferencesKey("update_export_after_edit")
         private val DELETE_WHEN_EXPORT_REMOVED = booleanPreferencesKey("delete_when_export_removed")
         private val AI_ENHANCE_ENABLED = booleanPreferencesKey("ai_enhance_enabled")
-        private val AI_ENHANCE_MODEL = stringPreferencesKey("ai_enhance_model")
         private val PHOTO_SAVE_PATH = stringPreferencesKey("photo_save_path")
         private val PHOTO_SAVE_TREE_URI = stringPreferencesKey("photo_save_tree_uri")
         private val NR_LEVEL = intPreferencesKey("nr_level")
@@ -776,7 +774,6 @@ class UserPreferencesRepository(private val context: Context) {
                 updateExportAfterEdit = preferences[UPDATE_EXPORT_AFTER_EDIT] ?: true,
                 deleteWhenExportRemoved = preferences[DELETE_WHEN_EXPORT_REMOVED] ?: true,
                 aiEnhanceEnabled = preferences[AI_ENHANCE_ENABLED] ?: false,
-                aiEnhanceModel = preferences[AI_ENHANCE_MODEL] ?: "DENOISE",
                 photoSavePath = PhotoSavePath.fromPersistedName(preferences[PHOTO_SAVE_PATH]),
                 photoSaveTreeUri = preferences[PHOTO_SAVE_TREE_URI]?.takeIf { it.isNotBlank() },
                 nrLevel = NoiseReductionLevel.normalize(
@@ -1761,12 +1758,6 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun saveAiEnhanceEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[AI_ENHANCE_ENABLED] = enabled
-        }
-    }
-
-    suspend fun saveAiEnhanceModel(model: String) {
-        context.dataStore.edit { preferences ->
-            preferences[AI_ENHANCE_MODEL] = model
         }
     }
 

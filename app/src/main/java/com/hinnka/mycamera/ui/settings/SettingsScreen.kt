@@ -142,7 +142,6 @@ import com.hinnka.mycamera.gallery.Jpeg444ExportEncoder
 import com.hinnka.mycamera.lut.creator.OpenAIApiClient
 import com.hinnka.mycamera.ml.DepthModelDownloadState
 import com.hinnka.mycamera.ml.DepthModelManager
-import com.hinnka.mycamera.ml.AiEnhanceChoice
 import com.hinnka.mycamera.ml.AiEnhanceModelManager
 import com.hinnka.mycamera.ml.AiModel
 import com.hinnka.mycamera.ml.AiEnhanceModelState
@@ -1338,8 +1337,7 @@ fun SettingsScreen(
                             )
                         }
 
-                        val aiChoice = AiEnhanceChoice.fromPersisted(userPreferences.aiEnhanceModel)
-                        val aiEnhanceState = if (aiChoice.models.all { aiModelStates.getValue(it) == AiEnhanceModelState.Ready }) {
+                        val aiEnhanceState = if (aiModelStates.values.all { it == AiEnhanceModelState.Ready }) {
                             AiEnhanceModelState.Ready
                         } else {
                             AiEnhanceModelState.Missing

@@ -5476,12 +5476,6 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun setAiEnhanceModel(choice: com.hinnka.mycamera.ml.AiEnhanceChoice) {
-        viewModelScope.launch {
-            userPreferencesRepository.saveAiEnhanceModel(choice.name)
-        }
-    }
-
     fun setShowGrid(show: Boolean) {
         cameraController.setShowGrid(show)
         viewModelScope.launch {

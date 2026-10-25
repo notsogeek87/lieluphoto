@@ -62,18 +62,6 @@ enum class AiModel(
     ),
 }
 
-/** Choix de l'utilisateur (appui long sur le bouton IA) : quel(s) modèle(s) appliquer. */
-enum class AiEnhanceChoice(val models: List<AiModel>) {
-    DENOISE(listOf(AiModel.DENOISE)),
-    FACES(listOf(AiModel.FACES)),
-    BOTH(listOf(AiModel.DENOISE, AiModel.FACES));
-
-    companion object {
-        fun fromPersisted(value: String?): AiEnhanceChoice =
-            entries.firstOrNull { it.name == value } ?: DENOISE
-    }
-}
-
 // Mélange avec l'original (1 = débruitage complet). Le modèle est appliqué à toutes les photos
 // quand l'utilisateur l'active, mais il adoucit un peu la texture : à ISO bas (peu de bruit, constaté
 // sur le salon éclairé) on garde surtout l'original, à ISO 800 et plus on débruite franchement.
@@ -287,18 +275,17 @@ object AiEnhanceModelManager {
         }
     }
 
-    /** Vrai si une photo prise maintenant sera améliorée (réglage actif et modèle choisi installé). */
+    /** Vrai si une photo prise maintenant sera améliorée (réglage actif et au moins un modèle installé). */
     suspend fun willEnhance(context: Context): Boolean {
         val appContext = context.applicationContext
         val preferences = ContentRepository.getInstance(appContext).userPreferencesRepository
             .userPreferences.firstOrNull() ?: return false
         if (!preferences.aiEnhanceEnabled) return false
-        return AiEnhanceChoice.fromPersisted(preferences.aiEnhanceModel).models
-            .any { installedModelFileOrNull(appContext, it) != null }
+        return AiModel.entries.any { installedModelFileOrNull(appContext, it) != null }
     }
 
     /**
-     * Améliore [bitmap] si le réglage est activé et le(s) modèle(s) choisi(s) installé(s) ; la force
+     * Améliore [bitmap] si le réglage est activé et les modèles installés ; la force
      * du débruitage suit [iso]. Renvoie le bitmap d'origine sinon, ou en cas d'échec (la photo n'est
      * jamais perdue). L'appelant reste propriétaire de [bitmap] ; s'il reçoit un nouveau bitmap, il
      * peut recycler l'ancien.
@@ -318,7 +305,6 @@ object AiEnhanceModelManager {
                 .userPreferences.firstOrNull()
         }.getOrNull() ?: return bitmap
         if (!preferences.aiEnhanceEnabled) return bitmap
-        val choice = AiEnhanceChoice.fromPersisted(preferences.aiEnhanceModel)
         // Scène très lumineuse (ISO ≤ 200) : presque pas de bruit, débruitage inutile.
         // Au-delà, il ne tourne que si le téléphone le fait dans le budget (voir denoise()).
         val denoiseUseful = iso == null || iso > SKIP_DENOISE_MAX_ISO
@@ -326,11 +312,9 @@ object AiEnhanceModelManager {
         // aberrants sur un selfie, build 202, et d'autres trop discrets pour être détectés) et il
         // ramollit le visage (netteté 49 contre 97 sans lui). Le rendu de l'app débruite déjà.
         val denoiseModel = installedModelFileOrNull(appContext, AiModel.DENOISE)
-            ?.takeIf { DENOISE_ENABLED && denoise && denoiseUseful && AiModel.DENOISE in choice.models }
+            ?.takeIf { DENOISE_ENABLED && denoise && denoiseUseful }
         val facesModel = installedModelFileOrNull(appContext, AiModel.FACES)
-            ?.takeIf { AiModel.FACES in choice.models }
         val skippedDenoise = when {
-            AiModel.DENOISE !in choice.models -> null
             !DENOISE_ENABLED -> "bruit desactive"
             !denoise -> "bruit non (RAW)"
             !denoiseUseful -> "bruit non (ISO $iso)"
@@ -338,7 +322,6 @@ object AiEnhanceModelManager {
             else -> null
         }
         val skippedFaces = when {
-            AiModel.FACES !in choice.models -> "visages non choisis"
             facesModel == null -> "visages modèle absent"
             else -> null
         }
