@@ -8,8 +8,10 @@ Pour l'utilisateur de LieluPhoto : obtenir un arrière-plan flou (ouverture virt
 
 - Le sélecteur du bas propose `Photo · Portrait · Vidéo` (balayage horizontal du viseur possible). **Portrait** = photo avec le bokeh activé ; passer à Photo ou Vidéo le coupe. La Nuit est un interrupteur à part, combinable avec Portrait (voir [mode Nuit](mode-nuit.md)).
 - Le mode affiché est déduit de l'état : photo + bokeh actif (ou Portrait en préparation) = Portrait, donc le sélecteur et le viseur restent cohérents.
-- **Cadran d'ouverture** (`ApertureDial`), au-dessus de la barre de zoom, avec la rangée de modèles dessous : diaphragme à six lames qui se referme quand le nombre f augmente, valeur `ƒ/2.8`, et règle graduée à toucher ou faire glisser (f/1, 1.4, 1.8, 2, 2.8, 4, 5.6, 8, 11, 16). Le choix s'applique tout de suite et devient l'ouverture par défaut (`setDefaultVirtualAperture`).
-- **Pastille `f/<valeur>`** en haut à droite du viseur, affichée seulement quand le bokeh est actif : un appui coupe le bokeh, un appui long ouvre aussi le réglage de l'ouverture (`VirtualApertureDialog`).
+- **Cadran d'ouverture** (`ApertureDial`), au-dessus de la barre de zoom, avec la rangée de modèles dessous. C'est le seul réglage de l'ouverture dans le viseur (l'ancienne pastille `f/` en haut à droite a été retirée).
+  - **Replié** par défaut : petite pastille discrète, diaphragme à six lames et valeur `ƒ/2.8`, fond presque transparent, pour ne pas couvrir le viseur.
+  - **Un appui** déploie la règle graduée, à toucher ou faire glisser (f/1, 1.4, 1.8, 2, 2.8, 4, 5.6, 8, 11, 16) ; le diaphragme se referme quand le nombre f augmente. Elle se replie seule après 2,5 s sans interaction (comme la barre de zoom) ou par un nouvel appui sur la pastille.
+  - Le choix s'applique tout de suite et devient l'ouverture par défaut (`setDefaultVirtualAperture`).
 
 ## Premier passage en Portrait (modèle absent)
 
@@ -46,7 +48,7 @@ CameraShootingMode.PORTRAIT -> if (!state.isVirtualApertureEnabled) {
 
 - `portraitPreparing` est lu par délégation (`by collectAsState()`) dans l'écran : les gestes lancés une seule fois (déclencheur) voient la valeur courante. Le déclencheur (`CaptureButton`) lit son rappel par `rememberUpdatedState`.
 - Cadran et pastille de progression : `ui/camera/ApertureDial.kt`. Valeurs : `VirtualApertureStops`, `formatVirtualApertureFStop` (`CameraScreen.kt`).
-- Textes : `virtual_aperture_viewfinder_hint`, `virtual_aperture_dial_description`, `portrait_model_preparing`, `depth_model_*` (en, fr).
+- Textes : `virtual_aperture_dial_description`, `portrait_model_preparing`, `depth_model_*` (en, fr).
 
 ## Autres réglages du viseur
 

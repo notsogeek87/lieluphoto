@@ -1,6 +1,12 @@
 package com.hinnka.mycamera.ui.camera
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,13 +20,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,12 +43,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hinnka.mycamera.R
 import com.hinnka.mycamera.ml.DepthModelDownloadState
 import com.hinnka.mycamera.ui.theme.AccentColor
+import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -47,6 +58,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 private const val IrisBladeCount = 6
+private const val ApertureDialCollapseDelayMillis = 2500L
 private val RulerWidth = 168.dp
 private val RulerHeight = 28.dp
 private val RulerEdgePadding = 6.dp
@@ -55,6 +67,10 @@ private val RulerEdgePadding = 6.dp
  * Sélecteur d'ouverture du mode Portrait, posé au niveau du zoom. Il évoque une bague d'objectif :
  * un diaphragme dont l'ouverture se referme quand le nombre f augmente, la valeur en clair, et une
  * règle graduée par valeurs d'ouverture que l'on touche ou fait glisser.
+ *
+ * Replié par défaut en une petite pastille discrète (diaphragme + valeur), pour ne pas couvrir le
+ * viseur. Un appui déploie la règle ; elle se replie seule après [ApertureDialCollapseDelayMillis]
+ * sans interaction, comme la barre de zoom.
  */
 @Composable
 internal fun ApertureDial(
@@ -66,10 +82,26 @@ internal fun ApertureDial(
     val selected = stops.indices.minByOrNull { abs(stops[it] - aperture) } ?: 0
     val currentOnApertureChange by rememberUpdatedState(onApertureChange)
     val currentSelected by rememberUpdatedState(selected)
+    var expanded by remember { mutableStateOf(false) }
+    var lastInteraction by remember { mutableStateOf(0L) }
+    LaunchedEffect(expanded, lastInteraction) {
+        if (expanded) {
+            delay(ApertureDialCollapseDelayMillis)
+            expanded = false
+        }
+    }
     // 1 = diaphragme grand ouvert (f/1.0), 0 = fermé au maximum (f/16).
     val openness by animateFloatAsState(
         targetValue = 1f - selected / (stops.size - 1).toFloat(),
         label = "apertureIrisOpening"
+    )
+    val backgroundAlpha by animateFloatAsState(
+        targetValue = if (expanded) 0.28f else 0.12f,
+        label = "apertureDialBackground"
+    )
+    val borderAlpha by animateFloatAsState(
+        targetValue = if (expanded) 0.18f else 0f,
+        label = "apertureDialBorder"
     )
     val description = stringResource(R.string.virtual_aperture_dial_description)
     val shape = RoundedCornerShape(20.dp)
@@ -78,30 +110,47 @@ internal fun ApertureDial(
     Row(
         modifier = modifier
             .clip(shape)
-            .background(Color.Black.copy(alpha = 0.28f))
-            .border(0.5.dp, Color.White.copy(alpha = 0.18f), shape)
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .background(Color.Black.copy(alpha = backgroundAlpha))
+            .border(0.5.dp, Color.White.copy(alpha = borderAlpha), shape)
+            // La règle consomme ses propres appuis : ce clic ne vient que de la pastille.
+            .clickable {
+                expanded = !expanded
+                lastInteraction = System.currentTimeMillis()
+            }
+            .animateContentSize()
+            .padding(horizontal = if (expanded) 12.dp else 8.dp, vertical = if (expanded) 6.dp else 4.dp)
             .semantics { contentDescription = description },
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(if (expanded) 10.dp else 6.dp)
     ) {
-        ApertureIris(openness = openness, accent = accent, modifier = Modifier.size(24.dp))
+        ApertureIris(
+            openness = openness,
+            accent = accent,
+            modifier = Modifier.size(if (expanded) 22.dp else 16.dp)
+        )
         Text(
             text = "ƒ/" + formatVirtualApertureFStop(stops[selected]),
             color = Color.White,
-            fontSize = 14.sp,
+            fontSize = if (expanded) 13.sp else 12.sp,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            modifier = Modifier.widthIn(min = 44.dp)
+            style = TextStyle(shadow = ViewfinderTextShadow),
+            maxLines = 1
         )
-        ApertureRuler(
-            count = stops.size,
-            selected = selected,
-            accent = accent,
-            onSelect = { index ->
-                if (index != currentSelected) currentOnApertureChange(stops[index])
-            }
-        )
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn() + expandHorizontally(),
+            exit = fadeOut() + shrinkHorizontally()
+        ) {
+            ApertureRuler(
+                count = stops.size,
+                selected = selected,
+                accent = accent,
+                onSelect = { index ->
+                    lastInteraction = System.currentTimeMillis()
+                    if (index != currentSelected) currentOnApertureChange(stops[index])
+                }
+            )
+        }
     }
 }
 
