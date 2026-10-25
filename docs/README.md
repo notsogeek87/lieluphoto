@@ -5,7 +5,8 @@
 
 ## Guides
 - [Récupérer les nouveautés de bjzhou (rebase)](guides/sync-upstream.md)
-- [Pastille bokeh du viseur](guides/bokeh-toggle.md)
+- [Mode Portrait, bokeh et ouverture](guides/bokeh-toggle.md)
+- [Mode Nuit](guides/mode-nuit.md)
 - [Mise à jour de l'app (releases GitHub)](guides/mise-a-jour-app.md)
 - [Détection des QR codes du viseur](guides/qr-code.md)
 
