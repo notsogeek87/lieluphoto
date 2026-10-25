@@ -561,15 +561,6 @@ fun GalleryDetailScreen(
                     )
                 },
                 groupedActions = {
-                    if (currentPhoto?.isImage == true) {
-                        GalleryGroupedActionButton(
-                            icon = AppIcons.AutoAwesome,
-                            contentDescription = stringResource(R.string.gallery_ai_analysis),
-                            enabled = !isCurrentPhotoProcessing,
-                            onClick = { showAiScoreSheet = true }
-                        )
-                    }
-
                     if (currentPhoto?.isImage == true || currentPhoto?.isVideo == true) {
                         GalleryGroupedActionButton(
                             icon = Icons.Default.Edit,
