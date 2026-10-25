@@ -55,6 +55,7 @@ import com.hinnka.mycamera.model.LutSelectorMode
 import com.hinnka.mycamera.model.RecipeParam
 import com.hinnka.mycamera.model.SafeImage
 import com.hinnka.mycamera.model.toEffectParams
+import com.hinnka.mycamera.ml.DepthModelDownloadState
 import com.hinnka.mycamera.ml.DepthModelManager
 import com.hinnka.mycamera.phantom.PhantomWidgetProvider
 import com.hinnka.mycamera.preview.EyeFocusPreviewFrame
@@ -3612,7 +3613,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun capture() {
-        if (_portraitPreparing.value) return
+        if (portraitPreparing.value) return
         if (state.value.captureMode == CaptureMode.VIDEO) {
             if (state.value.videoRecordingState.isProcessing) {
                 return
@@ -4207,11 +4208,37 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     /** Vrai une fois la proposition de téléchargement des modèles IA faite pour cette ouverture de l'app. */
     var aiLaunchPromptShown = false
 
-    private val _portraitPreparing = MutableStateFlow(false)
+    // Portrait demandé alors que le modèle de profondeur manque : le bokeh s'active dès qu'il est
+    // installé. Tenu ici, et non dans l'écran, pour survivre aux recompositions et aux navigations.
+    private val _portraitPending = MutableStateFlow(false)
 
-    /** Vrai tant que le Portrait attend son modèle de profondeur : aucune photo ne part avant. */
-    fun setPortraitPreparing(preparing: Boolean) {
-        _portraitPreparing.value = preparing
+    /** Vrai tant que le Portrait attend l'installation de son modèle : aucune photo ne part avant. */
+    val portraitPreparing: StateFlow<Boolean> = combine(
+        _portraitPending,
+        DepthModelManager.observe(getApplication())
+    ) { pending, model ->
+        pending && (model is DepthModelDownloadState.Downloading || model is DepthModelDownloadState.Importing)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    init {
+        viewModelScope.launch {
+            DepthModelManager.observe(getApplication()).collect { model ->
+                if (!_portraitPending.value) return@collect
+                when (model) {
+                    DepthModelDownloadState.Ready -> {
+                        _portraitPending.value = false
+                        setVirtualApertureAuto(true)
+                    }
+                    // Échec : retour au rendu Photo ; « Réessayer » ou « Importer » relancent l'attente.
+                    DepthModelDownloadState.Failed -> _portraitPending.value = false
+                    else -> Unit
+                }
+            }
+        }
+    }
+
+    fun setPortraitPending(pending: Boolean) {
+        _portraitPending.value = pending
     }
 
     private val _nightMode = MutableStateFlow(false)

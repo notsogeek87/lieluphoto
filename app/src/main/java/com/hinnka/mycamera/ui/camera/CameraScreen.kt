@@ -277,7 +277,6 @@ fun CameraScreen(
         DepthModelManager.observe(context)
     }.collectAsState()
     var showDepthModelDownloadDialog by remember { mutableStateOf(false) }
-    var pendingBokehEnable by remember { mutableStateOf(false) }
     var showApertureDialog by remember { mutableStateOf(false) }
     var zoomRulerActive by remember { mutableStateOf(false) }
     val depthModelImportLauncher = rememberLauncherForActivityResult(
@@ -286,22 +285,11 @@ fun CameraScreen(
         uri?.let { DepthModelManager.importModel(context, it) }
     }
     // Portrait demandé mais modèle en cours d'installation : le mode est annoncé, le déclencheur bloqué.
-    val portraitPreparing = pendingBokehEnable && (
-        depthModelState is DepthModelDownloadState.Downloading ||
-            depthModelState is DepthModelDownloadState.Importing
-        )
-    LaunchedEffect(portraitPreparing) {
-        viewModel.setPortraitPreparing(portraitPreparing)
-    }
-    LaunchedEffect(depthModelState, pendingBokehEnable) {
-        if (depthModelState is DepthModelDownloadState.Ready && pendingBokehEnable) {
-            viewModel.setVirtualApertureAuto(true)
-            pendingBokehEnable = false
-            showDepthModelDownloadDialog = false
-        } else if (depthModelState is DepthModelDownloadState.Failed) {
-            // Échec : retour au rendu Photo ; « Réessayer » ou « Importer » relancent l'attente.
-            pendingBokehEnable = false
-        }
+    // Lu par délégation pour que les gestes (déclencheur compris) voient toujours la valeur courante.
+    val portraitPreparing by viewModel.portraitPreparing.collectAsState()
+    LaunchedEffect(depthModelState) {
+        // Dans le viseur, la fenêtre ne sert qu'au téléchargement : elle se ferme quand le modèle est prêt.
+        if (depthModelState is DepthModelDownloadState.Ready) showDepthModelDownloadDialog = false
     }
     val isCameraInitialized by viewModel.isInitialized.collectAsState()
     val latestPhoto by galleryViewModel.latestPhoto.collectAsState()
@@ -708,14 +696,14 @@ fun CameraScreen(
     // Portrait = photo avec bokeh IA activé ; Photo le coupe.
     // Nuit (empilement multi-images renforcé) est un interrupteur à part, combinable avec les deux.
     fun applyBokehForMode(mode: CameraShootingMode) {
-        if (mode != CameraShootingMode.PORTRAIT) pendingBokehEnable = false
+        if (mode != CameraShootingMode.PORTRAIT) viewModel.setPortraitPending(false)
         if (mode == CameraShootingMode.VIDEO) viewModel.setNightMode(false)
         when (mode) {
             CameraShootingMode.PORTRAIT -> if (!state.isVirtualApertureEnabled) {
                 if (DepthModelManager.isInstalled(context)) {
                     viewModel.setVirtualApertureAuto(true)
                 } else {
-                    pendingBokehEnable = true
+                    viewModel.setPortraitPending(true)
                     showDepthModelDownloadDialog = true
                     DepthModelManager.download(context)
                 }
@@ -1636,16 +1624,16 @@ fun CameraScreen(
                                     DepthModelDownloadDialog(
                                         state = depthModelState,
                                         onDownload = {
-                                            pendingBokehEnable = true
+                                            viewModel.setPortraitPending(true)
                                             DepthModelManager.download(context)
                                         },
                                         onImport = {
-                                            pendingBokehEnable = true
+                                            viewModel.setPortraitPending(true)
                                             depthModelImportLauncher.launch(arrayOf("*/*"))
                                         },
                                         onDismiss = {
                                             showDepthModelDownloadDialog = false
-                                            if (!portraitPreparing) pendingBokehEnable = false
+                                            if (!portraitPreparing) viewModel.setPortraitPending(false)
                                         }
                                     )
                                 }
