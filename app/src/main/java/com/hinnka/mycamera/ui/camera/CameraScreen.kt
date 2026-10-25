@@ -737,6 +737,7 @@ fun CameraScreen(
                 } else {
                     pendingBokehEnable = true
                     showDepthModelDownloadDialog = true
+                    DepthModelManager.download(context)
                 }
             }
             CameraShootingMode.PHOTO,
