@@ -1904,8 +1904,8 @@ fun CameraScreen(
                     LensIndicator(
                         camera = camera,
                         modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(start = 8.dp, bottom = 8.dp)
+                            .align(Alignment.TopStart)
+                            .padding(start = 8.dp, top = 8.dp)
                     )
                 }
             }

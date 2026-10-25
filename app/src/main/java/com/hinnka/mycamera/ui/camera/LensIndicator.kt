@@ -43,11 +43,11 @@ fun LensIndicator(
     Text(
         text = label,
         color = Color.White.copy(alpha = 0.85f),
-        fontSize = 10.sp,
+        fontSize = 8.sp,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
             .background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(50))
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .padding(horizontal = 4.dp, vertical = 1.dp)
     )
 }
