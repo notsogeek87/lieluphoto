@@ -121,6 +121,7 @@ private const val EDIT_TAB_DETAIL = 3
 private const val EDIT_TAB_RAW = 4
 private const val EDIT_TAB_CROP = 5
 private const val DEFAULT_COMPUTATIONAL_APERTURE = 1.8f
+private val APERTURE_SLIDER_RANGE = 1.0f..16.0f
 
 private data class EmbeddedDngProfileUiState(
     val options: List<RawEmbeddedDngProfileOption> = emptyList(),
@@ -1574,10 +1575,24 @@ fun GalleryEditScreen(
                                             description = stringResource(
                                                 R.string.gallery_large_aperture_blur_description
                                             ),
-                                            value = editComputationalAperture
-                                                ?: DEFAULT_COMPUTATIONAL_APERTURE,
-                                            valueRange = 1.0f..16.0f,
-                                            onValueChange = { viewModel.setComputationalAperture(it) },
+                                            // Curseur inversé : plus il est rempli, plus le flou est fort (nombre f bas).
+                                            value = APERTURE_SLIDER_RANGE.endInclusive +
+                                                APERTURE_SLIDER_RANGE.start -
+                                                (editComputationalAperture ?: DEFAULT_COMPUTATIONAL_APERTURE),
+                                            valueRange = APERTURE_SLIDER_RANGE,
+                                            valueTextFormatter = {
+                                                String.format(
+                                                    "%.2f",
+                                                    APERTURE_SLIDER_RANGE.endInclusive +
+                                                        APERTURE_SLIDER_RANGE.start - it
+                                                )
+                                            },
+                                            onValueChange = {
+                                                viewModel.setComputationalAperture(
+                                                    APERTURE_SLIDER_RANGE.endInclusive +
+                                                        APERTURE_SLIDER_RANGE.start - it
+                                                )
+                                            },
                                             onValueChangeFinished = { },
                                             toggleValue = isDepthModelInstalled &&
                                                 aperture != null &&
