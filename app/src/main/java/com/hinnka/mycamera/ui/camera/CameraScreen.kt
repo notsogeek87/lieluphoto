@@ -171,6 +171,39 @@ private fun VirtualApertureDialog(
     )
 }
 
+/** Sélecteur d'ouverture affiché dans le viseur tant que le mode Portrait est actif. */
+@Composable
+private fun VirtualApertureSelector(
+    aperture: Float,
+    onApertureChange: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val index = VirtualApertureStops.indices
+        .minByOrNull { kotlin.math.abs(VirtualApertureStops[it] - aperture) } ?: 0
+    Surface(
+        color = Color.Black.copy(alpha = 0.2f),
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier
+    ) {
+        Slider(
+            value = index.toFloat(),
+            onValueChange = { onApertureChange(VirtualApertureStops[it.roundToInt()]) },
+            valueRange = 0f..(VirtualApertureStops.size - 1).toFloat(),
+            steps = VirtualApertureStops.size - 2,
+            colors = SliderDefaults.colors(
+                thumbColor = Color.White,
+                activeTrackColor = Color.White,
+                inactiveTrackColor = Color.White.copy(alpha = 0.35f),
+                activeTickColor = Color.Transparent,
+                inactiveTickColor = Color.Transparent
+            ),
+            modifier = Modifier
+                .width(180.dp)
+                .padding(horizontal = 8.dp)
+        )
+    }
+}
+
 @Composable
 private fun cameraTopSafePadding(): Dp {
     val density = LocalDensity.current
@@ -1605,6 +1638,10 @@ fun CameraScreen(
                                             )
                                         )
                                     }
+                                    VirtualApertureSelector(
+                                        aperture = state.virtualAperture,
+                                        onApertureChange = { viewModel.setDefaultVirtualAperture(it) }
+                                    )
                                 }
                                 if (showApertureDialog) {
                                     VirtualApertureDialog(
