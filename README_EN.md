@@ -1,58 +1,39 @@
-# Photon Camera
+# LieluPhoto
 
-[English](./README_EN.md) | [简体中文](./README_CN.md) | [日本語](./README_JA.md)
+[Français](./README.md)
 
-[![Google Play](https://img.shields.io/badge/Google%20Play-Get%20it%20on-green?logo=google-play&logoColor=white)](https://play.google.com/store/apps/details?id=com.hinnka.mycamera)
+LieluPhoto is a photo-focused Android camera app that brings back the handling and image quality of a modern mirrorless digital camera.
 
-Photon Camera is an open-source Android camera application focused on static photography, designed to simulate the handling and image quality of modern mirrorless digital cameras.
+> **Fork of [PhotonCamera](https://github.com/bjzhou/photoncamera)** by bjzhou, released under the Apache License 2.0. The foundation (rendering engine, LUTs, color recipes, multi-frame stacking, and more) is their work, and this repository follows its evolution and adds its own changes.
 
-## 🌟 Key Features
+## What differs from PhotonCamera
 
-### 1. Advanced LUT Support
-* **Multi-format Compatibility**: Supports importing and applying `.cube`, `.png` (Halfs/Fulls), and `.xmp` profile files.
-* **Real-time Preview**: High-performance shaders enable real-time LUT filtering with "What You See Is What You Get" (WYSIWYG).
-* **Custom Imports**: Easily import your own LUT libraries to create a unique color signature.
+* **Identity**: app renamed LieluPhoto (`eu.lielu.photo`), Bugly removed.
+* **Modes**: Photo · Portrait · Video, plus a **Night** switch that works with both Photo and Portrait.
+* **Portrait**: AI bokeh with an aperture dial (ƒ/1 to ƒ/16) next to the zoom. The depth model is downloaded the first time Portrait is used.
+* **AI enhancement**: noise cleanup (NAFNet) and face restoration (GFPGAN), on by default. The models are offered for download at launch, and a reminder suggests turning AI back on if it was switched off.
+* **Updates**: through [GitHub releases](https://github.com/notsogeek87/lieluphoto/releases).
 
-### 2. Deep Color Recipes
-A professional-grade color adjustment system allowing fine-tuning across multiple dimensions:
-* **Basic Adjustments**: Exposure, Contrast, Highlights, Shadows, Saturation, Temperature, Tint.
-* **Artistic Effects**: Color effects, Vignette, Grain, Fade, Bleach Bypass.
-* **Pro Filters**: **HDF** (Highlight Diffusion Filter), Dispersion, Noise, Low-pixel aesthetics.
+## Features inherited from PhotonCamera
 
-### 3. Motion Photos
-* **Industry Unique**: The only open-source project providing multi-vendor adaptation (Xiaomi, Samsung, Pixel, etc.) for Motion Photos on Android.
-* **Dynamic Moments**: Capture short video clips alongside your still images.
+* **LUTs**: import and apply `.cube`, `.png` (Halfs/Fulls) and `.xmp` files with a real-time preview.
+* **Color recipes**: exposure, contrast, highlights, shadows, saturation, temperature, tint, vignette, grain, artistic effects and advanced filters.
+* **Motion Photos**: multi-vendor support (Xiaomi, Samsung, Pixel, etc.).
+* **High-speed burst**: no frame limit, with live LUT filtering.
+* **Multi-frame synthesis**: stacking for better quality and less noise while keeping detail.
+* **Phantom mode**: captures through the system camera and applies the LUT engine.
 
-### 4. High-Speed Burst
-* **Performance Peak**: High-speed burst mode with no limit on the number of frames.
-* **LUT Integration**: Supports applying LUT filters in real-time during burst sequences.
+## Install
 
-### 5. Multi-frame Synthesis & Super Resolution
-* **Quality Enhancement**: Enhances image quality through advanced multi-frame stacking.
-* **Noise Reduction**: Provides effective noise reduction while focusing on preserving natural details.
+Download the APK from the latest [release](https://github.com/notsogeek87/lieluphoto/releases/latest) and install it. Later versions are offered inside the app.
 
-### 6. Large Aperture Bokeh
-* **AI-Driven**: Uses the local **Depth Anything V2** depth-estimation model.
-* **Precise Depth**: Offers accurate depth sensing for natural background blur transitions (ongoing refinements).
-* **On-demand Download**: The model is not bundled in the APK. The app prompts for a verified download when virtual aperture is first enabled.
+## Technology
 
-### 7. Phantom Mode
-* **Raw Quality**: Directly bridges with the system camera for image capture while applying Photon Camera's LUT engine. This bypasses the typical "bad image quality" and "over-sharpening" issues found in standard third-party camera APIs.
-
-### 8. AI Color Simulation
-* **Smart Stylization**: Utilizes **Google Nano Banana 2** technology to analyze reference photos, restore original colors, and extract color profiles to generate custom LUTs.
-
-## 🛠️ Technology Stack
 * **UI**: Jetpack Compose
-* **Camera API**: Camera2 API
-* **Min SDK**: Android 11+ (minSdk 30)
+* **Camera API**: Camera2, no backward compatibility
+* **Min SDK**: Android 11 (minSdk 30), native C++ code (CMake)
+* **Documentation**: [docs/README.md](./docs/README.md) (French)
 
-## 🤝 Contribution & Feedback
-Contributions of any kind are welcome! If you have questions or suggestions, please open an Issue.
+## License
 
-## 📄 License
-Except for third-party components, models, fonts, LUTs, and other assets that carry their own license notices in this repository, Photon Camera source code is licensed under the [Apache License 2.0](./LICENSE).
-
-## Contact
-
-Telegram: https://t.me/photoncameraapp
+Except for third-party components, models, fonts, LUTs and other assets that carry their own license notices in this repository, the source code is licensed under the [Apache License 2.0](./LICENSE), like PhotonCamera.
