@@ -5484,6 +5484,14 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     fun setAiEnhanceEnabled(enabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.saveAiEnhanceEnabled(enabled)
+            // Le rappel de réactivation se compte à partir du moment où l'IA est coupée.
+            if (!enabled) userPreferencesRepository.saveAiEnhanceReminderAt(System.currentTimeMillis())
+        }
+    }
+
+    fun markAiEnhanceReminderShown() {
+        viewModelScope.launch {
+            userPreferencesRepository.saveAiEnhanceReminderAt(System.currentTimeMillis())
         }
     }
 

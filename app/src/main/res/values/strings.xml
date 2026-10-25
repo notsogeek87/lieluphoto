@@ -1436,6 +1436,10 @@
     <string name="ai_enhance_dialog_title">Download the AI model?</string>
     <string name="ai_enhance_dialog_message">The AI model cleans up noise on your photos (Photo, Night and Portrait). It is about 62 MB and runs entirely on the phone. Once downloaded, the AI button turns on or off the enhancement for every photo; saving takes a few more seconds.</string>
     <string name="ai_enhance_dialog_download">Download</string>
+    <string name="ai_enhance_reminder_title">Turn AI back on?</string>
+    <string name="ai_enhance_reminder_message">AI enhancement is off. It cleans up noise and restores faces on every photo. Was it turned off by mistake?</string>
+    <string name="ai_enhance_reminder_enable">Turn on</string>
+    <string name="ai_enhance_reminder_later">Later</string>
     <string name="ai_enhance_dialog_message_models">To download: %1$s (about %2$d MB in total). Models run entirely on the phone and clean up noise and restore faces on every photo. Saving takes a few more seconds.</string>
     <string name="ai_enhance_model_denoise_name">Noise (NAFNet)</string>
     <string name="ai_enhance_model_faces_name">Faces (GFPGAN)</string>

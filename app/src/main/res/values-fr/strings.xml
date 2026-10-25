@@ -1394,6 +1394,10 @@
     <string name="ai_enhance_dialog_title">Télécharger le modèle IA ?</string>
     <string name="ai_enhance_dialog_message">Le modèle IA nettoie le bruit de vos photos (Photo, Nuit et Portrait). Il pèse environ 62 Mo et fonctionne entièrement sur le téléphone. Une fois téléchargé, le bouton IA active ou coupe l\'amélioration pour toutes les photos ; l\'enregistrement prend quelques secondes de plus.</string>
     <string name="ai_enhance_dialog_download">Télécharger</string>
+    <string name="ai_enhance_reminder_title">Réactiver l\'IA ?</string>
+    <string name="ai_enhance_reminder_message">L\'amélioration IA est désactivée. Elle nettoie le bruit et restaure les visages sur chaque photo. L\'avez-vous coupée par erreur ?</string>
+    <string name="ai_enhance_reminder_enable">Activer</string>
+    <string name="ai_enhance_reminder_later">Plus tard</string>
     <string name="ai_enhance_dialog_message_models">À télécharger : %1$s (environ %2$d Mo au total). Les modèles fonctionnent entièrement sur le téléphone et nettoient le bruit et restaurent les visages sur chaque photo. L\'enregistrement prend quelques secondes de plus.</string>
     <string name="ai_enhance_model_denoise_name">Bruit (NAFNet)</string>
     <string name="ai_enhance_model_faces_name">Visages (GFPGAN)</string>

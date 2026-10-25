@@ -122,6 +122,7 @@ private enum class CameraShootingMode {
     VIDEO
 }
 
+private const val AiReminderIntervalMillis = 7L * 24L * 60L * 60L * 1000L
 private const val InitialPreviewTransitionDelayMillis = 150L
 private const val PreviewTransitionRevealDurationMillis = 800
 private const val ZoomStopAnimationCompletionThreshold = 0.001f
@@ -2869,6 +2870,7 @@ private fun AiEnhanceControl(
         }
     } / AiModel.entries.sumOf { it.sizeBytes.toDouble() }
     var showAiDownloadDialog by remember { mutableStateOf(false) }
+    var showAiReminderDialog by remember { mutableStateOf(false) }
 
     // L'IA est activée par défaut : à chaque ouverture de l'app, les modèles manquants sont proposés
     // au téléchargement. Fermer la fenêtre ne l'évite pas pour la prochaine ouverture.
@@ -2878,12 +2880,40 @@ private fun AiEnhanceControl(
     LaunchedEffect(aiCameraInitialized) {
         if (!aiCameraInitialized || viewModel.aiLaunchPromptShown) return@LaunchedEffect
         // Valeur enregistrée, pas l'état initial du flux, tant que les préférences ne sont pas lues.
-        val enabled = ContentRepository.getInstance(aiContext.applicationContext)
-            .userPreferencesRepository.userPreferences.firstOrNull()?.aiEnhanceEnabled ?: false
+        val stored = ContentRepository.getInstance(aiContext.applicationContext)
+            .userPreferencesRepository.userPreferences.firstOrNull()
         viewModel.aiLaunchPromptShown = true
-        if (enabled && !currentAiReady && !currentAiDownloading) {
-            showAiDownloadDialog = true
+        when {
+            stored == null -> Unit
+            stored.aiEnhanceEnabled -> if (!currentAiReady && !currentAiDownloading) {
+                showAiDownloadDialog = true
+            }
+            // IA coupée, peut-être par erreur : on propose de la réactiver de temps en temps.
+            System.currentTimeMillis() - stored.aiEnhanceReminderAt >= AiReminderIntervalMillis -> {
+                viewModel.markAiEnhanceReminderShown()
+                showAiReminderDialog = true
+            }
+            else -> Unit
         }
+    }
+    if (showAiReminderDialog) {
+        AlertDialog(
+            onDismissRequest = { showAiReminderDialog = false },
+            title = { Text(stringResource(R.string.ai_enhance_reminder_title)) },
+            text = { Text(stringResource(R.string.ai_enhance_reminder_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showAiReminderDialog = false
+                    viewModel.setAiEnhanceEnabled(true)
+                    if (!aiReady) showAiDownloadDialog = true
+                }) { Text(stringResource(R.string.ai_enhance_reminder_enable)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAiReminderDialog = false }) {
+                    Text(stringResource(R.string.ai_enhance_reminder_later))
+                }
+            }
+        )
     }
 
     ViewfinderChip(
