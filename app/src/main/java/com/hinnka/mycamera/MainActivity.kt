@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -57,6 +58,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -576,8 +578,12 @@ fun NavigationHost(
     ) {
         onExternalGalleryReviewBack()
     }
-    navController.addOnDestinationChangedListener { _, destination, _ ->
-        BuglyHelper.setUserScene(context, destination.route.hashCode())
+    DisposableEffect(navController, context) {
+        val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
+            BuglyHelper.setUserScene(context, destination.route.hashCode())
+        }
+        navController.addOnDestinationChangedListener(listener)
+        onDispose { navController.removeOnDestinationChangedListener(listener) }
     }
     val containerSize = LocalWindowInfo.current.containerSize
     cameraViewModel.isExpanded =
