@@ -20,6 +20,7 @@ if (VERSION_CODE_BASE + run <= BuildConfig.VERSION_CODE) return null
 - Le service `camera-api.hinnka.me` n'est plus utilisé pour les mises à jour (il reste utilisé pour le service IA intégré).
 - Une release sans asset `.apk`, ou un tag illisible, est ignorée (rien n'est proposé).
 - Les builds installés hors CI (versionCode 162) voient toute release du CI comme plus récente.
+- Signature : le CI signe avec la clé de publication (secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) et vérifie l'empreinte SHA-256 de l'APK (`5A:0B:BE:F8:AA:9F:28:16:90:30:64:7B:5E:C8:10:2B:47:A9:AC:05:E8:EF:AC:C4:48:58:3A:49:3D:9A:2D:C6`) avant de publier. Sans ces secrets, le build de `main` échoue ; une branche retombe sur `app/debug.keystore` pour son APK de test. La mise à jour intégrée ne peut pas passer d'une signature à l'autre : depuis une version ≤ 1.28.4.292 (clé de debug), désinstaller une fois.
 - Conflit probable lors d'un rebase sur upstream : `AppUpdateManager.kt`.
 
 ## Vérification au démarrage

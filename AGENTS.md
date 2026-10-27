@@ -40,6 +40,7 @@ Les commandes Gradle doivent pouvoir s'exécuter hors du sandbox ; utiliser le H
 
 * Aucun secret dans le code ni dans les commits (clés API, tokens, mots de passe, keystores). Les valeurs sensibles vont dans `local.properties` ou dans les secrets GitHub.
 * Ne jamais modifier ni committer `local.properties`, `app/debug.keystore`, `build/`, `.gradle/`.
+* Les releases sont signées par la clé de publication (secrets `KEYSTORE_*`, empreinte vérifiée par la CI, voir le README). `app/debug.keystore` ne sert qu'aux builds locaux et aux APK de test des branches.
 * Le service IA intégré (`BUILT_IN_API_URL`, camera-api.hinnka.me) est volontairement conservé.
 
 ## Git

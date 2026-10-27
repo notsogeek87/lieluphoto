@@ -27,6 +27,14 @@ LieluPhoto est une application d'appareil photo Android, centrée sur la photo, 
 
 Télécharger l'APK de la dernière [release](https://github.com/notsogeek87/lieluphoto/releases/latest) et l'installer. Les versions suivantes sont proposées dans l'application.
 
+### Signature
+
+Les releases sont signées par la clé de publication LieluPhoto (`CN=LieluPhoto, O=Lielu, C=FR`), empreinte SHA-256 :
+
+`5A:0B:BE:F8:AA:9F:28:16:90:30:64:7B:5E:C8:10:2B:47:A9:AC:05:E8:EF:AC:C4:48:58:3A:49:3D:9A:2D:C6`
+
+Les versions jusqu'à 1.28.4.292 étaient signées par `app/debug.keystore`, une clé publique : pour passer à une version signée par la clé de publication, désinstaller l'ancienne une fois. `debug.keystore` ne sert plus qu'aux builds locaux et aux APK de test des branches sans secrets.
+
 ## Technique
 
 * **UI** : Jetpack Compose

@@ -67,17 +67,53 @@ jobs:
       - name: Rendre gradlew exécutable
         run: chmod +x gradlew
 
-      # Clé de debug committée (app/debug.keystore) : même signature à chaque build,
-      # donc chaque APK s'installe par-dessus le précédent sans désinstaller.
+      # Clé de publication (secrets KEYSTORE_*) : même signature à chaque build, donc chaque
+      # APK s'installe par-dessus le précédent. Sans les secrets, une branche retombe sur
+      # app/debug.keystore (clé publique, APK de test seulement) ; main refuse de publier.
+      - name: Décoder la clé de publication
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            if [ "${{ github.ref_name }}" = "main" ]; then
+              echo "::error::Secret KEYSTORE_BASE64 absent : main ne publie pas de release signée par debug.keystore."
+              exit 1
+            fi
+            echo "::warning::Secrets KEYSTORE_* absents : APK de test signé par debug.keystore."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "release=true" >> "$GITHUB_OUTPUT"
+          echo "store_file=$RUNNER_TEMP/release.jks" >> "$GITHUB_OUTPUT"
+
       - name: Compiler l'APK (release)
         env:
-          ORG_GRADLE_PROJECT_RELEASE_STORE_FILE: debug.keystore
-          ORG_GRADLE_PROJECT_RELEASE_STORE_PASSWORD: android
-          ORG_GRADLE_PROJECT_RELEASE_KEY_ALIAS: androiddebugkey
-          ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD: android
+          ORG_GRADLE_PROJECT_RELEASE_STORE_FILE: ${{ steps.signing.outputs.release == 'true' && steps.signing.outputs.store_file || 'debug.keystore' }}
+          ORG_GRADLE_PROJECT_RELEASE_STORE_PASSWORD: ${{ steps.signing.outputs.release == 'true' && secrets.KEYSTORE_PASSWORD || 'android' }}
+          ORG_GRADLE_PROJECT_RELEASE_KEY_ALIAS: ${{ steps.signing.outputs.release == 'true' && secrets.KEY_ALIAS || 'androiddebugkey' }}
+          ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD: ${{ steps.signing.outputs.release == 'true' && secrets.KEY_PASSWORD || 'android' }}
         run: |
           ./gradlew :app:assembleDefaultRelease --console=plain --stacktrace --info \
             -PversionCodeOverride=$((1000 + ${{ github.run_number }}))
+
+      # L'empreinte attendue est publique (certificat CN=LieluPhoto) : une APK signée par une
+      # autre clé, ou par des secrets mal saisis, n'est jamais publiée.
+      - name: Vérifier la signature
+        if: steps.signing.outputs.release == 'true'
+        env:
+          EXPECTED_SHA256: 5a0bbef8aa9f28169030647b5ec8102b47a9ac05e8efacc448583a493d9a2dc6
+        run: |
+          SDK_DIR="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          APKSIGNER=$(ls -d "$SDK_DIR"/build-tools/*/apksigner | sort -V | tail -1)
+          APK=$(ls app/build/outputs/apk/default/release/*.apk | head -1)
+          "$APKSIGNER" verify --print-certs "$APK" | grep -E "certificate DN|SHA-256 digest"
+          ACTUAL=$("$APKSIGNER" verify --print-certs "$APK" | grep -m1 "SHA-256 digest" | sed 's/.*: //')
+          if [ "$ACTUAL" != "$EXPECTED_SHA256" ]; then
+            echo "::error::Empreinte de signature inattendue : $ACTUAL"
+            exit 1
+          fi
 
 
       - name: Upload logs de build en cas d'échec
@@ -125,8 +161,10 @@ jobs:
 
           Tous les APK ont la même clé de signature : une nouvelle version s'installe par-dessus l'ancienne, tes réglages sont conservés. Si Android refuse (« app non installée »), désinstalle l'ancienne version une fois, puis réinstalle.
 
+          Les versions jusqu'à 1.28.4.292 étaient signées avec une clé de debug publique : pour passer à celle-ci, désinstalle l'ancienne une fois.
+
           ---
-          Run #${{ github.run_number }} (${{ github.sha }}). Signé avec la clé de debug committée.
+          Run #${{ github.run_number }} (${{ github.sha }}). Signé avec la clé de publication LieluPhoto (SHA-256 `5A:0B:BE:F8:AA:9F:28:16:90:30:64:7B:5E:C8:10:2B:47:A9:AC:05:E8:EF:AC:C4:48:58:3A:49:3D:9A:2D:C6`).
           NOTES
           gh release create "$TAG" \
             "${{ steps.apk.outputs.path }}" \
