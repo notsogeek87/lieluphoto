@@ -268,8 +268,6 @@
     <string name="current_camera">Aktuelle Kamera</string>
     
     <!-- About & Donation -->
-    <string name="settings_donation">Spende</string>
-    <string name="settings_donation_description">Unterstützen Sie die Entwicklung von Photon Camera</string>
     <string name="settings_default_focal_length">Standard-Brennweite</string>
     <string name="settings_default_focal_length_description">Brennweite festlegen, auf die beim App-Start automatisch gewechselt werden soll.</string>
     <string name="refresh">Aktualisieren</string>

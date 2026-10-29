@@ -601,11 +601,6 @@
     <string name="current_camera">กล้องปัจจุบัน</string>
 
     <!-- 关于与捐赠 -->
-    <string name="settings_community_group">กลุ่มสื่อสาร</string>
-    <string name="settings_community_group_telegram_description">กลุ่มโทรเลข: https://t.me/photoncameraapp</string>
-    <string name="settings_community_group_qq_description">กลุ่ม QQ: 569605452</string>
-    <string name="settings_donation">บริจาค</string>
-    <string name="settings_donation_description">สนับสนุนการพัฒนา Photon Camera</string>
     <string name="settings_check_update">ตรวจสอบการอัปเดต</string>
     <string name="settings_check_update_description">เวอร์ชันปัจจุบัน: %1$s</string>
     <string name="settings_check_update_running">กำลังตรวจสอบและดาวน์โหลดการอัปเดต...</string>

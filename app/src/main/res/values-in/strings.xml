@@ -268,8 +268,6 @@
     <string name="current_camera">Kamera Saat Ini</string>
     
     <!-- About & Donation -->
-    <string name="settings_donation">Donasi</string>
-    <string name="settings_donation_description">Dukung pengembangan Photon Camera</string>
     <string name="settings_default_focal_length">Panjang Fokus Default</string>
     <string name="settings_default_focal_length_description">Setel panjang fokus untuk beralih secara otomatis saat aplikasi dimulai.</string>
     <string name="refresh">Segarkan</string>

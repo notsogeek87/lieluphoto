@@ -269,8 +269,6 @@
     <string name="current_camera">현재 카메라</string>
     
     <!-- About & Donation -->
-    <string name="settings_donation">후원</string>
-    <string name="settings_donation_description">Photon Camera 개발 지원</string>
     <string name="settings_default_focal_length">기본 초점 거리</string>
     <string name="settings_default_focal_length_description">앱 시작 시 자동으로 전환할 초점 거리를 설정합니다.</string>
     <string name="settings_use_p010">P010 (10비트 YUV)</string>

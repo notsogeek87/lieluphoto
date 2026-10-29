@@ -269,8 +269,6 @@
     <string name="current_camera">Câmera Atual</string>
     
     <!-- About & Donation -->
-    <string name="settings_donation">Doação</string>
-    <string name="settings_donation_description">Apoie o desenvolvimento da Photon Camera</string>
     <string name="settings_default_focal_length">Distância Focal Padrão</string>
     <string name="settings_default_focal_length_description">Defina a distância focal para alternar automaticamente quando o app for iniciado.</string>
     <string name="refresh">Atualizar</string>

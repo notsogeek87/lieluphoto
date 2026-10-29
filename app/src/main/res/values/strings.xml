@@ -868,12 +868,11 @@
     <string name="camera">Camera</string>
     <string name="current_camera">Current Camera</string>
 
-    <!-- About & Donation -->
-    <string name="settings_community_group">Community Group</string>
-    <string name="settings_community_group_telegram_description">Telegram: https://t.me/photoncameraapp</string>
-    <string name="settings_community_group_qq_description">QQ Group: 569605452</string>
-    <string name="settings_donation">Donation</string>
-    <string name="settings_donation_description">Support the development of Photon Camera</string>
+    <!-- About -->
+    <string name="settings_report_issue">Report a problem</string>
+    <string name="settings_report_issue_description">Open an issue on the LieluPhoto GitHub repository</string>
+    <string name="settings_upstream_project">Based on PhotonCamera</string>
+    <string name="settings_upstream_project_description">LieluPhoto is a fork of PhotonCamera by bjzhou: the original project, and where to support its author</string>
     <string name="settings_check_update">Check for Updates</string>
     <string name="settings_check_update_description">Current version: %1$s</string>
     <string name="settings_check_update_running">Checking and downloading updates...</string>

@@ -308,8 +308,6 @@
     <string name="current_camera">現在のカメラ</string>
     
     <!-- About & Donation -->
-    <string name="settings_donation">寄付</string>
-    <string name="settings_donation_description">Photon Cameraの開発を支援する</string>
     <string name="update_install_permission_hint">このアプリに「不明なアプリのインストール」を許可してから、もう一度「インストール」をタップしてください。</string>
     <string name="settings_default_focal_length">デフォルトの焦点距離</string>
     <string name="settings_default_focal_length_description">アプリ起動時に自動的に切り替える焦点距離を設定します。</string>
@@ -1075,7 +1073,6 @@
     <string name="frame_editor_divider_orientation_horizontal">水平</string>
     <string name="frame_editor_divider_orientation_vertical">垂直</string>
     <string name="frame_editor_summary_text">%1$s • %2$s • 行=%3$d</string>
-    <string name="settings_community_group">コミュニティ</string>
     <string name="settings_check_update">アップデートを確認</string>
     <string name="settings_check_update_description">現在のバージョン： %1$s</string>
     <string name="settings_check_update_running">アップデートを確認・ダウンロード中…</string>
