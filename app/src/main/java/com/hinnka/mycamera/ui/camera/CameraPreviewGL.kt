@@ -1,6 +1,9 @@
 package com.hinnka.mycamera.ui.camera
 
 import android.graphics.SurfaceTexture
+import android.hardware.display.DisplayManager
+import android.os.Handler
+import android.os.Looper
 import android.util.Size
 import androidx.compose.foundation.background
 import com.hinnka.mycamera.utils.PLog
@@ -14,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -88,7 +92,33 @@ fun CameraPreviewGL(
     modifier: Modifier = Modifier
 ) {
     val rotationDegrees = OrientationObserver.rotationDegrees
+    val displayRotationDegrees = OrientationObserver.displayRotationDegrees
     val lifecycleOwner = LocalLifecycleOwner.current
+    val hostView = LocalView.current
+
+    // La rotation de l'écran change au pliage/dépliage et entre 90° et 270° sans changement de
+    // configuration : seul DisplayManager la signale à coup sûr.
+    DisposableEffect(hostView) {
+        val displayManager = hostView.context.getSystemService(DisplayManager::class.java)
+        val listener = object : DisplayManager.DisplayListener {
+            override fun onDisplayAdded(displayId: Int) = Unit
+            override fun onDisplayRemoved(displayId: Int) = Unit
+            override fun onDisplayChanged(displayId: Int) {
+                val display = hostView.display ?: return
+                if (display.displayId == displayId) {
+                    OrientationObserver.updateDisplayRotation(display)
+                }
+            }
+        }
+        OrientationObserver.updateDisplayRotation(hostView.display)
+        PLog.d(
+            "CameraPreviewGL",
+            "Preview display rotation=${OrientationObserver.displayRotationDegrees}, " +
+                "displayId=${hostView.display?.displayId}",
+        )
+        displayManager?.registerDisplayListener(listener, Handler(Looper.getMainLooper()))
+        onDispose { displayManager?.unregisterDisplayListener(listener) }
+    }
     var glSurfaceViewRef by remember { mutableStateOf<CameraGLSurfaceView?>(null) }
     var resumeGeneration by remember { mutableIntStateOf(0) }
     val currentOnTap by rememberUpdatedState(onTap)
@@ -242,6 +272,7 @@ fun CameraPreviewGL(
                         glSurfaceView.setSensorOrientation(sensorOrientation)
                         glSurfaceView.setLensFacing(lensFacing)
                         glSurfaceView.setDeviceRotation(rotationDegrees.toInt())
+                        glSurfaceView.setDisplayRotation(displayRotationDegrees)
                         glSurfaceView.setCalibrationOffset(calibrationOffset)
                         glSurfaceView.setCaptureAspectRatio(aspectRatio)
                         glSurfaceView.setStabilizationInputSize(

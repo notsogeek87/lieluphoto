@@ -483,6 +483,8 @@ class LutRenderer(context: Context) : GLSurfaceView.Renderer {
     private var sensorOrientation: Int = 0
     private var calibrationOffset: Int = 0
     private var deviceRotation: Int = 0
+    // Rotation de l'écran par rapport à l'orientation naturelle (voir OrientationObserver).
+    private var displayRotation: Int = 0
     private var lensFacing: Int = 1 // CameraCharacteristics.LENS_FACING_BACK
 
     // 回调
@@ -2483,6 +2485,18 @@ class LutRenderer(context: Context) : GLSurfaceView.Renderer {
     }
 
     /**
+     * Rotation de l'écran par rapport à son orientation naturelle (0, 90, 180, 270).
+     * L'aperçu est tourné d'autant : les textures intermédiaires sont dans le repère de l'écran.
+     */
+    fun setDisplayRotation(degrees: Int) {
+        val normalized = Math.floorMod(degrees, 360)
+        if (displayRotation != normalized) {
+            displayRotation = normalized
+            updateMVPMatrix()
+        }
+    }
+
+    /**
      * 设置镜头朝向
      */
     fun setLensFacing(facing: Int) {
@@ -2522,7 +2536,12 @@ class LutRenderer(context: Context) : GLSurfaceView.Renderer {
      * 90/270 度会相差 180 度。
      */
     private fun getApplyRotation(): Int {
-        return resolveLivePhotoRotationDegrees(deviceRotation, calibrationOffset)
+        // Les textures sont dans le repère de l'écran : la rotation de l'écran s'ajoute pour
+        // revenir à l'orientation naturelle avant la rotation de prise de vue.
+        return Math.floorMod(
+            resolveLivePhotoRotationDegrees(deviceRotation, calibrationOffset) + displayRotation,
+            360,
+        )
     }
 
     /**
@@ -2540,6 +2559,14 @@ class LutRenderer(context: Context) : GLSurfaceView.Renderer {
 //        )
     }
 
+    /**
+     * Matrice du quad caméra vers une cible [targetWidth]×[targetHeight], en center crop.
+     *
+     * La texture OES est droite dans l'orientation naturelle de l'appareil. Elle est tournée de
+     * la rotation de l'écran (sens antihoraire, comme Display.getRotation()) moins le décalage
+     * de calibration, puis mise à l'échelle en pixels : la rotation reste rigide même si la cible
+     * n'est pas carrée.
+     */
     private fun buildMvpMatrix(targetWidth: Int, targetHeight: Int): FloatArray {
         val matrix = FloatArray(16)
         Matrix.setIdentityM(matrix, 0)
@@ -2547,32 +2574,33 @@ class LutRenderer(context: Context) : GLSurfaceView.Renderer {
             return matrix
         }
 
-        val isSwapped = (sensorOrientation + calibrationOffset) % 180 != 0
         val cropWidth = (cropRect[2] - cropRect[0]).coerceAtLeast(0.05f)
         val cropHeight = (cropRect[3] - cropRect[1]).coerceAtLeast(0.05f)
-        val previewAspect = if (isSwapped) {
+        // Rapport largeur/hauteur de l'image droite dans l'orientation naturelle.
+        val contentAspect = if (sensorOrientation % 180 != 0) {
             (previewHeight.toFloat() * cropHeight) / (previewWidth.toFloat() * cropWidth)
         } else {
             (previewWidth.toFloat() * cropWidth) / (previewHeight.toFloat() * cropHeight)
         }
-        val viewAspect = targetWidth.toFloat() / targetHeight.toFloat()
-
-        if (calibrationOffset != 0) {
-            Matrix.rotateM(matrix, 0, (-calibrationOffset).toFloat(), 0f, 0f, 1f)
+        if (!contentAspect.isFinite() || contentAspect <= 0f) {
+            return matrix
         }
 
-        if (previewAspect != viewAspect) {
-            val scaleX: Float
-            val scaleY: Float
-            if (viewAspect > previewAspect) {
-                scaleX = 1f
-                scaleY = viewAspect / previewAspect
-            } else {
-                scaleX = previewAspect / viewAspect
-                scaleY = 1f
-            }
-            Matrix.scaleM(matrix, 0, scaleX, scaleY, 1f)
+        val rotation = Math.floorMod(displayRotation - calibrationOffset, 360)
+        val quarterTurn = rotation % 180 != 0
+        // Étendue à l'écran (pixels) de l'image tournée, qui doit couvrir toute la cible.
+        val onScreenAspect = if (quarterTurn) 1f / contentAspect else contentAspect
+        val onScreenWidth = maxOf(targetWidth.toFloat(), targetHeight * onScreenAspect)
+        val onScreenHeight = onScreenWidth / onScreenAspect
+        // Étendue de l'image le long de ses propres axes, avant rotation.
+        val contentWidth = if (quarterTurn) onScreenHeight else onScreenWidth
+        val contentHeight = if (quarterTurn) onScreenWidth else onScreenHeight
+
+        Matrix.scaleM(matrix, 0, 1f / targetWidth, 1f / targetHeight, 1f)
+        if (rotation != 0) {
+            Matrix.rotateM(matrix, 0, rotation.toFloat(), 0f, 0f, 1f)
         }
+        Matrix.scaleM(matrix, 0, contentWidth, contentHeight, 1f)
         return matrix
     }
 

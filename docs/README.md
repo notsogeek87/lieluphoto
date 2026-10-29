@@ -9,6 +9,7 @@
 - [Mode Nuit](guides/mode-nuit.md)
 - [Mise à jour de l'app (releases GitHub)](guides/mise-a-jour-app.md)
 - [Détection des QR codes du viseur](guides/qr-code.md)
+- [Orientation de l'écran et aperçu caméra (Z Fold)](guides/orientation-ecran.md)
 
 ## API / legacy
 Dossiers `api/` et `legacy/` réservés (vides pour l'instant).

@@ -47,6 +47,9 @@ internal data class PreviewMeteringMapping(
 
 /**
  * 把最终显示画面的归一化坐标映射到 Camera2 AF/AE region 坐标。
+ *
+ * Le point touché est d'abord ramené de l'écran à l'orientation naturelle de l'appareil
+ * ([displayRotationDegrees], sens de Display.getRotation()), repère de l'image Camera2.
  */
 internal object PreviewMeteringMapper {
     fun mapPoint(
@@ -58,8 +61,16 @@ internal object PreviewMeteringMapper {
         previewViewAspectRatio: Float,
         sensorOrientationDegrees: Int,
         isFrontFacing: Boolean,
+        displayRotationDegrees: Int = 0,
     ): PreviewMeteringMapping? {
         if (activeArray.isEmpty) return null
+
+        val displayRotation = Math.floorMod(displayRotationDegrees, 360)
+        val naturalViewAspectRatio = if (displayRotation % 180 != 0) {
+            1f / previewViewAspectRatio
+        } else {
+            previewViewAspectRatio
+        }
 
         val zoomRegion = when (zoomMode) {
             PreviewMeteringZoomMode.POST_ZOOM_ACTIVE_ARRAY -> activeArray
@@ -69,12 +80,20 @@ internal object PreviewMeteringMapper {
         }
         val visibleRegion = centerCropToPreviewAspect(
             region = zoomRegion,
-            previewViewAspectRatio = previewViewAspectRatio,
+            previewViewAspectRatio = naturalViewAspectRatio,
             sensorOrientationDegrees = sensorOrientationDegrees,
         )
 
-        val uiX = normalizedX.coerceIn(0f, 1f)
-        val uiY = normalizedY.coerceIn(0f, 1f)
+        // L'aperçu est l'image naturelle tournée de displayRotation dans le sens antihoraire :
+        // le sens horaire ramène le point de l'écran à l'orientation naturelle.
+        val screenX = normalizedX.coerceIn(0f, 1f)
+        val screenY = normalizedY.coerceIn(0f, 1f)
+        val (uiX, uiY) = when (displayRotation) {
+            90 -> (1f - screenY) to screenX
+            180 -> (1f - screenX) to (1f - screenY)
+            270 -> screenY to (1f - screenX)
+            else -> screenX to screenY
+        }
         val (rotatedX, rotatedY) = when (Math.floorMod(sensorOrientationDegrees, 360)) {
             0 -> uiX to uiY
             90 -> uiY to (1f - uiX)

@@ -158,6 +158,12 @@ class CameraGLSurfaceView @JvmOverloads constructor(
         }
     }
 
+    fun setDisplayRotation(degrees: Int) {
+        queueEvent {
+            renderer.setDisplayRotation(degrees)
+        }
+    }
+
     fun setLensFacing(facing: Int) {
         queueEvent {
             renderer.setLensFacing(facing)

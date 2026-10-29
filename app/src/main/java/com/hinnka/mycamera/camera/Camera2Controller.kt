@@ -6099,6 +6099,7 @@ class Camera2Controller(private val context: Context) {
                 ?: getSensorOrientation(),
             isFrontFacing = (characteristics.get(CameraCharacteristics.LENS_FACING) ?: getLensFacing()) ==
                 CameraCharacteristics.LENS_FACING_FRONT,
+            displayRotationDegrees = OrientationObserver.displayRotationDegrees,
         )
     }
 

@@ -5,9 +5,12 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.view.Display
 import android.view.OrientationEventListener
+import android.view.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlin.math.abs
@@ -37,6 +40,27 @@ object OrientationObserver {
     // 存储拍摄方向，包含反向竖屏，用于照片保存/处理和录像方向元数据
     var captureRotationDegrees by mutableStateOf(0f)
         private set
+
+    // Rotation de l'écran par rapport à son orientation naturelle (0, 90, 180, 270), sens de
+    // Display.getRotation(). Les images Camera2 arrivent droites dans l'orientation naturelle :
+    // l'aperçu et tout ce qui en dérive (mesure, toucher, miniatures) doivent la compenser.
+    // Elle n'est pas nulle quand l'écran affiché n'est pas dans l'orientation naturelle, par
+    // exemple l'écran intérieur déplié d'un Galaxy Z Fold tenu en portrait.
+    var displayRotationDegrees by mutableIntStateOf(0)
+        private set
+
+    fun updateDisplayRotation(display: Display?) {
+        val degrees = when (display?.rotation ?: return) {
+            Surface.ROTATION_90 -> 90
+            Surface.ROTATION_180 -> 180
+            Surface.ROTATION_270 -> 270
+            else -> 0
+        }
+        if (degrees != displayRotationDegrees) {
+            displayRotationDegrees = degrees
+            PLog.d(TAG, "Display rotation changed to $degrees, displayId=${display.displayId}")
+        }
+    }
 
     // 更新方向，只在横竖屏切换时才更新状态
     fun updateOrientation(orientation: Int) {

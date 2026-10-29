@@ -5076,7 +5076,10 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         }
         val currentCameraId = cameraController.getCurrentCameraId()
         val orientationOffset = userPreferences.value.cameraOrientationOffsets[currentCameraId] ?: 0
-        return ((baseRotation + orientationOffset) % 360).toFloat()
+        // Les images de l'aperçu sont dans le repère de l'écran : la rotation de l'écran les
+        // ramène d'abord à l'orientation naturelle.
+        val displayRotation = OrientationObserver.displayRotationDegrees
+        return ((baseRotation + orientationOffset + displayRotation) % 360).toFloat()
     }
 
     private fun rotatePreviewBitmapForCapture(bitmap: Bitmap, rotationDegrees: Float): Bitmap {
