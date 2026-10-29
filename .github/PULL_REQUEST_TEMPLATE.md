@@ -201,6 +201,3 @@
 
 > **⚠️ IMPORTANT** : Les PR qui ne respectent pas ce template ou les règles définies dans [AGENTS.md](../AGENTS.md) **seront fermées sans review**.
 
----
-
-*Template généré par Vibe Code (Mistral AI)*
