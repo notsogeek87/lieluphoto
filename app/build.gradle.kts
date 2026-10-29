@@ -89,6 +89,8 @@ android {
     lint {
         // Keep fatal lint analysis off the Release packaging path.
         checkReleaseBuilds = false
+        // Rapport seulement : le job lint de la CI publie le résultat sans bloquer.
+        abortOnError = false
     }
 
     flavorDimensions += "channel"

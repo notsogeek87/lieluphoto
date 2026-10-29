@@ -22,9 +22,35 @@ concurrency:
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 
 jobs:
+  # Un commit poussé sur une branche puis sur main ne se builde qu'une fois : si main pointe
+  # déjà sur ce commit, la branche n'a rien à ajouter (le build de main publie la release).
+  dedupe:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - name: Commit déjà sur main ?
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SKIP=false
+          if [ "${{ github.ref_name }}" != "main" ]; then
+            MAIN_SHA=$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)
+            [ "$MAIN_SHA" = "${{ github.sha }}" ] && SKIP=true
+          fi
+          echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: dedupe
+    if: needs.dedupe.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # Branche poussée juste avant main sur le même commit : le build de main annule celui
+    # de la branche au lieu de construire deux fois le même APK.
+    concurrency:
+      group: android-build-sha-${{ github.sha }}
+      cancel-in-progress: ${{ github.ref_name == 'main' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -187,3 +213,46 @@ jobs:
             --notes "Build de test de la branche. Run #${{ github.run_number }} (${{ github.sha }})." \
             --prerelease \
             --target "${{ github.sha }}"
+
+  # Rapport lint de main, en parallèle du build : il ne bloque ni la release ni la CI
+  # (abortOnError = false dans app/build.gradle.kts), il se consulte dans les artefacts.
+  lint:
+    needs: dedupe
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Installer NDK et CMake
+        run: |
+          SDK_DIR="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          "${SDK_DIR}/cmdline-tools/latest/bin/sdkmanager" "ndk;29.0.14206865" "cmake;3.22.1"
+
+      - name: Écrire local.properties
+        run: printf 'sdk.dir=%s\n' "${ANDROID_SDK_ROOT:-$ANDROID_HOME}" > local.properties
+
+      - name: Lint (variante default, debug)
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:lintDefaultDebug --console=plain
+
+      - name: Upload du rapport lint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report-${{ github.run_number }}
+          path: |
+            app/build/reports/lint-results-defaultDebug.html
+            app/build/reports/lint-results-defaultDebug.xml
+          if-no-files-found: warn
