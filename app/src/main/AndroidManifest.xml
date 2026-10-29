@@ -188,7 +188,7 @@
         <activity
                 android:name=".mgc.MgcFilterSelectionActivity"
                 android:excludeFromRecents="true"
-                android:exported="true"
+                android:exported="false"
                 android:finishOnTaskLaunch="true"
                 android:label="@string/filters_panel"
                 android:launchMode="singleTop"
@@ -209,15 +209,17 @@
                     android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- Passerelle MGC (GCam modifiée) coupée dans LieluPhoto : sans export, aucune app
+             tierce ne lit le filtre actif ni n'injecte de DNG dans la galerie. -->
         <provider
                 android:name=".mgc.PhotonLookProvider"
                 android:authorities="${applicationId}.mgc.look"
-                android:exported="true" />
+                android:exported="false" />
 
         <provider
                 android:name=".mgc.PhotonRawProvider"
                 android:authorities="${applicationId}.mgc.raw"
-                android:exported="true" />
+                android:exported="false" />
 
         <activity
                 android:name=".phantom.PhantomShortcutActivity"

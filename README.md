@@ -13,6 +13,7 @@ LieluPhoto est une application d'appareil photo Android, centrée sur la photo, 
 * **Portrait** : bokeh par IA avec un cadran d'ouverture (ƒ/1 à ƒ/16) au niveau du zoom. Le modèle de profondeur est téléchargé au premier passage en Portrait.
 * **IA d'amélioration** : débruitage (NAFNet) et restauration des visages (GFPGAN), activés par défaut. Les modèles sont proposés au téléchargement à l'ouverture, et un rappel propose de réactiver l'IA si elle a été coupée.
 * **Mises à jour** : via les [releases GitHub](https://github.com/notsogeek87/lieluphoto/releases) (voir [le guide](./docs/guides/mise-a-jour-app.md)).
+* **Passerelle MGC coupée** : aucune autre app (GCam modifiée ou autre) ne peut lire le filtre actif ni ajouter de photo à la galerie. Pour retoucher une photo d'une autre app, la partager vers LieluPhoto.
 
 ## Fonctionnalités héritées de PhotonCamera
 
