@@ -103,14 +103,6 @@ android {
         create("default") {
             dimension = "channel"
         }
-        create("samsung") {
-            dimension = "channel"
-            applicationId = "com.samsung.android.scan3d"
-        }
-        create("meitu") {
-            dimension = "channel"
-            applicationId = "com.meitu.meiyancamera"
-        }
     }
 
     compileOptions {
@@ -133,18 +125,6 @@ android {
 
     sourceSets {
         getByName("dev") {
-            java {
-                srcDir("src/default/java")
-            }
-            manifest.srcFile("src/default/AndroidManifest.xml")
-        }
-        getByName("samsung") {
-            java {
-                srcDir("src/default/java")
-            }
-            manifest.srcFile("src/default/AndroidManifest.xml")
-        }
-        getByName("meitu") {
             java {
                 srcDir("src/default/java")
             }
