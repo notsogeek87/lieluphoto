@@ -580,6 +580,7 @@ fun NavigationHost(
     }
     DisposableEffect(navController, context) {
         val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
+            cameraViewModel.isCameraDestination = destination.route == Routes.CAMERA
             BuglyHelper.setUserScene(context, destination.route.hashCode())
         }
         navController.addOnDestinationChangedListener(listener)

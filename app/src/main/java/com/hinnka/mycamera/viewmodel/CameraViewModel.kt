@@ -1574,6 +1574,10 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
     var isExpanded by mutableStateOf(false)
 
+    /** L'écran appareil photo est la destination affichée : seul cas où les touches volume pilotent la caméra. */
+    @Volatile
+    var isCameraDestination = true
+
     private var startupPrewarmJob: Job? = null
     private var startupPrewarmAttempted = false
 
@@ -5708,6 +5712,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
      * @return 是否消费了该事件
      */
     fun handleVolumeKey(isUp: Boolean): Boolean {
+        if (!isCameraDestination) return false
         val action = volumeKeyAction.value
         if (action == VolumeKeyAction.NONE) return false
 
