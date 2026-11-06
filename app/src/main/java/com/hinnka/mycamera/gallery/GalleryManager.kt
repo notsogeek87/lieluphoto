@@ -4248,8 +4248,12 @@ object GalleryManager {
         }
         val watchdog = aiEnhanceScope.launch {
             delay(AI_ENHANCE_DEADLINE_MS)
-            PLog.w(TAG, "AI enhance deadline reached, photo kept as is: $photoId")
-            finish("IA[délai ${AI_ENHANCE_DEADLINE_MS / 1000} s dépassé]")
+            // Annuler le chien de garde n'arrête que l'attente : une fois le délai passé, la fin
+            // (export reporté compris) doit aller à son terme même si l'IA se termine pendant l'export.
+            withContext(NonCancellable) {
+                PLog.w(TAG, "AI enhance deadline reached, photo kept as is: $photoId")
+                finish("IA[délai ${AI_ENHANCE_DEADLINE_MS / 1000} s dépassé]")
+            }
         }
         aiEnhanceScope.launch {
             try {
