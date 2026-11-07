@@ -48,7 +48,6 @@ import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -233,7 +232,6 @@ fun GalleryEditScreen(
     val availableLuts = viewModel.selectableEditLuts
     val videoSourceProfile = viewModel.editVideoSourceProfile
     val lutSwipeState = rememberLutSwipeState()
-    val density = LocalDensity.current
     val showPaymentDialog = viewModel.showPaymentDialog
     val isPurchased by viewModel.isPurchased.collectAsState()
     val categoryOrder by viewModel.categoryOrder.collectAsState()
@@ -1097,14 +1095,8 @@ fun GalleryEditScreen(
                     )
                 }
 
-                // 切换动画只覆盖顶部栏与编辑面板之间的可见预览区，不遮挡控制区
-                LutSwipeIndicator(
-                    state = lutSwipeState,
-                    modifier = Modifier.padding(
-                        top = with(density) { visibleTopBarHeightPx.toDp() },
-                        bottom = with(density) { visibleEditPanelHeightPx.toDp() },
-                    ),
-                )
+                // L'emplacement Preview d'EditLayout est déjà borné entre la barre du haut et le panneau.
+                LutSwipeIndicator(state = lutSwipeState)
             }
 
             Box(modifier = Modifier.layoutId(EditLayoutSlot.TopBar)) {
