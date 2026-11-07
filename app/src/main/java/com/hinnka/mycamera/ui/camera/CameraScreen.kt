@@ -716,6 +716,13 @@ fun CameraScreen(
         }
     }
 
+    // Balayage vertical du viseur : caméra arrière <-> frontale, comme le bouton de bascule.
+    fun swipeSwitchCamera() {
+        if (state.videoRecordingState.isRecording || state.videoRecordingState.isProcessing) return
+        if (previewTransitionActive || lensSwitchTransition.isActive) return
+        switchCameraWithPreviewTransition()
+    }
+
     // Balayage horizontal du viseur : Photo · Portrait · Vidéo, comme sur l'appareil Samsung.
     fun swipeShootingMode(forward: Boolean) {
         if (state.videoRecordingState.isRecording || state.videoRecordingState.isProcessing) return
@@ -1240,6 +1247,7 @@ fun CameraScreen(
                         }
                         .pointerInput(state.availableCameras) {
                             var totalDrag = 0f
+                            var totalDragY = 0f
                             awaitEachGesture {
                                 var gestureStartedInPreviewControl: Boolean? = null
                                 var childConsumedDrag = false
@@ -1263,6 +1271,7 @@ fun CameraScreen(
                                         if (event.changes.all { !it.pressed }) {
                                             viewModel.isZooming = false
                                             totalDrag = 0f
+                                            totalDragY = 0f
                                             break
                                         }
                                         continue
@@ -1271,6 +1280,7 @@ fun CameraScreen(
                                         // Pinch to zoom
                                         childConsumedDrag = true
                                         totalDrag = 0f
+                                        totalDragY = 0f
                                         viewModel.isZooming = true
                                         val zoom = event.calculateZoom()
                                         if (zoom != 1f) {
@@ -1288,17 +1298,24 @@ fun CameraScreen(
                                         if (change.isConsumed && change.position != change.previousPosition) {
                                             childConsumedDrag = true
                                             totalDrag = 0f
+                                            totalDragY = 0f
                                         }
                                         if (change.pressed && !childConsumedDrag) {
                                             val dragAmount =
                                                 change.position.x - change.previousPosition.x
                                             totalDrag += dragAmount
+                                            totalDragY += change.position.y - change.previousPosition.y
                                         } else if (!change.pressed) {
                                             // onDragEnd logic
-                                            if (!childConsumedDrag && abs(totalDrag) > 100) {
-                                                swipeShootingMode(forward = totalDrag < 0)
+                                            if (!childConsumedDrag) {
+                                                if (abs(totalDragY) > 100 && abs(totalDragY) > abs(totalDrag) * 1.5f) {
+                                                    swipeSwitchCamera()
+                                                } else if (abs(totalDrag) > 100) {
+                                                    swipeShootingMode(forward = totalDrag < 0)
+                                                }
                                             }
                                             totalDrag = 0f
+                                            totalDragY = 0f
                                             viewModel.isZooming = false
                                         }
                                     }
@@ -1306,6 +1323,7 @@ fun CameraScreen(
                                     if (event.changes.all { !it.pressed }) {
                                         viewModel.isZooming = false
                                         totalDrag = 0f
+                                        totalDragY = 0f
                                         break
                                     }
                                 }
