@@ -144,6 +144,18 @@ android {
 
 dependencies {
 
+    // Sécurité (audit Trivy 2026-11-11) : versions minimales de dépendances
+    // transitives livrées dans l'APK. À retirer quand les bibliothèques qui les
+    // tirent les auront elles-mêmes relevées.
+    constraints {
+        implementation("com.google.guava:guava:33.7.2-android") {
+            because("CVE-2026-102554 : déni de service à la désérialisation (corrigé en 33.7.2)")
+        }
+        implementation("com.google.protobuf:protobuf-javalite:4.28.2") {
+            because("CVE-2024-7254 : dépassement de pile sur groupes imbriqués (corrigé en 4.28.2)")
+        }
+    }
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
