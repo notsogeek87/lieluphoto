@@ -653,14 +653,21 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch(Dispatchers.IO) {
             val context = getApplication<Application>()
             try {
-                var bitmap = GalleryManager.loadOriginalBitmap(context, photo.id) ?: GalleryManager.loadBitmap(context, photo.uri)
+                val target = resolvePersistentEditTarget(photo)
+                if (target == null) {
+                    _isAiDenoising.value = false
+                    withContext(Dispatchers.Main) { onComplete(false) }
+                    return@launch
+                }
+                var bitmap = GalleryManager.loadOriginalBitmap(context, target.id) ?: GalleryManager.loadBitmap(context, target.uri)
                 if (bitmap == null) {
+                    PLog.e(TAG, "AI denoise: cannot decode source bitmap for ${target.id}")
                     _isAiDenoising.value = false
                     withContext(Dispatchers.Main) { onComplete(false) }
                     return@launch
                 }
                 
-                if (!isRawInGallery(photo.id)) {
+                if (!isRawInGallery(target.id)) {
                     // 非 RAW 照片，先进行一次色度降噪
                     val lutProcessor = com.hinnka.mycamera.lut.LutImageProcessor()
                     val chromaDenoised = lutProcessor.applyChromaDenoise(bitmap, strength = 0.8f)
@@ -679,41 +686,43 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                 bitmap.recycle()
                 
                 if (denoised == null) {
+                    PLog.e(TAG, "AI denoise: estimator produced no image for ${target.id} (backend=${estimator.backendName})")
                     _isAiDenoising.value = false
                     withContext(Dispatchers.Main) { onComplete(false) }
                     return@launch
                 }
                 
-                val file = GalleryManager.getAiDenoiseFile(context, photo.id)
+                val file = GalleryManager.getAiDenoiseFile(context, target.id)
                 file.parentFile?.mkdirs()
                 FileOutputStream(file).use { outputStream ->
                     denoised.compress(Bitmap.CompressFormat.JPEG, 95, outputStream)
                 }
                 
                 // Update metadata to mark that we have an AI denoised base
-                val metadata = currentMediaMetadata ?: photo.metadata ?: MediaMetadata()
+                val metadata = currentMediaMetadata ?: target.metadata ?: MediaMetadata()
                 val aperture = metadata.computationalAperture ?: 0f
                 if (aperture > 0f) {
                     val bokeh = contentRepository.depthBokehProcessor.applyHighQualityBokeh(
                         context,
-                        photo.id,
+                        target.id,
                         denoised,
                         metadata.focusPointX,
                         metadata.focusPointY,
                         aperture,
                         BokehStyle.fromPersistedName(metadata.computationalBokehStyle),
                     )
-                    GalleryManager.saveBokehPhoto(context, photo.id, bokeh)
+                    GalleryManager.saveBokehPhoto(context, target.id, bokeh)
                     if (bokeh !== denoised && !bokeh.isRecycled) {
                         bokeh.recycle()
                     }
                 }
-                val updatedMetadata = GalleryManager.updateMetadata(context, photo.id) { current ->
+                val updatedMetadata = GalleryManager.updateMetadata(context, target.id) { current ->
                     current.copy(
                         hasAiDenoisedBase = true,
                         aiDenoiseStrength = strength
                     )
                 } ?: run {
+                    PLog.e(TAG, "AI denoise: no gallery record to update for ${target.id}")
                     _isAiDenoising.value = false
                     withContext(Dispatchers.Main) { onComplete(false) }
                     return@launch
@@ -721,21 +730,21 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                 currentMediaMetadata = updatedMetadata
                 
                 val updatedPhotos = _photos.value.map { p ->
-                    if (p.id == photo.id) p.copy(metadata = updatedMetadata) else p
+                    if (p.id == target.id) p.copy(metadata = updatedMetadata) else p
                 }
                 _photos.value = updatedPhotos
-                if (_latestPhoto.value?.id == photo.id) {
+                if (_latestPhoto.value?.id == target.id) {
                     _latestPhoto.value = _latestPhoto.value?.copy(metadata = updatedMetadata)
                 }
                 
-                photoRefreshKeys[photo.id] = System.currentTimeMillis()
-                invalidatePreviewCache(photo.id)
+                photoRefreshKeys[target.id] = System.currentTimeMillis()
+                invalidatePreviewCache(target.id)
                 
                 // Clear and rebuild HDR cache so the user sees the new denoised image in HDR view
-                GalleryManager.deleteDetailHdrFile(context, photo.id)
+                GalleryManager.deleteDetailHdrFile(context, target.id)
                 GalleryManager.queueDetailHdrCacheBuild(
                     context = context,
-                    photoId = photo.id,
+                    photoId = target.id,
                     metadata = updatedMetadata,
                     sharpening = updatedMetadata.sharpening ?: 0f,
                     noiseReduction = updatedMetadata.noiseReduction ?: 0f,
@@ -743,7 +752,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                 )
                 GalleryManager.updateThumbnail(
                     context = context,
-                    photoId = photo.id,
+                    photoId = target.id,
                     photoProcessor = contentRepository.photoProcessor,
                     metadata = updatedMetadata
                 )
@@ -758,6 +767,33 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * Photo LieluPhoto qui reçoit un traitement enregistré immédiatement (débruitage IA).
+     * Une photo de l'onglet Système n'a pas de fiche en base : elle est importée comme le fait
+     * [saveEditMetadata], puis reliée à son import pour que la validation réutilise cette copie.
+     */
+    private suspend fun resolvePersistentEditTarget(photo: MediaData): MediaData? {
+        val systemPhoto = _systemPhotos.value.firstOrNull { it.id == photo.id } ?: return photo
+        systemPhoto.relatedPhoto?.let { return it }
+        val context = getApplication<Application>()
+        val importedId = GalleryManager.importPhoto(context, systemPhoto.uri, editLutId.value)
+        if (importedId == null) {
+            PLog.e(TAG, "Cannot import system photo ${systemPhoto.id} for persistent edit")
+            return null
+        }
+        // Même enchaînement que saveEditMetadata, sur le thread principal (état de la galerie).
+        return withContext(Dispatchers.Main) {
+            loadPhotos(reset = true)
+            val imported = _photos.value.firstOrNull { it.id == importedId }
+            if (imported == null) {
+                PLog.e(TAG, "Imported photo $importedId missing from gallery after import of ${systemPhoto.id}")
+                return@withContext null
+            }
+            linkSystemPhotoToPhoton(systemPhoto.id, imported)
+            imported
+        }
+    }
+
     fun resetDnCNNDenoise(photo: MediaData, onComplete: (Boolean) -> Unit = {}) {
         if (_isAiDenoising.value) return
         _isAiDenoising.value = true
@@ -765,8 +801,16 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch(Dispatchers.IO) {
             val context = getApplication<Application>()
             try {
-                GalleryManager.getAiDenoiseFile(context, photo.id).takeIf { it.exists() }?.delete()
-                val updatedMetadata = updatePhotoMetadata(photo.id) {
+                // Photo système jamais importée : aucun débruitage IA n'a pu être enregistré.
+                val systemPhoto = _systemPhotos.value.firstOrNull { it.id == photo.id }
+                if (systemPhoto != null && systemPhoto.relatedPhoto == null) {
+                    _isAiDenoising.value = false
+                    withContext(Dispatchers.Main) { onComplete(true) }
+                    return@launch
+                }
+                val target = systemPhoto?.relatedPhoto ?: photo
+                GalleryManager.getAiDenoiseFile(context, target.id).takeIf { it.exists() }?.delete()
+                val updatedMetadata = updatePhotoMetadata(target.id) {
                     it.copy(hasAiDenoisedBase = false, aiDenoiseStrength = 0.0f)
                 } ?: run {
                     _isAiDenoising.value = false
@@ -776,20 +820,20 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
 
                 val aperture = updatedMetadata.computationalAperture ?: 0f
                 if (aperture > 0f) {
-                    val originalBitmap = GalleryManager.loadOriginalBitmap(context, photo.id)
+                    val originalBitmap = GalleryManager.loadOriginalBitmap(context, target.id)
                     if (originalBitmap != null) {
-                        GalleryManager.generateBokehPhoto(context, photo.id, updatedMetadata, originalBitmap)
+                        GalleryManager.generateBokehPhoto(context, target.id, updatedMetadata, originalBitmap)
                         if (!originalBitmap.isRecycled) originalBitmap.recycle()
                     }
                 } else {
-                    GalleryManager.getBokehFile(context, photo.id).takeIf { it.exists() }?.delete()
+                    GalleryManager.getBokehFile(context, target.id).takeIf { it.exists() }?.delete()
                 }
 
-                GalleryManager.deleteDetailHdrFile(context, photo.id)
+                GalleryManager.deleteDetailHdrFile(context, target.id)
                 if (updatedMetadata.manualHdrEffectEnabled) {
                     GalleryManager.queueDetailHdrCacheBuild(
                         context = context,
-                        photoId = photo.id,
+                        photoId = target.id,
                         metadata = updatedMetadata,
                         sharpening = updatedMetadata.sharpening ?: 0f,
                         noiseReduction = updatedMetadata.noiseReduction ?: 0f,
@@ -798,12 +842,12 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                 }
                 GalleryManager.updateThumbnail(
                     context = context,
-                    photoId = photo.id,
+                    photoId = target.id,
                     photoProcessor = contentRepository.photoProcessor,
                     metadata = updatedMetadata
                 )
-                invalidatePreviewCache(photo.id)
-                photoRefreshKeys[photo.id] = System.currentTimeMillis()
+                invalidatePreviewCache(target.id)
+                photoRefreshKeys[target.id] = System.currentTimeMillis()
                 _isAiDenoising.value = false
                 withContext(Dispatchers.Main) { onComplete(true) }
             } catch (e: Exception) {
