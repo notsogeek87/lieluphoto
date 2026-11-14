@@ -678,7 +678,13 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                     }
                 }
                 
-                val estimator = com.hinnka.mycamera.ml.DnCNNDenoiseEstimator(context)
+                // Le délégué GPU est tenté même hors liste de compatibilité TFLite (cas des Adreno
+                // récents) : sinon NNAPI prend le relais, ~1 s par tuile soit plusieurs minutes.
+                // Si le GPU refuse le modèle, NNAPI puis le CPU restent les replis.
+                val estimator = com.hinnka.mycamera.ml.DnCNNDenoiseEstimator(
+                    context = context,
+                    forceGpuAttempt = true,
+                )
                 val denoised = estimator.denoisePatchwise(bitmap, strength = strength) { p ->
                     _aiDenoiseProgress.value = p
                 }
