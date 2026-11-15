@@ -158,7 +158,7 @@ class OglBokehProcessor {
             val params = LensBlurParams.forAperture(aperture)
             val layout = LensBlurLayout(originalLongEdge, radiusScale, params)
             val depthMap = DepthLayerMasks.median3(lowResDepthMap)
-            val focalRange = (if (focusOnSubject) LensBlurFocalRange.forSubject(depthMap, subjectMask) else null)
+            val focalRange = (if (focusOnSubject) LensBlurFocalRange.forSubject(depthMap, subjectMask, focusDepth) else null)
                 ?: LensBlurFocalRange.forPoint(depthMap, focusX, focusY)
             // PSF banks are first read by the scatter and layer interiors by the
             // layered depth: both are built on CPU workers while the GPU starts.

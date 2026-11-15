@@ -14,6 +14,12 @@ U2NetP 输出显著性，不输出人物类别或实例编号。同一张 mask �
 ±0.05 为可生长区间做 8 邻域 flood，覆盖率在可生长区内线性降到 0。之后走与主体完全相同的分层、细化与保护契约，
 A 表示焦平面覆盖率。相似颜色、分割本身漏掉的细结构和深度严重错误仍可能影响结果。
 
+Mise au point sur le sujet : la plage nette [r1, r2] est le p1–p99 de profondeur du masque. Comme le masque
+de saillance peut réunir plusieurs objets à des profondeurs différentes (un enfant derrière une poussette),
+sa largeur est limitée à 0,5 (le maximum de la mise au point par point) : une fenêtre de cette largeur,
+contenue dans la plage du sujet et centrée au plus près de la profondeur de mise au point. Sans cette limite,
+la plage peut couvrir presque toute la scène et l'arrière-plan reste net.
+
 ## TFLite 推理
 
 模型打包在 `app/src/main/assets/u2netp/u2netp.tflite`，无需额外下载或 ONNX Runtime。

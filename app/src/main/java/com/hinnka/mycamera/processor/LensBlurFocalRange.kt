@@ -29,8 +29,18 @@ internal data class LensBlurFocalRange(
         private const val SUBJECT_COVERAGE = 0.8f
         private const val FOCUS_AREA_RADIUS = 0.045f
 
-        /** `FocusOnSubject`: the subject's depth range with a 0.8 ramp on each side. */
-        fun forSubject(depth: RelativeDepthMap, subjectMask: SubjectMask): LensBlurFocalRange? {
+        /**
+         * `FocusOnSubject`: the subject's depth range with a 0.8 ramp on each side.
+         * U2NetP is a saliency mask and can join several objects at different depths (a child
+         * behind a stroller): its p1–p99 range can then cover the whole scene and leave the
+         * background sharp. The in-focus width is held to the point-focus maximum, as a window
+         * inside the subject range that contains the focus depth.
+         */
+        fun forSubject(
+            depth: RelativeDepthMap,
+            subjectMask: SubjectMask,
+            focusDisparity: Float,
+        ): LensBlurFocalRange? {
             val histogram = FloatArray(HISTOGRAM_BINS)
             var total = 0f
             for (y in 0 until depth.height) {
@@ -42,7 +52,15 @@ internal data class LensBlurFocalRange(
                 }
             }
             if (total <= 0f) return null
-            val (lo, hi) = percentileRange(histogram, total)
+            val (subjectLo, subjectHi) = percentileRange(histogram, total)
+            val (lo, hi) = if (subjectHi - subjectLo > SAMPLE_MAX_SIZE) {
+                val focus = lensDepth(focusDisparity).coerceIn(subjectLo, subjectHi)
+                val windowLo = (focus - SAMPLE_MAX_SIZE * 0.5f)
+                    .coerceIn(subjectLo, subjectHi - SAMPLE_MAX_SIZE)
+                windowLo to windowLo + SAMPLE_MAX_SIZE
+            } else {
+                subjectLo to subjectHi
+            }
             return LensBlurFocalRange(lo - RAMP_SIZE, lo, hi, hi + RAMP_SIZE).rounded()
         }
 
