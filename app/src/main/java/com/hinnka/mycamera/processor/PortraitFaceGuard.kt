@@ -8,6 +8,7 @@ import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.facedetector.FaceDetector
+import com.hinnka.mycamera.ml.SubjectMask
 import com.hinnka.mycamera.utils.PLog
 import kotlin.math.max
 import kotlin.math.min
@@ -19,6 +20,10 @@ import kotlin.math.sqrt
  * le masque du sujet placent parfois la barbe et les bords du visage « derrière » (build 203 : barbe
  * -64 %, joue droite -76 % de netteté). Après le flou, on recopie l'image nette dans un ovale adouci
  * qui couvre le visage, le haut des cheveux et la barbe.
+ *
+ * L'ovale déborde du visage : sur un visage de trois quarts ou une tête étroite, il couvre aussi du
+ * fond, qui restait net à côté de la tête. Le cadre détecté (front → menton) est toujours recopié ;
+ * hors de ce cadre, la recopie suit la couverture du masque du sujet, si bien que le fond reste flou.
  */
 internal object PortraitFaceGuard {
     private const val TAG = "PortraitFaceGuard"
@@ -35,8 +40,15 @@ internal object PortraitFaceGuard {
     private const val FEATHER_INNER = 0.82f
     private const val FEATHER_OUTER = 1.08f
 
-    /** Recopie [sharp] dans [blurred] sur chaque visage. [blurred] doit être modifiable. */
-    fun restoreFaces(context: Context, sharp: Bitmap, blurred: Bitmap): Int {
+    // Cœur toujours net : ellipse inscrite dans le cadre détecté, adoucie entre ces rayons relatifs.
+    private const val CORE_INNER = 0.9f
+    private const val CORE_OUTER = 1.1f
+
+    /**
+     * Recopie [sharp] dans [blurred] sur chaque visage, limité au sujet de [subjectMask] hors du cadre
+     * du visage. [blurred] doit être modifiable.
+     */
+    fun restoreFaces(context: Context, sharp: Bitmap, blurred: Bitmap, subjectMask: SubjectMask): Int {
         if (sharp.width != blurred.width || sharp.height != blurred.height || !blurred.isMutable) return 0
         val faces = try {
             detectFaces(context, sharp)
@@ -44,7 +56,7 @@ internal object PortraitFaceGuard {
             PLog.w(TAG, "Face detection failed, portrait left as is", e)
             return 0
         }
-        for (face in faces) blendFace(sharp, blurred, face)
+        for (face in faces) blendFace(sharp, blurred, face, subjectMask)
         if (faces.isNotEmpty()) PLog.d(TAG, "Portrait faces kept sharp: ${faces.size}")
         return faces.size
     }
@@ -87,11 +99,13 @@ internal object PortraitFaceGuard {
         }
     }
 
-    private fun blendFace(sharp: Bitmap, blurred: Bitmap, face: RectF) {
+    private fun blendFace(sharp: Bitmap, blurred: Bitmap, face: RectF, subjectMask: SubjectMask) {
         val cx = face.centerX()
         val cy = face.centerY() + CENTER_SHIFT_Y * face.height()
         val rx = RADIUS_X * face.width()
         val ry = RADIUS_Y * face.height()
+        val coreRx = 0.5f * face.width()
+        val coreRy = 0.5f * face.height()
         val left = (cx - rx * FEATHER_OUTER).toInt().coerceIn(0, sharp.width)
         val right = (cx + rx * FEATHER_OUTER).toInt().coerceIn(0, sharp.width)
         val top = (cy - ry * FEATHER_OUTER).toInt().coerceIn(0, sharp.height)
@@ -110,12 +124,20 @@ internal object PortraitFaceGuard {
                 val d = sqrt(dx * dx + dy * dy)
                 if (d >= FEATHER_OUTER) continue
                 val i = y * width + x
-                if (d <= FEATHER_INNER) {
+                val ovalWeight = smoothFalloff(d, FEATHER_INNER, FEATHER_OUTER)
+                val px = left + x + 0.5f
+                val py = top + y + 0.5f
+                val cdx = (px - face.centerX()) / coreRx
+                val cdy = (py - face.centerY()) / coreRy
+                val coreWeight = smoothFalloff(sqrt(cdx * cdx + cdy * cdy), CORE_INNER, CORE_OUTER)
+                val subjectWeight = if (coreWeight >= 1f) 1f else
+                    max(coreWeight, subjectMask.sample(px / sharp.width, py / sharp.height))
+                val w = ovalWeight * subjectWeight
+                if (w <= 0f) continue
+                if (w >= 1f) {
                     b[i] = a[i]
                     continue
                 }
-                val t = (FEATHER_OUTER - d) / (FEATHER_OUTER - FEATHER_INNER)
-                val w = t * t * (3f - 2f * t)
                 val pa = a[i]
                 val pb = b[i]
                 val r = (((pa shr 16) and 0xFF) * w + ((pb shr 16) and 0xFF) * (1f - w)).roundToInt()
@@ -125,5 +147,13 @@ internal object PortraitFaceGuard {
             }
         }
         blurred.setPixels(b, 0, width, left, top, width, height)
+    }
+
+    /** 1 jusqu'à [inner], 0 à partir de [outer], transition smoothstep entre les deux. */
+    private fun smoothFalloff(distance: Float, inner: Float, outer: Float): Float {
+        if (distance <= inner) return 1f
+        if (distance >= outer) return 0f
+        val t = (outer - distance) / (outer - inner)
+        return t * t * (3f - 2f * t)
     }
 }

@@ -143,7 +143,7 @@ class DepthBokehProcessor(context: Context) {
                 val target = if (blurred.isMutable) blurred else blurred.copy(Bitmap.Config.ARGB_8888, true)?.also {
                     blurred.recycle()
                 } ?: return@let blurred
-                PortraitFaceGuard.restoreFaces(appContext, originalImage, target)
+                PortraitFaceGuard.restoreFaces(appContext, originalImage, target, subjectMask)
                 target
             }
         }
