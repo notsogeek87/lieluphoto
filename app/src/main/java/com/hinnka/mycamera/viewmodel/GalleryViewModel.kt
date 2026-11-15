@@ -789,6 +789,9 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             PLog.e(TAG, "Cannot import system photo ${systemPhoto.id} for persistent edit")
             return null
         }
+        // Un bokeh en cours écrit encore sous l'identifiant système : on l'attend avant le transfert.
+        bokehJob?.join()
+        GalleryManager.moveComputationalBokehFiles(context, systemPhoto.id, importedId)
         // Même enchaînement que saveEditMetadata, sur le thread principal (état de la galerie).
         return withContext(Dispatchers.Main) {
             loadPhotos(reset = true)
@@ -3891,7 +3894,9 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                             editLutId.value
                         )
                         if (importedId != null) {
-                            // Bokeh et profondeur calculés pendant l'édition, sous l'identifiant système.
+                            // Bokeh et profondeur calculés pendant l'édition, sous l'identifiant système :
+                            // un calcul en cours est attendu pour ne pas écrire après le transfert.
+                            bokehJob?.join()
                             GalleryManager.moveComputationalBokehFiles(context, photo.id, importedId)
                             photo.metadata = GalleryManager.loadMetadata(context, importedId)
                             currentMediaMetadata = photo.metadata
