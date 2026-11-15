@@ -11,6 +11,7 @@ import com.hinnka.mycamera.camera.AspectRatio
 import com.hinnka.mycamera.camera.RawBlackBorderCrop
 import com.hinnka.mycamera.lut.BaselineColorCorrectionTarget
 import com.hinnka.mycamera.model.ColorRecipeParams
+import com.hinnka.mycamera.processor.BokehStyle
 import com.hinnka.mycamera.hdr.HdrGainmapStrength
 import com.hinnka.mycamera.utils.PLog
 import com.hinnka.mycamera.raw.RawMetadata
@@ -122,7 +123,7 @@ data class MediaMetadata(
     val exportedUris: List<String> = emptyList(),
     // 计算摄影光圈与焦点
     val computationalAperture: Float? = null,
-    val computationalBokehStyle: String = "DEFAULT",
+    val computationalBokehStyle: String = BokehStyle.INITIAL.persistedName,
     val focusPointX: Float? = null,
     val focusPointY: Float? = null,
     val postCropRegion: Rect? = null,

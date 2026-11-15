@@ -491,7 +491,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
     // Computational Bokeh editing state
     var editComputationalAperture = MutableStateFlow<Float?>(null)
         private set
-    var editBokehStyle = MutableStateFlow(BokehStyle.DEFAULT)
+    var editBokehStyle = MutableStateFlow(BokehStyle.INITIAL)
         private set
     var editFocusPointX = MutableStateFlow<Float?>(null)
         private set
@@ -2358,9 +2358,12 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                 editRawCfaCorrectionMode.value = metadata.rawCfaCorrectionMode ?: RawCfaCorrection.MODE_DEFAULT
                 editRawDROMode.value = RawProcessingPreferences.DROMode.fromPersistedName(metadata.droMode).name
                 editComputationalAperture.value = metadata.computationalAperture
-                editBokehStyle.value = BokehStyle.fromPersistedName(
-                    metadata.computationalBokehStyle
-                )
+                // Sans bokeh actif, le style enregistré n'a jamais servi : on part du style par défaut.
+                editBokehStyle.value = if (metadata.computationalAperture == null) {
+                    BokehStyle.INITIAL
+                } else {
+                    BokehStyle.fromPersistedName(metadata.computationalBokehStyle)
+                }
                 editFocusPointX.value = metadata.focusPointX
                 editFocusPointY.value = metadata.focusPointY
             }
@@ -2405,7 +2408,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                 editStraightenDegrees.value = 0f
                 editMirrorHorizontal.value = false
                 editComputationalAperture.value = null
-                editBokehStyle.value = BokehStyle.DEFAULT
+                editBokehStyle.value = BokehStyle.INITIAL
                 editFocusPointX.value = null
                 editFocusPointY.value = null
                 restoreCropEditState(targetPhoto, null)
