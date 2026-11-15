@@ -2125,6 +2125,28 @@ object GalleryManager {
         return bokeh
     }
 
+    /**
+     * Transfère le bokeh et la carte de profondeur calculés sur une photo vers une autre fiche
+     * (photo système importée à la validation de l'édition), puis retire le dossier source vide.
+     */
+    suspend fun moveComputationalBokehFiles(context: Context, fromPhotoId: String, toPhotoId: String) =
+        withContext(Dispatchers.IO) {
+            val sourceDir = getPhotoDir(context, fromPhotoId)
+            if (!sourceDir.isDirectory) return@withContext
+            val targetDir = getPhotoDir(context, toPhotoId, true)
+            listOf(BOKEH_FILE, getFloatDepthFile(context, fromPhotoId).name, getDepthFile(context, fromPhotoId).name)
+                .forEach { name ->
+                    val source = File(sourceDir, name)
+                    if (!source.exists()) return@forEach
+                    val target = File(targetDir, name)
+                    target.delete()
+                    if (!source.renameTo(target)) {
+                        PLog.e(TAG, "Failed to move $name from $fromPhotoId to $toPhotoId")
+                    }
+                }
+            if (sourceDir.list().isNullOrEmpty()) sourceDir.delete()
+        }
+
     suspend fun generateBokehPhoto(context: Context, photoId: String, metadata: MediaMetadata, bitmap: Bitmap) {
         val bokeh = renderAndSaveBokehPhoto(context, photoId, metadata, bitmap)
         if (bokeh !== bitmap && !bokeh.isRecycled) {

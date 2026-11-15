@@ -597,7 +597,9 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             try {
                 run {
                     val context = getApplication<Application>()
-                    val photoData = getCurrentPhoto() ?: return@run
+                    // Même photo que l'aperçu de l'éditeur : la copie importée d'une photo système
+                    // si elle existe, sinon la photo elle-même.
+                    val photoData = getCurrentPhoto()?.let { it.relatedPhoto ?: it } ?: return@run
                     if (aperture == null || aperture <= 0) {
                         GalleryManager.getBokehFile(context, photoData.id).takeIf { it.exists() }?.delete()
                         GalleryManager.deleteDetailHdrFile(context, photoData.id)
@@ -3886,6 +3888,8 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                             editLutId.value
                         )
                         if (importedId != null) {
+                            // Bokeh et profondeur calculés pendant l'édition, sous l'identifiant système.
+                            GalleryManager.moveComputationalBokehFiles(context, photo.id, importedId)
                             photo.metadata = GalleryManager.loadMetadata(context, importedId)
                             currentMediaMetadata = photo.metadata
                         }
